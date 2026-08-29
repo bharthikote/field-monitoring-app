@@ -31,7 +31,6 @@
       <th>Contact</th>
       <th class="sortable" data-sort="role">Role<span class="sort-arrow" id="arrow-role"></span></th>
       <th class="sortable" data-sort="status">Status<span class="sort-arrow" id="arrow-status"></span></th>
-      <th>Current Location</th>
       <th>Action</th>
     </tr>
   </thead>
@@ -168,7 +167,6 @@ function render() {
       <td>${escapeHtml(contact)}</td>
       <td>${roleCell}</td>
       <td>${statusCell}</td>
-      <td>${escapeHtml(locationSummary(user))}</td>
       <td><a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a></td>
     `;
     rows.appendChild(tr);
