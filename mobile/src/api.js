@@ -38,3 +38,26 @@ export const searchDemoPlots = (token, query) =>
 
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
+
+export const listIssueTypes = (token) => request('/master/issue-types', { token });
+export const listGoodThings = (token) => request('/master/good-things-observed', { token });
+export const listDiseases = (token) => request('/master/diseases', { token });
+export const listPests = (token) => request('/master/pests', { token });
+
+export const listVisits = (token, demoPlotId) =>
+  request(`/visits?demo_plot_id=${demoPlotId}`, { token });
+
+// Visits carry photos, so this posts multipart/form-data directly rather
+// than going through the JSON-only `request` helper above.
+export async function createVisit(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/visits`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}

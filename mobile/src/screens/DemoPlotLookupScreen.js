@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { searchDemoPlots, listDemoPlots } from '../api';
 
 const PHONE_LIKE = /^\d{6,}$/;
@@ -11,7 +11,7 @@ const STATUS_COLORS = {
   terminated: { bg: '#fee2e2', text: '#991b1b' },
 };
 
-export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew }) {
+export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew, onSelectPlot }) {
   const [query, setQuery] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
   const [searchedQuery, setSearchedQuery] = useState(''); // '' means "browsing all"
@@ -63,13 +63,6 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   }, [initialPhone]);
 
-  const showDetail = (plot) => {
-    Alert.alert(
-      plot.farmer_name,
-      `Phone: ${plot.farmer_phone}\nCrop: ${plot.crop_name}\nVariety: ${plot.variety_name}\nVillage: ${plot.village_name}\nStatus: ${STATUS_LABELS[plot.demo_status]}`,
-    );
-  };
-
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -114,7 +107,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
               </Text>
             ) : (
               results.map((plot) => (
-                <Pressable key={plot.id} style={styles.card} onPress={() => showDetail(plot)}>
+                <Pressable key={plot.id} style={styles.card} onPress={() => onSelectPlot(plot)}>
                   <View style={styles.cardHeader}>
                     <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[plot.demo_status].bg }]}>

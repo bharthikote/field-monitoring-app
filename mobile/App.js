@@ -6,6 +6,8 @@ import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
+import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
+import LogVisitScreen from './src/screens/LogVisitScreen';
 import { loadSession } from './src/session';
 
 export default function App() {
@@ -14,6 +16,7 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [createPhone, setCreatePhone] = useState('');
   const [lookupPhone, setLookupPhone] = useState('');
+  const [selectedPlot, setSelectedPlot] = useState(null);
 
   useEffect(() => {
     loadSession().then((session) => {
@@ -67,6 +70,10 @@ export default function App() {
             setCreatePhone(phone);
             setScreen('create');
           }}
+          onSelectPlot={(plot) => {
+            setSelectedPlot(plot);
+            setScreen('plot-detail');
+          }}
         />
       )}
       {screen === 'create' && (
@@ -78,6 +85,25 @@ export default function App() {
             setLookupPhone(phone);
             setScreen('lookup');
           }}
+        />
+      )}
+      {screen === 'plot-detail' && selectedPlot && (
+        <DemoPlotDetailScreen
+          token={token}
+          plot={selectedPlot}
+          onBack={() => setScreen('lookup')}
+          onLogVisit={(plot) => {
+            setSelectedPlot(plot);
+            setScreen('log-visit');
+          }}
+        />
+      )}
+      {screen === 'log-visit' && selectedPlot && (
+        <LogVisitScreen
+          token={token}
+          plot={selectedPlot}
+          onBack={() => setScreen('plot-detail')}
+          onSubmitted={() => setScreen('plot-detail')}
         />
       )}
       <StatusBar style="auto" />
