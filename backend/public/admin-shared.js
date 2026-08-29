@@ -88,6 +88,71 @@ function renderNav(user) {
   });
 }
 
+// Upgrades a plain <select> into a custom-styled dropdown, in place. The
+// original <select> stays in the DOM (hidden) so every bit of code that
+// already reads its .value or listens for its 'change' event keeps working
+// unmodified - clicking a custom option just sets the real select's value
+// and dispatches a real 'change' event on it.
+function enhanceSelect(select) {
+  if (select.dataset.enhanced || select.disabled) return;
+  select.dataset.enhanced = 'true';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'custom-select';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'custom-select-btn';
+
+  const menu = document.createElement('div');
+  menu.className = 'custom-select-menu';
+
+  function syncFromSelect() {
+    const selected = select.options[select.selectedIndex];
+    btn.textContent = selected ? selected.textContent : '';
+    menu.querySelectorAll('.custom-select-option').forEach((opt) => {
+      opt.classList.toggle('selected', opt.dataset.value === select.value);
+    });
+  }
+
+  [...select.options].forEach((opt) => {
+    const item = document.createElement('div');
+    item.className = 'custom-select-option';
+    item.textContent = opt.textContent;
+    item.dataset.value = opt.value;
+    item.addEventListener('click', () => {
+      select.value = opt.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      syncFromSelect();
+      wrapper.classList.remove('open');
+    });
+    menu.appendChild(item);
+  });
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.custom-select.open').forEach((el) => {
+      if (el !== wrapper) el.classList.remove('open');
+    });
+    wrapper.classList.toggle('open');
+  });
+
+  select.parentNode.insertBefore(wrapper, select);
+  select.style.display = 'none';
+  wrapper.appendChild(btn);
+  wrapper.appendChild(menu);
+  wrapper.appendChild(select);
+  syncFromSelect();
+}
+
+function enhanceAllSelects(container) {
+  (container || document).querySelectorAll('select').forEach(enhanceSelect);
+}
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.custom-select.open').forEach((el) => el.classList.remove('open'));
+});
+
 // Call at the top of every admin page. Redirects to login if not authenticated.
 // Returns the current user object, or null if a redirect happened.
 async function initAdminPage() {

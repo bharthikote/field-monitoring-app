@@ -176,3 +176,64 @@ button.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 4px; }
 .add-child button { background: var(--accent-soft); color: var(--accent-hover); border: 1px solid transparent; font-size: 0.8rem; }
 .add-child button:hover { background: #d7ecdb; }
 .top-add { display: flex; gap: 8px; margin-bottom: 20px; }
+
+/* Custom-styled dropdown, replaces plain <select> wherever it appears */
+.custom-select { position: relative; display: inline-block; min-width: 168px; vertical-align: middle; }
+.custom-select-btn {
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 30px 8px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  position: relative;
+  margin: 0;
+  transition: border-color 0.15s;
+}
+.custom-select-btn:hover { border-color: var(--text-muted); }
+.custom-select-btn::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 45%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: translateY(-50%) rotate(45deg);
+  pointer-events: none;
+  transition: transform 0.15s;
+}
+.custom-select.open .custom-select-btn { border-color: var(--accent); }
+.custom-select.open .custom-select-btn::after { transform: translateY(-20%) rotate(-135deg); }
+.custom-select-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  z-index: 30;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.custom-select.open .custom-select-menu { display: block; }
+.custom-select-option {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-select-option:hover { background: var(--bg); }
+.custom-select-option.selected { background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }

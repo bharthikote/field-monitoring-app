@@ -171,6 +171,7 @@ function render() {
     `;
     rows.appendChild(tr);
   }
+  enhanceAllSelects(rows);
 }
 
 document.getElementById('search-input').addEventListener('input', (e) => {

@@ -78,6 +78,7 @@ async function loadPending() {
       `;
       rows.appendChild(tr);
     }
+    enhanceAllSelects(rows);
   } catch (err) {
     if (err.message.includes('expired')) return;
     statusEl.textContent = 'Failed to load pending users: ' + err.message;
