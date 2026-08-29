@@ -294,15 +294,21 @@ function renderStatusActions() {
 }
 
 function renderEditFields() {
+  // A role outside ASSIGNABLE_ROLES (e.g. Super Admin) has no matching
+  // <option>, so the browser would silently default the select to its
+  // first option - showing the wrong role. Show it as plain read-only
+  // text instead of a dropdown that can't actually represent it.
+  const roleField = ASSIGNABLE_ROLES.includes(profile.role)
+    ? `<select id="edit-role">
+        ${ASSIGNABLE_ROLES.map((v) => `<option value="${v}" ${v === profile.role ? 'selected' : ''}>${ROLE_LABELS[v]}</option>`).join('')}
+      </select>`
+    : `<span class="role-badge">${escapeHtml(ROLE_LABELS[profile.role] || profile.role)}</span>`;
+
   document.getElementById('edit-fields').innerHTML = `
     <div class="field-row"><div class="field-label">Name</div><input type="text" id="edit-name" value="${escapeHtml(profile.name)}" /></div>
     <div class="field-row"><div class="field-label">Mobile Number</div><input type="text" id="edit-mobile" value="${escapeHtml(profile.mobile_number || '')}" /></div>
     <div class="field-row"><div class="field-label">Email</div><input type="text" id="edit-email" value="${escapeHtml(profile.email || '')}" /></div>
-    <div class="field-row"><div class="field-label">Role</div>
-      <select id="edit-role" ${!ASSIGNABLE_ROLES.includes(profile.role) ? 'disabled' : ''}>
-        ${ASSIGNABLE_ROLES.map((v) => `<option value="${v}" ${v === profile.role ? 'selected' : ''}>${ROLE_LABELS[v]}</option>`).join('')}
-      </select>
-    </div>
+    <div class="field-row"><div class="field-label">Role</div>${roleField}</div>
   `;
   enhanceAllSelects(document.getElementById('edit-fields'));
 }
@@ -341,7 +347,7 @@ document.getElementById('save-edit-btn').addEventListener('click', async () => {
   const mobileNumber = document.getElementById('edit-mobile').value.trim();
   const email = document.getElementById('edit-email').value.trim();
   const roleSelect = document.getElementById('edit-role');
-  const role = roleSelect.disabled ? undefined : roleSelect.value;
+  const role = roleSelect ? roleSelect.value : undefined;
 
   if (!name) {
     errorEl.textContent = 'Name is required.';
