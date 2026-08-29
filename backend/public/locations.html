@@ -19,6 +19,21 @@
 </div>
 <p id="tree-error" class="error" style="display:none"></p>
 <div id="tree"></div>
+
+<div id="bulk-upload-section" class="bulk-upload-section" style="display:none">
+  <h2 style="margin-top:0">Bulk Upload Villages</h2>
+  <p class="scope-note" style="margin-top:0">
+    Adds District, Block, and Village in bulk from an Excel file - the Country and State must already exist above.
+    Download the template, fill it in, and upload it here. Rows that already exist or have a problem are skipped and listed below, not rejected outright.
+  </p>
+  <div class="inline-form">
+    <button id="download-template-btn" class="edit-btn small">Download Template</button>
+    <input type="file" id="bulk-file-input" accept=".xlsx" />
+    <button id="bulk-upload-btn" class="primary small">Upload</button>
+  </div>
+  <p id="bulk-upload-error" class="error" style="display:none"></p>
+  <div id="bulk-upload-report"></div>
+</div>
 </div>
 </div>
 
@@ -272,6 +287,72 @@ document.getElementById('top-add-btn').addEventListener('click', async () => {
   }
 });
 
+function renderBulkUploadReport(data) {
+  const el = document.getElementById('bulk-upload-report');
+  const skippedRows = data.results.filter((r) => r.status === 'skipped');
+
+  let html = `<p class="scope-note" style="margin-top:14px">
+    <span class="upload-status created">${data.created} created</span>
+    ${data.skipped ? `<span class="upload-status skipped" style="margin-left:6px">${data.skipped} skipped</span>` : ''}
+  </p>`;
+
+  if (skippedRows.length) {
+    html += `
+      <table>
+        <thead><tr><th>Row</th><th>Reason</th></tr></thead>
+        <tbody>
+          ${skippedRows.map((r) => `<tr><td>${r.row}</td><td>${escapeHtml(r.reason)}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  el.innerHTML = html;
+}
+
+document.getElementById('download-template-btn').addEventListener('click', async () => {
+  try {
+    await downloadAuthedFile('/locations/villages/bulk-template', 'village-upload-template.xlsx');
+  } catch (err) {
+    document.getElementById('bulk-upload-error').textContent = 'Download failed: ' + err.message;
+    document.getElementById('bulk-upload-error').style.display = 'block';
+  }
+});
+
+document.getElementById('bulk-upload-btn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('bulk-file-input');
+  const errorEl = document.getElementById('bulk-upload-error');
+  errorEl.style.display = 'none';
+  document.getElementById('bulk-upload-report').innerHTML = '';
+
+  if (!fileInput.files.length) {
+    errorEl.textContent = 'Choose a .xlsx file first.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  const btn = document.getElementById('bulk-upload-btn');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch('/locations/villages/bulk-upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    fileInput.value = '';
+    cache.clear();
+    clearTreeError();
+    renderBulkUploadReport(data);
+    render();
+  } catch (err) {
+    errorEl.textContent = 'Upload failed: ' + err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
@@ -282,6 +363,7 @@ async function init() {
   } else {
     scopeNote.textContent = 'As Super Admin, you can manage the full hierarchy across all countries.';
     document.getElementById('top-add').style.display = 'flex';
+    document.getElementById('bulk-upload-section').style.display = 'block';
   }
 
   render();

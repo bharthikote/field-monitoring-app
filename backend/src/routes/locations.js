@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import multer from 'multer';
+import ExcelJS from 'exceljs';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -12,6 +14,19 @@ import {
 
 export const locationsRouter = Router();
 locationsRouter.param('id', validateUuidParam);
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+// multer's own errors (e.g. file too large) call next(err) rather than
+// responding - wrap it so a bad upload still gets a JSON error instead of
+// falling through to Express's default HTML error page.
+function handleFileUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File is too large (max 5MB)' });
+    res.status(400).json({ error: err.message });
+  });
+}
 
 // --- Read endpoints: any logged-in, approved user can browse the hierarchy
 // (every field role needs this to pick a Village, not just Admin/Super Admin) ---
@@ -212,3 +227,129 @@ for (const [path, config] of Object.entries(RENAME_TABLES)) {
     }
   });
 }
+
+// --- Bulk upload (District/Block/Village), Super Admin only per PRD Section 7 ---
+
+const BULK_TEMPLATE_HEADERS = ['Country', 'State', 'District', 'Block', 'Village'];
+const BULK_MAX_ROWS = 5000;
+
+locationsRouter.get('/locations/villages/bulk-template', requireAdmin, requireSuperAdmin, async (_req, res) => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Villages');
+  sheet.columns = BULK_TEMPLATE_HEADERS.map((header) => ({ header, key: header, width: 22 }));
+  sheet.getRow(1).font = { bold: true };
+  sheet.addRow(['India', 'Karnataka', 'Mysuru', 'Example Block', 'Example Village']);
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename="village-upload-template.xlsx"');
+  await workbook.xlsx.write(res);
+  res.end();
+});
+
+// One row = one Village at its full Country > State > District > Block path.
+// Country and State must already exist (managed manually, per PRD - bulk
+// upload only applies to District/Block/Village); District and Block are
+// created along the way if they don't exist yet at that path. Only an exact
+// duplicate Village is skipped - everything else either succeeds or is
+// skipped with a reason, never rejecting the whole file.
+locationsRouter.post(
+  '/locations/villages/bulk-upload',
+  requireAdmin,
+  requireSuperAdmin,
+  handleFileUpload,
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(req.file.buffer);
+    } catch {
+      return res.status(400).json({ error: 'Could not read that file - make sure it is a valid .xlsx file' });
+    }
+
+    const sheet = workbook.worksheets[0];
+    if (!sheet) return res.status(400).json({ error: 'The uploaded file has no sheets' });
+    if (sheet.rowCount - 1 > BULK_MAX_ROWS) {
+      return res.status(400).json({ error: `Too many rows - please split into files of ${BULK_MAX_ROWS} or fewer` });
+    }
+
+    const results = [];
+    let created = 0;
+    let skipped = 0;
+
+    const cell = (row, col) => String(row.getCell(col).value ?? '').trim();
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      const countryName = cell(row, 1);
+      const stateName = cell(row, 2);
+      const districtName = cell(row, 3);
+      const blockName = cell(row, 4);
+      const villageName = cell(row, 5);
+
+      if (!countryName && !stateName && !districtName && !blockName && !villageName) continue;
+
+      if (!countryName || !stateName || !districtName || !blockName || !villageName) {
+        results.push({ row: rowNumber, status: 'skipped', reason: 'Country, State, District, Block, and Village are all required' });
+        skipped++;
+        continue;
+      }
+
+      try {
+        const countryResult = await pool.query('select id from countries where lower(name) = lower($1)', [countryName]);
+        if (countryResult.rowCount === 0) {
+          results.push({ row: rowNumber, status: 'skipped', reason: `Country "${countryName}" does not exist` });
+          skipped++;
+          continue;
+        }
+        const countryId = countryResult.rows[0].id;
+
+        const stateResult = await pool.query(
+          'select id from states where country_id = $1 and lower(name) = lower($2)',
+          [countryId, stateName],
+        );
+        if (stateResult.rowCount === 0) {
+          results.push({ row: rowNumber, status: 'skipped', reason: `State "${stateName}" does not exist under "${countryName}"` });
+          skipped++;
+          continue;
+        }
+        const stateId = stateResult.rows[0].id;
+
+        let districtResult = await pool.query(
+          'select id from districts where state_id = $1 and lower(name) = lower($2)',
+          [stateId, districtName],
+        );
+        const districtId = districtResult.rowCount > 0
+          ? districtResult.rows[0].id
+          : (await pool.query('insert into districts (state_id, name) values ($1, $2) returning id', [stateId, districtName])).rows[0].id;
+
+        let blockResult = await pool.query(
+          'select id from blocks where district_id = $1 and lower(name) = lower($2)',
+          [districtId, blockName],
+        );
+        const blockId = blockResult.rowCount > 0
+          ? blockResult.rows[0].id
+          : (await pool.query('insert into blocks (district_id, name) values ($1, $2) returning id', [districtId, blockName])).rows[0].id;
+
+        const villageResult = await pool.query(
+          'select id from villages where block_id = $1 and lower(name) = lower($2)',
+          [blockId, villageName],
+        );
+        if (villageResult.rowCount > 0) {
+          results.push({ row: rowNumber, status: 'skipped', reason: 'Village already exists at this location' });
+          skipped++;
+          continue;
+        }
+
+        await pool.query('insert into villages (block_id, name) values ($1, $2)', [blockId, villageName]);
+        results.push({ row: rowNumber, status: 'created', reason: null });
+        created++;
+      } catch (err) {
+        results.push({ row: rowNumber, status: 'skipped', reason: err.message });
+        skipped++;
+      }
+    }
+
+    res.json({ created, skipped, results });
+  },
+);

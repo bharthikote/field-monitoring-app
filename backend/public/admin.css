@@ -194,6 +194,12 @@ button.small, .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 
 .country-checklist label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: pointer; }
 .country-checklist-actions { padding: 0 0 10px 33px; display: flex; gap: 8px; }
 
+/* Bulk upload report */
+.upload-status { padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; white-space: nowrap; }
+.upload-status.created { background: var(--accent-soft); color: var(--accent-hover); }
+.upload-status.skipped { background: #fef3c7; color: #92400e; }
+.bulk-upload-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border); }
+
 /* Reports */
 .status-badge { padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; white-space: nowrap; }
 .status-ongoing { background: #fef3c7; color: #92400e; }

@@ -36,16 +36,36 @@ function escapeHtml(str) {
 }
 
 async function authedFetch(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}), Authorization: `Bearer ${getToken()}` },
-  });
+  // A FormData body (file upload) needs the browser to set its own
+  // multipart Content-Type with the correct boundary - forcing JSON here
+  // would break it.
+  const isFormData = options.body instanceof FormData;
+  const headers = { Authorization: `Bearer ${getToken()}`, ...(options.headers || {}) };
+  if (!isFormData) headers['Content-Type'] = 'application/json';
+
+  const res = await fetch(path, { ...options, headers });
   if (res.status === 401) {
     clearToken();
     window.location.href = '/login.html';
     throw new Error('Session expired, redirecting to login');
   }
   return res;
+}
+
+// Downloads a file from an authenticated endpoint. A plain <a href> can't
+// carry the Bearer token, so this fetches the file as a blob first.
+async function downloadAuthedFile(path, filename) {
+  const res = await authedFetch(path);
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function renderNav(user) {
