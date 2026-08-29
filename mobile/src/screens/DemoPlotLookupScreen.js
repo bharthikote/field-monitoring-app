@@ -122,8 +122,10 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
                     </View>
                   </View>
                   <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
-                  <Text style={styles.cardLine}>{plot.crop_name} — {plot.variety_name}</Text>
-                  <Text style={styles.cardLine}>{plot.village_name}</Text>
+                  <View style={styles.cardRow}>
+                    <Text style={styles.cardCrop}>{plot.crop_name} — {plot.variety_name}</Text>
+                    <Text style={styles.cardVillage}>{plot.village_name}</Text>
+                  </View>
                 </Pressable>
               ))
             )}
@@ -165,6 +167,9 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitle: { fontWeight: '700', fontSize: 16, flex: 1, marginRight: 8 },
   cardLine: { color: '#555', marginTop: 2 },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+  cardCrop: { color: '#555' },
+  cardVillage: { color: '#555', fontSize: 14 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   fab: {
