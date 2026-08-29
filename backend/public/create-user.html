@@ -8,6 +8,15 @@
   #create-form label { display: block; font-size: 13px; color: var(--text-muted); margin: 14px 0 6px; }
   #create-form input, #create-form select { width: 100%; max-width: 380px; }
   #create-submit { margin-top: 22px; }
+  .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 28px 0 8px; }
+  .loc-tree-level { list-style: none; padding-left: 0; margin: 2px 0; }
+  .loc-tree-level .loc-tree-level { padding-left: 24px; border-left: 1px solid var(--border); margin-left: 9px; }
+  .loc-tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--radius-sm); }
+  .loc-tree-row:hover { background: var(--bg); }
+  .loc-toggle { background: none; border: none; font-size: 0.8rem; width: 18px; padding: 0; margin: 0; cursor: pointer; color: var(--text-muted); }
+  .loc-toggle-spacer { display: inline-block; width: 18px; }
+  .loc-tree-name { font-size: 0.88rem; }
+  .loc-tree-name.inherited { color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -16,12 +25,13 @@
 
 <div class="page">
 <div class="panel">
-<p><a href="/admin/manage-users">← Back to All Users</a></p>
+<p><a href="/admin/manage-users" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to All Users</a></p>
 <h1>Create User</h1>
+
+<div id="create-section">
 <p class="scope-note" style="margin-top:0">
   Direct creation, per the PRD - no self-registration or verification step. Set a password here and share
-  it with them directly; creating the account yourself is the trust signal. Roles that need a location
-  (everyone except Leadership and Super Admin) still land as Pending until you assign one from their profile.
+  it with them directly; creating the account yourself is the trust signal.
 </p>
 
 <form id="create-form">
@@ -38,10 +48,25 @@
   <select id="create-role"></select>
 
   <p id="create-error" class="error" style="display:none"></p>
-  <p id="create-success" class="scope-note" style="display:none"></p>
 
   <button id="create-submit" class="primary" type="submit">Create User</button>
 </form>
+</div>
+
+<div id="location-section" style="display:none">
+  <p class="scope-note" style="margin-top:0" id="location-intro"></p>
+  <div class="section-title">Locations</div>
+  <p class="scope-note" style="margin-top:0">Tick anything to assign it - villages, blocks, districts, whatever mix you need. Ticking a higher level (e.g. a state) covers everything under it.</p>
+  <p class="error" id="location-error" style="display:none"></p>
+  <div id="location-tree"></div>
+
+  <div class="btn-row" style="display:flex; gap:8px; margin-top:20px; align-items:center;">
+    <button id="approve-now-btn" class="primary" disabled>Approve Now</button>
+    <a href="#" id="finish-later-link" style="color:var(--text-muted); font-size:0.85rem;">I'll assign a location later</a>
+  </div>
+  <p id="location-done" class="scope-note" style="display:none; color: var(--accent-hover);"></p>
+</div>
+
 </div>
 </div>
 
@@ -57,6 +82,10 @@ const ROLE_LABELS = {
   super_admin: 'Super Admin',
 };
 const ALL_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin', 'leadership', 'super_admin'];
+const EXEMPT_FROM_LOCATION = ['leadership', 'super_admin'];
+
+let currentUser = null;
+let createdUser = null;
 
 function populateRoles() {
   const select = document.getElementById('create-role');
@@ -67,9 +96,7 @@ function populateRoles() {
 document.getElementById('create-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errorEl = document.getElementById('create-error');
-  const successEl = document.getElementById('create-success');
   errorEl.style.display = 'none';
-  successEl.style.display = 'none';
 
   const name = document.getElementById('create-name').value.trim();
   const identifier = document.getElementById('create-identifier').value.trim();
@@ -92,13 +119,22 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to create user');
 
-    const needsLocation = !['leadership', 'super_admin'].includes(data.user.role);
-    successEl.innerHTML = needsLocation
-      ? `Created as <strong>${escapeHtml(data.user.user_code)}</strong>, status Pending - <a href="/admin/user-profile/${data.user.id}">open their profile</a> to assign a location and approve them.`
-      : `Created as <strong>${escapeHtml(data.user.user_code)}</strong> and approved immediately. Share their login details directly.`;
-    successEl.style.display = 'block';
-    document.getElementById('create-form').reset();
-    populateRoles();
+    createdUser = data.user;
+    document.getElementById('create-section').style.display = 'none';
+
+    if (EXEMPT_FROM_LOCATION.includes(createdUser.role)) {
+      document.getElementById('location-section').style.display = 'block';
+      document.getElementById('location-intro').innerHTML =
+        `Created as <strong>${escapeHtml(createdUser.user_code)}</strong> and approved immediately - ${ROLE_LABELS[createdUser.role]} doesn't need a location. Share their login details directly.`;
+      document.getElementById('approve-now-btn').style.display = 'none';
+      document.getElementById('finish-later-link').style.display = 'none';
+    } else {
+      document.getElementById('location-section').style.display = 'block';
+      document.getElementById('location-intro').innerHTML =
+        `Created as <strong>${escapeHtml(createdUser.user_code)}</strong>, status Pending. Assign at least one location below, then approve them.`;
+      await loadLocationAssignments();
+      await renderTree();
+    }
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
@@ -107,10 +143,179 @@ document.getElementById('create-form').addEventListener('submit', async (e) => {
   }
 });
 
+// --- Location tree - same include/exclude model as the profile page ---
+
+const LEVELS = [
+  { key: 'country', label: 'Country', list: () => '/locations/countries', dataKey: 'countries' },
+  { key: 'state', label: 'State', list: (parentId) => `/locations/states?country_id=${parentId}`, dataKey: 'states' },
+  { key: 'district', label: 'District', list: (parentId) => `/locations/districts?state_id=${parentId}`, dataKey: 'districts' },
+  { key: 'block', label: 'Block', list: (parentId) => `/locations/blocks?district_id=${parentId}`, dataKey: 'blocks' },
+  { key: 'village', label: 'Village', list: (parentId) => `/locations/villages?block_id=${parentId}`, dataKey: 'villages' },
+];
+const treeExpanded = { country: new Set(), state: new Set(), district: new Set(), block: new Set() };
+const treeCache = new Map();
+let includedKeys = new Set();
+let excludedKeys = new Set();
+let assignmentIdByKey = new Map();
+
+async function loadLocationAssignments() {
+  const res = await authedFetch(`/admin/users/${createdUser.id}/locations`);
+  const data = await res.json();
+  includedKeys = new Set(data.assignments.filter((a) => a.mode === 'include').map((a) => `${a.level}:${a.locationId}`));
+  excludedKeys = new Set(data.assignments.filter((a) => a.mode === 'exclude').map((a) => `${a.level}:${a.locationId}`));
+  assignmentIdByKey = new Map(data.assignments.map((a) => [`${a.level}:${a.locationId}`, a.id]));
+}
+
+async function fetchTreeItems(level, parentId) {
+  const cacheKey = `${level.key}:${parentId}`;
+  if (treeCache.has(cacheKey)) return treeCache.get(cacheKey);
+  const res = await authedFetch(level.list(parentId));
+  const data = await res.json();
+  treeCache.set(cacheKey, data[level.dataKey]);
+  return data[level.dataKey];
+}
+
+async function buildTreeHtml(levelIndex, parentId, inheritedFromName) {
+  const level = LEVELS[levelIndex];
+  const items = await fetchTreeItems(level, parentId);
+  const hasNext = levelIndex < LEVELS.length - 1;
+
+  let html = '<ul class="loc-tree-level">';
+  for (const item of items) {
+    const key = `${level.key}:${item.id}`;
+    const isIncluded = includedKeys.has(key);
+    const isExcluded = excludedKeys.has(key);
+    const isInherited = !isIncluded && !isExcluded && !!inheritedFromName;
+    const isChecked = isIncluded || isInherited;
+    const isExpanded = hasNext && treeExpanded[level.key].has(item.id);
+
+    let childInherited = null;
+    if (isIncluded) childInherited = item.name;
+    else if (isInherited) childInherited = inheritedFromName;
+
+    html += `<li><div class="loc-tree-row">
+      ${hasNext
+        ? `<button class="loc-toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
+        : '<span class="loc-toggle-spacer"></span>'}
+      <input type="checkbox" class="loc-check" data-level-key="${level.key}" data-id="${item.id}"
+        data-inherited="${isInherited}" ${isChecked ? 'checked' : ''} />
+      <span class="loc-tree-name ${isInherited ? 'inherited' : ''}">${escapeHtml(item.name)}</span>
+    </div>`;
+    if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id, childInherited);
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+async function renderTree() {
+  document.getElementById('location-tree').innerHTML = await buildTreeHtml(0, null, null);
+  document.getElementById('approve-now-btn').disabled = includedKeys.size === 0;
+}
+
+document.getElementById('location-tree').addEventListener('click', async (e) => {
+  const toggle = e.target.closest('.loc-toggle');
+  if (!toggle) return;
+  const levelKey = LEVELS[Number(toggle.dataset.level)].key;
+  const id = toggle.dataset.id;
+  if (treeExpanded[levelKey].has(id)) treeExpanded[levelKey].delete(id);
+  else treeExpanded[levelKey].add(id);
+  await renderTree();
+});
+
+document.getElementById('location-tree').addEventListener('change', async (e) => {
+  const cb = e.target.closest('.loc-check');
+  if (!cb) return;
+  const errorEl = document.getElementById('location-error');
+  errorEl.style.display = 'none';
+  const levelKey = cb.dataset.levelKey;
+  const locationId = cb.dataset.id;
+  const key = `${levelKey}:${locationId}`;
+  const wasInherited = cb.dataset.inherited === 'true';
+  const wasIncluded = includedKeys.has(key);
+  const wasExcluded = excludedKeys.has(key);
+  cb.disabled = true;
+
+  try {
+    if (cb.checked) {
+      if (wasExcluded) {
+        const assignmentId = assignmentIdByKey.get(key);
+        const res = await authedFetch(`/admin/users/${createdUser.id}/locations/${assignmentId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed to remove exclusion');
+        excludedKeys.delete(key);
+        assignmentIdByKey.delete(key);
+      } else {
+        const res = await authedFetch(`/admin/users/${createdUser.id}/locations`, {
+          method: 'POST',
+          body: JSON.stringify({ level: levelKey, locationId, mode: 'include' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to assign');
+        includedKeys.add(key);
+        assignmentIdByKey.set(key, data.assignment.id);
+      }
+    } else if (wasIncluded) {
+      const assignmentId = assignmentIdByKey.get(key);
+      const res = await authedFetch(`/admin/users/${createdUser.id}/locations/${assignmentId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed to remove');
+      includedKeys.delete(key);
+      assignmentIdByKey.delete(key);
+    } else if (wasInherited) {
+      const res = await authedFetch(`/admin/users/${createdUser.id}/locations`, {
+        method: 'POST',
+        body: JSON.stringify({ level: levelKey, locationId, mode: 'exclude' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to exclude');
+      excludedKeys.add(key);
+      assignmentIdByKey.set(key, data.assignment.id);
+    }
+    await renderTree();
+  } catch (err) {
+    cb.checked = !cb.checked;
+    cb.disabled = false;
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('approve-now-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('location-error');
+  errorEl.style.display = 'none';
+  const btn = document.getElementById('approve-now-btn');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/admin/users/${createdUser.id}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'approved' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to approve');
+    document.getElementById('location-tree').style.display = 'none';
+    document.querySelector('#location-section .btn-row').style.display = 'none';
+    document.getElementById('location-done').innerHTML =
+      `Approved. <a href="/admin/user-profile/${createdUser.id}">Open their profile</a>, or <a href="/admin/create-user">create another user</a>.`;
+    document.getElementById('location-done').style.display = 'block';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('finish-later-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('location-tree').style.display = 'none';
+  document.querySelector('#location-section .btn-row').style.display = 'none';
+  document.getElementById('location-done').innerHTML =
+    `Left as Pending - <a href="/admin/user-profile/${createdUser.id}">open their profile</a> any time to assign a location and approve them, or <a href="/admin/create-user">create another user</a>.`;
+  document.getElementById('location-done').style.display = 'block';
+});
+
 async function init() {
-  const user = await initAdminPage();
-  if (!user) return;
-  if (user.role !== 'super_admin') {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+  if (currentUser.role !== 'super_admin') {
     document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can create user accounts directly.</p>';
     return;
   }
