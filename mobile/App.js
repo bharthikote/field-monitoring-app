@@ -13,6 +13,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [createPhone, setCreatePhone] = useState('');
+  const [lookupPhone, setLookupPhone] = useState('');
 
   useEffect(() => {
     loadSession().then((session) => {
@@ -48,11 +49,19 @@ export default function App() {
         />
       )}
       {screen === 'home' && user && (
-        <HomeScreen user={user} onLoggedOut={() => setScreen('login')} onFindDemoPlot={() => setScreen('lookup')} />
+        <HomeScreen
+          user={user}
+          onLoggedOut={() => setScreen('login')}
+          onFindDemoPlot={() => {
+            setLookupPhone('');
+            setScreen('lookup');
+          }}
+        />
       )}
       {screen === 'lookup' && (
         <DemoPlotLookupScreen
           token={token}
+          initialPhone={lookupPhone}
           onBack={() => setScreen('home')}
           onCreateNew={(phone) => {
             setCreatePhone(phone);
@@ -65,7 +74,10 @@ export default function App() {
           token={token}
           initialPhone={createPhone}
           onBack={() => setScreen('lookup')}
-          onCreated={() => setScreen('lookup')}
+          onCreated={(phone) => {
+            setLookupPhone(phone);
+            setScreen('lookup');
+          }}
         />
       )}
       <StatusBar style="auto" />

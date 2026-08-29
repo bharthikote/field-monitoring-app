@@ -1,21 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { lookupDemoPlots } from '../api';
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 
-export default function DemoPlotLookupScreen({ token, onBack, onCreateNew }) {
-  const [phone, setPhone] = useState('');
+export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew }) {
+  const [phone, setPhone] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = async () => {
-    if (!phone.trim()) return;
+  const handleSearch = async (searchPhone = phone) => {
+    if (!searchPhone.trim()) return;
     setLoading(true);
     setError('');
     try {
-      const data = await lookupDemoPlots(token, phone.trim());
+      const data = await lookupDemoPlots(token, searchPhone.trim());
       setResults(data.demoPlots);
     } catch (err) {
       setError(err.message);
@@ -23,6 +23,10 @@ export default function DemoPlotLookupScreen({ token, onBack, onCreateNew }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialPhone) handleSearch(initialPhone);
+  }, [initialPhone]);
 
   const showDetail = (plot) => {
     Alert.alert(
@@ -41,7 +45,7 @@ export default function DemoPlotLookupScreen({ token, onBack, onCreateNew }) {
       <Text style={styles.label}>Farmer Phone Number</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
 
-      <Pressable style={styles.button} onPress={handleSearch} disabled={loading}>
+      <Pressable style={styles.button} onPress={() => handleSearch()} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search</Text>}
       </Pressable>
 

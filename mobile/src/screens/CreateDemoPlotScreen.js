@@ -28,7 +28,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
     setLoading(true);
     try {
       await createDemoPlot(token, { farmerName, phone, cropId, varietyId, villageId, demoStatus: status });
-      Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: onCreated }]);
+      Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: () => onCreated(phone) }]);
     } catch (err) {
       Alert.alert('Failed', err.message);
     } finally {
