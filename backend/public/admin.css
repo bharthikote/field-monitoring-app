@@ -190,6 +190,29 @@ code { background: var(--bg); border: 1px solid var(--border); padding: 2px 7px;
 .inline-form { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
 .scope-note { font-size: 0.85rem; color: var(--text-muted); margin-top: -2px; }
 
+/* Floating action button, e.g. "Create User" on All Users */
+.fab {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  font-size: 1.8rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+}
+.fab:hover { background: var(--accent-hover); transform: scale(1.05); }
+
 /* Location tree */
 .tree-level { list-style: none; padding-left: 0; margin: 4px 0; }
 .tree-level .tree-level { padding-left: 24px; border-left: 1px solid var(--border); margin-left: 9px; }

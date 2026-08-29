@@ -43,6 +43,8 @@
   <button id="save-all-btn" class="primary">Save Changes</button>
 </div>
 </div>
+
+<a href="/admin/create-user" class="fab" id="create-user-fab" title="Create User" style="display:none">+</a>
 </div>
 
 <script src="/admin-shared.js"></script>
@@ -259,6 +261,9 @@ document.getElementById('save-all-btn').addEventListener('click', async () => {
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
+  if (currentUser.role === 'super_admin') {
+    document.getElementById('create-user-fab').style.display = 'flex';
+  }
   await loadUsers();
 }
 

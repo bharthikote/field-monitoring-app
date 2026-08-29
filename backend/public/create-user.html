@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Create User</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  #create-form label { display: block; font-size: 13px; color: var(--text-muted); margin: 14px 0 6px; }
+  #create-form input, #create-form select { width: 100%; max-width: 380px; }
+  #create-submit { margin-top: 22px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page">
+<div class="panel">
+<p><a href="/admin/manage-users">← Back to All Users</a></p>
+<h1>Create User</h1>
+<p class="scope-note" style="margin-top:0">
+  Direct creation, per the PRD - no self-registration or verification step. Set a password here and share
+  it with them directly; creating the account yourself is the trust signal. Roles that need a location
+  (everyone except Leadership and Super Admin) still land as Pending until you assign one from their profile.
+</p>
+
+<form id="create-form">
+  <label>Name</label>
+  <input type="text" id="create-name" required />
+
+  <label>Mobile Number or Email</label>
+  <input type="text" id="create-identifier" required />
+
+  <label>Password</label>
+  <input type="password" id="create-password" autocomplete="new-password" required />
+
+  <label>Role</label>
+  <select id="create-role"></select>
+
+  <p id="create-error" class="error" style="display:none"></p>
+  <p id="create-success" class="scope-note" style="display:none"></p>
+
+  <button id="create-submit" class="primary" type="submit">Create User</button>
+</form>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)',
+  supervisor: 'Supervisor',
+  team_lead: 'Team Lead',
+  country_manager: 'Country Manager',
+  admin: 'Admin',
+  leadership: 'Leadership',
+  super_admin: 'Super Admin',
+};
+const ALL_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin', 'leadership', 'super_admin'];
+
+function populateRoles() {
+  const select = document.getElementById('create-role');
+  select.innerHTML = ALL_ROLES.map((r) => `<option value="${r}">${ROLE_LABELS[r]}</option>`).join('');
+  enhanceAllSelects(document.getElementById('create-form'));
+}
+
+document.getElementById('create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('create-error');
+  const successEl = document.getElementById('create-success');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+
+  const name = document.getElementById('create-name').value.trim();
+  const identifier = document.getElementById('create-identifier').value.trim();
+  const password = document.getElementById('create-password').value;
+  const role = document.getElementById('create-role').value;
+
+  if (!name || !identifier || !password || !role) {
+    errorEl.textContent = 'All fields are required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('create-submit');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch('/admin/users', {
+      method: 'POST',
+      body: JSON.stringify({ name, identifier, password, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create user');
+
+    const needsLocation = !['leadership', 'super_admin'].includes(data.user.role);
+    successEl.innerHTML = needsLocation
+      ? `Created as <strong>${escapeHtml(data.user.user_code)}</strong>, status Pending - <a href="/admin/user-profile/${data.user.id}">open their profile</a> to assign a location and approve them.`
+      : `Created as <strong>${escapeHtml(data.user.user_code)}</strong> and approved immediately. Share their login details directly.`;
+    successEl.style.display = 'block';
+    document.getElementById('create-form').reset();
+    populateRoles();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  if (user.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can create user accounts directly.</p>';
+    return;
+  }
+  populateRoles();
+}
+
+init();
+</script>
+</body>
+</html>

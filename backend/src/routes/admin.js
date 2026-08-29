@@ -1,18 +1,28 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireWebAccess } from '../middleware/requireWebAccess.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { resolveCountryId, resolveLocationPath } from '../db/locationHelpers.js';
+import { generateUniqueUserCode } from '../db/userCode.js';
 import { SELF_REGISTER_ROLES } from '../roles.js';
 
 export const adminRouter = Router();
 adminRouter.param('id', validateUuidParam);
 adminRouter.param('assignmentId', validateUuidParam);
 
+function requireSuperAdmin(req, res, next) {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only Super Admin can do this' });
+  }
+  next();
+}
+
 // A user can't be Approved without at least one location assignment - an
 // approved account with no coverage would see nothing and be pointless.
 // An exclude-only set doesn't count; there has to be at least one include.
+// Leadership and Super Admin are exempt - they see every country by design.
 async function hasLocationCoverage(userId) {
   const result = await pool.query(
     `select 1 from user_locations where user_id = $1 and mode = 'include' limit 1`,
@@ -20,6 +30,58 @@ async function hasLocationCoverage(userId) {
   );
   return result.rowCount > 0;
 }
+const EXEMPT_FROM_LOCATION = ['leadership', 'super_admin'];
+
+// Direct creation, per PRD Section 3: Super Admin creates the account and
+// shares the credentials directly - no self-registration, no OTP, no
+// separate verification step (Super Admin creating it is itself the trust
+// signal). Unlike self-registration this can create any role, including
+// another Super Admin. A role that still needs a location (anyone but
+// Leadership/Super Admin) can't skip that requirement just because it was
+// created this way, so it lands Pending until one is assigned via Preview -
+// exactly the same completion path as a self-registered account.
+adminRouter.post('/admin/users', requireAdmin, requireSuperAdmin, async (req, res) => {
+  const { name, identifier, password, role } = req.body;
+  const ALL_ROLES = [...SELF_REGISTER_ROLES, 'super_admin'];
+
+  if (!name || !identifier || !password || !role) {
+    return res.status(400).json({ error: 'name, identifier, password, and role are all required' });
+  }
+  if (!ALL_ROLES.includes(role)) {
+    return res.status(400).json({ error: `role must be one of: ${ALL_ROLES.join(', ')}` });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'password must be at least 6 characters' });
+  }
+
+  const isEmail = identifier.includes('@');
+  const email = isEmail ? identifier.toLowerCase() : null;
+  const mobileNumber = isEmail ? null : identifier;
+  const passwordHash = await bcrypt.hash(password, 10);
+  const status = EXEMPT_FROM_LOCATION.includes(role) ? 'approved' : 'pending';
+  const reviewedAt = status === 'approved' ? new Date() : null;
+  const reviewedBy = status === 'approved' ? req.user.userId : null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const userCode = await generateUniqueUserCode(pool);
+    try {
+      const result = await pool.query(
+        `insert into users (user_code, name, mobile_number, email, password_hash, role, status, reviewed_by, reviewed_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         returning id, user_code, name, mobile_number, email, role, status, created_at`,
+        [userCode, name, mobileNumber, email, passwordHash, role, status, reviewedBy, reviewedAt],
+      );
+      return res.status(201).json({ user: result.rows[0] });
+    } catch (err) {
+      if (err.constraint === 'users_user_code_key') continue;
+      if (err.code === '23505') {
+        return res.status(409).json({ error: 'An account with that mobile number or email already exists' });
+      }
+      return res.status(500).json({ error: err.message });
+    }
+  }
+  res.status(500).json({ error: 'Could not generate a unique user code, please try again' });
+});
 
 adminRouter.get('/admin/me', requireWebAccess, async (req, res) => {
   const result = await pool.query(`select id, name, role from users where id = $1`, [req.user.userId]);

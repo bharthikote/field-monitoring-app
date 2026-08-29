@@ -58,6 +58,9 @@ app.get('/admin/master-lists', (_req, res) => {
 app.get('/admin/user-profile/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'user-profile.html'));
 });
+app.get('/admin/create-user', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'create-user.html'));
+});
 app.get('/admin/reports/farmers', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-farmers.html'));
 });
