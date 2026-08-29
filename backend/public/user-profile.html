@@ -98,7 +98,8 @@ const LEVELS = [
 ];
 const treeExpanded = { country: new Set(), state: new Set(), district: new Set(), block: new Set() };
 const treeCache = new Map();
-let assignedKeys = new Set(); // `${level}:${locationId}`
+let includedKeys = new Set(); // `${level}:${locationId}` with an explicit include row
+let excludedKeys = new Set(); // `${level}:${locationId}` with an explicit exclude row (carved out of an inherited include)
 let assignmentIdByKey = new Map(); // `${level}:${locationId}` -> assignment row id
 
 const userId = location.pathname.split('/').pop();
@@ -132,7 +133,8 @@ function renderPreview() {
 async function loadLocationAssignments() {
   const res = await authedFetch(`/admin/users/${userId}/locations`);
   const data = await res.json();
-  assignedKeys = new Set(data.assignments.map((a) => `${a.level}:${a.locationId}`));
+  includedKeys = new Set(data.assignments.filter((a) => a.mode === 'include').map((a) => `${a.level}:${a.locationId}`));
+  excludedKeys = new Set(data.assignments.filter((a) => a.mode === 'exclude').map((a) => `${a.level}:${a.locationId}`));
   assignmentIdByKey = new Map(data.assignments.map((a) => [`${a.level}:${a.locationId}`, a.id]));
 }
 
@@ -158,23 +160,30 @@ async function buildTreeHtml(levelIndex, parentId, inheritedFromName) {
   let html = '<ul class="loc-tree-level">';
   for (const item of items) {
     const key = `${level.key}:${item.id}`;
-    const isDirect = assignedKeys.has(key);
-    const isInherited = !isDirect && !!inheritedFromName;
+    const isIncluded = includedKeys.has(key);
+    const isExcluded = excludedKeys.has(key);
+    const isInherited = !isIncluded && !isExcluded && !!inheritedFromName;
+    const isChecked = isIncluded || isInherited;
     const isExpanded = hasNext && treeExpanded[level.key].has(item.id);
+
+    // A node's own include resets the inheritance source for its children.
+    // An exclude cuts inheritance off entirely below it. Otherwise children
+    // just pass through whatever this node inherited (or didn't).
+    let childInherited = null;
+    if (isIncluded) childInherited = item.name;
+    else if (isInherited) childInherited = inheritedFromName;
 
     html += `<li><div class="loc-tree-row">
       ${hasNext
         ? `<button class="loc-toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
         : '<span class="loc-toggle-spacer"></span>'}
       <input type="checkbox" class="loc-check" data-level-key="${level.key}" data-id="${item.id}"
-        ${isDirect || isInherited ? 'checked' : ''} ${canCheck && !isInherited ? '' : 'disabled'} />
+        data-inherited="${isInherited}"
+        ${isChecked ? 'checked' : ''} ${canCheck ? '' : 'disabled'} />
       <span class="loc-tree-name ${isInherited ? 'inherited' : ''}">${escapeHtml(item.name)}</span>
       ${isInherited ? `<span class="loc-inherited-tag">via ${escapeHtml(inheritedFromName)}</span>` : ''}
     </div>`;
-    if (isExpanded) {
-      const childInherited = isDirect ? item.name : inheritedFromName;
-      html += await buildTreeHtml(levelIndex + 1, item.id, childInherited);
-    }
+    if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id, childInherited);
     html += '</li>';
   }
   html += '</ul>';
@@ -203,30 +212,57 @@ document.getElementById('location-tree').addEventListener('change', async (e) =>
   const levelKey = cb.dataset.levelKey;
   const locationId = cb.dataset.id;
   const key = `${levelKey}:${locationId}`;
+  const wasInherited = cb.dataset.inherited === 'true';
+  const wasIncluded = includedKeys.has(key);
+  const wasExcluded = excludedKeys.has(key);
   cb.disabled = true;
 
   try {
     if (cb.checked) {
-      const res = await authedFetch(`/admin/users/${userId}/locations`, {
-        method: 'POST',
-        body: JSON.stringify({ level: levelKey, locationId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to assign');
-      assignedKeys.add(key);
-      assignmentIdByKey.set(key, data.assignment.id);
-    } else {
+      if (wasExcluded) {
+        // Re-checking a carved-out node just removes the exclusion,
+        // reverting it to whatever it inherits from its ancestor.
+        const assignmentId = assignmentIdByKey.get(key);
+        const res = await authedFetch(`/admin/users/${userId}/locations/${assignmentId}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to remove exclusion');
+        }
+        excludedKeys.delete(key);
+        assignmentIdByKey.delete(key);
+      } else {
+        const res = await authedFetch(`/admin/users/${userId}/locations`, {
+          method: 'POST',
+          body: JSON.stringify({ level: levelKey, locationId, mode: 'include' }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to assign');
+        includedKeys.add(key);
+        assignmentIdByKey.set(key, data.assignment.id);
+      }
+    } else if (wasIncluded) {
       const assignmentId = assignmentIdByKey.get(key);
       const res = await authedFetch(`/admin/users/${userId}/locations/${assignmentId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to remove');
       }
-      assignedKeys.delete(key);
+      includedKeys.delete(key);
       assignmentIdByKey.delete(key);
+    } else if (wasInherited) {
+      // Unchecking a node that's only covered via an ancestor carves it
+      // (and everything under it) back out with an explicit exclude.
+      const res = await authedFetch(`/admin/users/${userId}/locations`, {
+        method: 'POST',
+        body: JSON.stringify({ level: levelKey, locationId, mode: 'exclude' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to exclude');
+      excludedKeys.add(key);
+      assignmentIdByKey.set(key, data.assignment.id);
     }
     // Full re-render so any expanded descendants immediately pick up
-    // inherited coverage from this change (or lose it, on uncheck).
+    // inherited coverage from this change (or lose it).
     await renderTree();
   } catch (err) {
     cb.checked = !cb.checked;

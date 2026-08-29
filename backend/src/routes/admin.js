@@ -216,7 +216,7 @@ const LOCATION_LEVELS = ['country', 'state', 'district', 'block', 'village'];
 
 adminRouter.get('/admin/users/:id/locations', requireAdmin, async (req, res) => {
   const result = await pool.query(
-    'select id, level, location_id from user_locations where user_id = $1 order by created_at asc',
+    'select id, level, location_id, mode from user_locations where user_id = $1 order by created_at asc',
     [req.params.id],
   );
   const assignments = [];
@@ -226,16 +226,24 @@ adminRouter.get('/admin/users/:id/locations', requireAdmin, async (req, res) => 
       id: row.id,
       level: row.level,
       locationId: row.location_id,
+      mode: row.mode,
       path: path ? pathString(path) : '(deleted location)',
     });
   }
   res.json({ assignments });
 });
 
+// mode: 'include' assigns a location to the user; 'exclude' carves it (and
+// everything under it) back out of a broader assignment inherited from an
+// ancestor - e.g. include the whole country, exclude one district within it.
 adminRouter.post('/admin/users/:id/locations', requireAdmin, async (req, res) => {
-  const { level, locationId } = req.body;
+  const { level, locationId, mode } = req.body;
+  const effectiveMode = mode || 'include';
   if (!LOCATION_LEVELS.includes(level) || !locationId) {
     return res.status(400).json({ error: `level must be one of: ${LOCATION_LEVELS.join(', ')}, with a locationId` });
+  }
+  if (!['include', 'exclude'].includes(effectiveMode)) {
+    return res.status(400).json({ error: 'mode must be include or exclude' });
   }
   if ((level === 'country' || level === 'state') && req.user.role !== 'super_admin') {
     return res.status(403).json({ error: 'Only Super Admin can assign Country or State level' });
@@ -249,15 +257,15 @@ adminRouter.post('/admin/users/:id/locations', requireAdmin, async (req, res) =>
 
   try {
     const result = await pool.query(
-      `insert into user_locations (user_id, level, location_id, created_by)
-       values ($1, $2, $3, $4)
-       returning id, level, location_id`,
-      [req.params.id, level, locationId, req.user.userId],
+      `insert into user_locations (user_id, level, location_id, mode, created_by)
+       values ($1, $2, $3, $4, $5)
+       returning id, level, location_id, mode`,
+      [req.params.id, level, locationId, effectiveMode, req.user.userId],
     );
     const path = await resolveLocationPath(level, locationId);
     res.status(201).json({ assignment: { ...result.rows[0], path: path ? pathString(path) : null } });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'That location is already assigned to this user' });
+    if (err.code === '23505') return res.status(409).json({ error: 'That location already has an assignment for this user' });
     if (err.code === '23503') return res.status(404).json({ error: 'No such user' });
     res.status(500).json({ error: err.message });
   }
