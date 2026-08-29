@@ -18,6 +18,13 @@
   .loc-row:last-child { border-bottom: none; }
   .loc-path { flex: 1; font-size: 0.88rem; }
   .loc-level-tag { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 999px; }
+  .loc-tree-level { list-style: none; padding-left: 0; margin: 2px 0; }
+  .loc-tree-level .loc-tree-level { padding-left: 24px; border-left: 1px solid var(--border); margin-left: 9px; }
+  .loc-tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--radius-sm); }
+  .loc-tree-row:hover { background: var(--bg); }
+  .loc-toggle { background: none; border: none; font-size: 0.8rem; width: 18px; padding: 0; margin: 0; cursor: pointer; color: var(--text-muted); }
+  .loc-toggle-spacer { display: inline-block; width: 18px; }
+  .loc-tree-name { font-size: 0.88rem; }
 </style>
 </head>
 <body>
@@ -52,11 +59,11 @@
     <p class="error" id="status-error" style="display:none"></p>
 
     <div class="section-title">Locations</div>
-    <p class="scope-note" style="margin-top:0">A user can be assigned multiple locations at any mix of levels - coverage is everything under all of them combined.</p>
+    <p class="scope-note" style="margin-top:0">Currently assigned:</p>
     <div id="location-list"></div>
-    <p class="scope-note">Pick a level, then click "Assign here" to add another one. Country/State can only be assigned by Super Admin.</p>
-    <div id="location-levels"></div>
+    <p class="scope-note">Expand the tree and tick anything to assign it - villages, blocks, districts, whatever mix you need. Country/State can only be ticked by Super Admin.</p>
     <p class="error" id="location-error" style="display:none"></p>
+    <div id="location-tree"></div>
 
     <div class="section-title">Danger Zone</div>
     <div class="danger-zone">
@@ -87,13 +94,16 @@ const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', '
 const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', deactivated: 'Deactivated' };
 
 const LEVELS = [
-  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', superAdminOnly: true },
-  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', superAdminOnly: true },
-  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', superAdminOnly: false },
-  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', superAdminOnly: false },
-  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', superAdminOnly: false },
+  { key: 'country', label: 'Country', list: (parentId) => '/locations/countries', dataKey: 'countries', superAdminOnly: true },
+  { key: 'state', label: 'State', list: (parentId) => `/locations/states?country_id=${parentId}`, dataKey: 'states', superAdminOnly: true },
+  { key: 'district', label: 'District', list: (parentId) => `/locations/districts?state_id=${parentId}`, dataKey: 'districts', superAdminOnly: false },
+  { key: 'block', label: 'Block', list: (parentId) => `/locations/blocks?district_id=${parentId}`, dataKey: 'blocks', superAdminOnly: false },
+  { key: 'village', label: 'Village', list: (parentId) => `/locations/villages?block_id=${parentId}`, dataKey: 'villages', superAdminOnly: false },
 ];
-const locationSelected = { country: null, state: null, district: null, block: null };
+const treeExpanded = { country: new Set(), state: new Set(), district: new Set(), block: new Set() };
+const treeCache = new Map();
+let assignedKeys = new Set(); // `${level}:${locationId}`
+let assignmentIdByKey = new Map(); // `${level}:${locationId}` -> assignment row id
 
 const userId = location.pathname.split('/').pop();
 let currentUser = null;
@@ -128,13 +138,15 @@ const LEVEL_LABELS = { country: 'Country', state: 'State', district: 'District',
 async function loadLocationList() {
   const res = await authedFetch(`/admin/users/${userId}/locations`);
   const data = await res.json();
-  const container = document.getElementById('location-list');
 
+  assignedKeys = new Set(data.assignments.map((a) => `${a.level}:${a.locationId}`));
+  assignmentIdByKey = new Map(data.assignments.map((a) => [`${a.level}:${a.locationId}`, a.id]));
+
+  const container = document.getElementById('location-list');
   if (!data.assignments.length) {
     container.innerHTML = '<p class="empty">No locations assigned yet.</p>';
     return;
   }
-
   container.innerHTML = data.assignments
     .map(
       (a) => `
@@ -150,90 +162,118 @@ async function loadLocationList() {
 document.getElementById('location-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-assignment-id]');
   if (!btn) return;
+  await removeAssignment(btn.dataset.assignmentId);
+});
+
+async function removeAssignment(assignmentId) {
   const errorEl = document.getElementById('location-error');
   errorEl.style.display = 'none';
   try {
-    const res = await authedFetch(`/admin/users/${userId}/locations/${btn.dataset.assignmentId}`, { method: 'DELETE' });
+    const res = await authedFetch(`/admin/users/${userId}/locations/${assignmentId}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
       throw new Error(data.error || 'Failed to remove');
     }
     await loadLocationList();
+    await renderTree();
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
   }
+}
+
+function canCheckLevel(level) {
+  return level.superAdminOnly ? currentUser.role === 'super_admin' : true;
+}
+
+async function fetchTreeItems(level, parentId) {
+  const cacheKey = `${level.key}:${parentId}`;
+  if (treeCache.has(cacheKey)) return treeCache.get(cacheKey);
+  const res = await authedFetch(level.list(parentId));
+  const data = await res.json();
+  treeCache.set(cacheKey, data[level.dataKey]);
+  return data[level.dataKey];
+}
+
+async function buildTreeHtml(levelIndex, parentId) {
+  const level = LEVELS[levelIndex];
+  const items = await fetchTreeItems(level, parentId);
+  const hasNext = levelIndex < LEVELS.length - 1;
+  const canCheck = canCheckLevel(level);
+
+  let html = '<ul class="loc-tree-level">';
+  for (const item of items) {
+    const key = `${level.key}:${item.id}`;
+    const isChecked = assignedKeys.has(key);
+    const isExpanded = hasNext && treeExpanded[level.key].has(item.id);
+    html += `<li><div class="loc-tree-row">
+      ${hasNext
+        ? `<button class="loc-toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
+        : '<span class="loc-toggle-spacer"></span>'}
+      <input type="checkbox" class="loc-check" data-level-key="${level.key}" data-id="${item.id}"
+        ${isChecked ? 'checked' : ''} ${canCheck ? '' : 'disabled'} />
+      <span class="loc-tree-name">${escapeHtml(item.name)}</span>
+    </div>`;
+    if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id);
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+async function renderTree() {
+  document.getElementById('location-tree').innerHTML = await buildTreeHtml(0, null);
+}
+
+document.getElementById('location-tree').addEventListener('click', async (e) => {
+  const toggle = e.target.closest('.loc-toggle');
+  if (!toggle) return;
+  const levelKey = LEVELS[Number(toggle.dataset.level)].key;
+  const id = toggle.dataset.id;
+  if (treeExpanded[levelKey].has(id)) treeExpanded[levelKey].delete(id);
+  else treeExpanded[levelKey].add(id);
+  await renderTree();
 });
 
-function renderLocationLevels() {
-  const container = document.getElementById('location-levels');
-  container.innerHTML = LEVELS.map((l) => `
-    <div id="loc-level-${l.key}" style="display:none; margin-bottom: 10px;">
-      <label style="display:inline-block; width: 80px; font-size: 0.85rem; color:var(--text-muted);">${l.label}</label>
-      <select id="loc-select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
-      <button class="approve" id="loc-assign-${l.key}">Assign here</button>
-    </div>
-  `).join('');
-
-  LEVELS.forEach((level, index) => {
-    document.getElementById(`loc-select-${level.key}`).addEventListener('change', () => onLocationSelectChange(index));
-    document.getElementById(`loc-assign-${level.key}`).addEventListener('click', () => onLocationAssign(level.key));
-  });
-}
-
-async function loadLocationLevel(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const container = document.getElementById(`loc-level-${level.key}`);
-
-  if (levelIndex > 0 && !locationSelected[LEVELS[levelIndex - 1].key]) {
-    container.style.display = 'none';
-    return;
-  }
-  container.style.display = 'block';
-
-  const res = await authedFetch(level.list(locationSelected));
-  const data = await res.json();
-  const items = data[level.dataKey];
-
-  const select = document.getElementById(`loc-select-${level.key}`);
-  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
-    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
-  select.value = locationSelected[level.key] || '';
-
-  const canAssign = level.superAdminOnly ? currentUser.role === 'super_admin' : true;
-  document.getElementById(`loc-assign-${level.key}`).style.display = canAssign ? 'inline-block' : 'none';
-}
-
-async function onLocationSelectChange(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const select = document.getElementById(`loc-select-${level.key}`);
-  locationSelected[level.key] = select.value || null;
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) locationSelected[LEVELS[i].key] = null;
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) await loadLocationLevel(i);
-}
-
-async function onLocationAssign(levelKey) {
+document.getElementById('location-tree').addEventListener('change', async (e) => {
+  const cb = e.target.closest('.loc-check');
+  if (!cb) return;
   const errorEl = document.getElementById('location-error');
   errorEl.style.display = 'none';
-  const locationId = locationSelected[levelKey];
-  if (!locationId) return;
+  const levelKey = cb.dataset.levelKey;
+  const locationId = cb.dataset.id;
+  const key = `${levelKey}:${locationId}`;
+  cb.disabled = true;
 
   try {
-    const res = await authedFetch(`/admin/users/${userId}/locations`, {
-      method: 'POST',
-      body: JSON.stringify({ level: levelKey, locationId }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to assign');
+    if (cb.checked) {
+      const res = await authedFetch(`/admin/users/${userId}/locations`, {
+        method: 'POST',
+        body: JSON.stringify({ level: levelKey, locationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign');
+      assignedKeys.add(key);
+      assignmentIdByKey.set(key, data.assignment.id);
+    } else {
+      const assignmentId = assignmentIdByKey.get(key);
+      const res = await authedFetch(`/admin/users/${userId}/locations/${assignmentId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove');
+      }
+      assignedKeys.delete(key);
+      assignmentIdByKey.delete(key);
+    }
     await loadLocationList();
-    Object.keys(locationSelected).forEach((k) => (locationSelected[k] = null));
-    renderLocationLevels();
-    await loadLocationLevel(0);
   } catch (err) {
+    cb.checked = !cb.checked;
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
+  } finally {
+    cb.disabled = !canCheckLevel(LEVELS.find((l) => l.key === levelKey));
   }
-}
+});
 
 function renderStatusActions() {
   const container = document.getElementById('status-actions');
@@ -380,8 +420,7 @@ async function init() {
   if (!currentUser) return;
   await loadProfile();
   await loadLocationList();
-  renderLocationLevels();
-  await loadLocationLevel(0);
+  await renderTree();
 }
 
 init();
