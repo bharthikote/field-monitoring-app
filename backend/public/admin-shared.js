@@ -68,6 +68,22 @@ async function downloadAuthedFile(path, filename) {
   URL.revokeObjectURL(url);
 }
 
+const NAV_ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)',
+  supervisor: 'Supervisor',
+  team_lead: 'Team Lead',
+  country_manager: 'Country Manager',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+};
+
+function initialsFor(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+
 function renderNav(user) {
   const nav = document.getElementById('admin-nav');
   if (!nav) return;
@@ -92,8 +108,16 @@ function renderNav(user) {
 
   nav.innerHTML = `
     <div class="nav-links">${linksHtml}</div>
-    <div class="who">Logged in as <strong>${escapeHtml(user.name)}</strong> (${escapeHtml(user.role)})
-      <button id="logout-btn">Log out</button>
+    <div class="who">
+      <div class="nav-dropdown avatar-dropdown">
+        <button type="button" class="nav-dropdown-toggle avatar-btn" title="${escapeHtml(user.name)}">${escapeHtml(initialsFor(user.name))}</button>
+        <div class="nav-dropdown-menu avatar-menu">
+          <div class="avatar-menu-name">${escapeHtml(user.name)}</div>
+          <span class="role-badge">${escapeHtml(NAV_ROLE_LABELS[user.role] || user.role)}</span>
+          <hr class="avatar-menu-divider" />
+          <button id="logout-btn" class="avatar-logout-btn">Log out</button>
+        </div>
+      </div>
     </div>
   `;
 

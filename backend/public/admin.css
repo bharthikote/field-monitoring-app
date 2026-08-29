@@ -93,12 +93,35 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
 .nav-dropdown-menu a:hover { background: var(--bg); color: var(--text); }
 .nav-dropdown-menu a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .who { font-size: 0.85rem; color: var(--text-muted); }
-.who strong { color: var(--text); }
-.who button {
-  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text);
-  margin-left: 10px; border-radius: var(--radius-sm); padding: 6px 12px;
+
+.avatar-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  font-weight: 700;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
 }
-.who button:hover { background: var(--bg); }
+.avatar-btn:hover { background: #d7ecdb; }
+.avatar-dropdown .nav-dropdown-menu.avatar-menu { left: auto; right: 0; min-width: 190px; padding: 14px; }
+.avatar-menu-name { font-weight: 600; font-size: 0.9rem; color: var(--text); margin-bottom: 8px; }
+.avatar-menu-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+.avatar-logout-btn {
+  width: 100%;
+  margin: 0;
+  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text);
+  border-radius: var(--radius-sm); padding: 6px 12px;
+}
+.avatar-logout-btn:hover { background: var(--bg); }
 
 .page { max-width: 900px; margin: 32px auto; padding: 0 24px; }
 .page-wide { max-width: 1320px; }
