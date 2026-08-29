@@ -4,6 +4,21 @@
 <meta charset="utf-8" />
 <title>Location Hierarchy</title>
 <link rel="stylesheet" href="/admin.css" />
+<style>
+  .tree-level { list-style: none; padding-left: 0; margin: 4px 0; }
+  .tree-level .tree-level { padding-left: 22px; border-left: 1px dashed #ddd; }
+  .tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+  .toggle { background: none; border: none; font-size: 0.9rem; width: 20px; padding: 0; margin: 0; cursor: pointer; }
+  .toggle-spacer { display: inline-block; width: 20px; }
+  .tree-name { flex: 1; font-size: 0.9rem; }
+  .tree-row button.small { padding: 2px 8px; font-size: 0.75rem; }
+  .edit-btn { background: #eef2ff; color: #3730a3; }
+  .delete-btn { background: #fee2e2; color: #991b1b; }
+  .add-child { display: flex; gap: 6px; margin: 6px 0 6px 22px; }
+  .add-child input { font-size: 0.82rem; padding: 4px 8px; }
+  .add-child button { background: #16a34a; color: white; font-size: 0.78rem; padding: 4px 10px; }
+  .top-add { display: flex; gap: 8px; margin-bottom: 16px; }
+</style>
 </head>
 <body>
 
@@ -11,121 +26,196 @@
 
 <h1>Location Hierarchy</h1>
 <p id="scope-note" class="scope-note"></p>
-
-<div id="levels"></div>
+<div id="top-add" class="top-add" style="display:none">
+  <input type="text" id="top-add-input" placeholder="New country name" />
+  <button id="top-add-btn" style="background:#16a34a;color:white">+ Add Country</button>
+</div>
+<div id="tree"></div>
 
 <script src="/admin-shared.js"></script>
 <script>
 const LEVELS = [
-  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', create: '/locations/countries', parentField: null, superAdminOnly: true },
-  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', create: '/locations/states', parentField: 'country_id', superAdminOnly: true },
-  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', create: '/locations/districts', parentField: 'state_id', superAdminOnly: false },
-  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', create: '/locations/blocks', parentField: 'district_id', superAdminOnly: false },
-  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', create: '/locations/villages', parentField: 'block_id', superAdminOnly: false },
+  {
+    key: 'country', label: 'Country',
+    listPath: () => '/locations/countries', dataKey: 'countries',
+    createPath: '/locations/countries', createBody: (parentId, name) => ({ name }),
+    itemPath: (id) => `/locations/countries/${id}`, superAdminOnly: true,
+  },
+  {
+    key: 'state', label: 'State',
+    listPath: (parentId) => `/locations/states?country_id=${parentId}`, dataKey: 'states',
+    createPath: '/locations/states', createBody: (parentId, name) => ({ country_id: parentId, name }),
+    itemPath: (id) => `/locations/states/${id}`, superAdminOnly: true,
+  },
+  {
+    key: 'district', label: 'District',
+    listPath: (parentId) => `/locations/districts?state_id=${parentId}`, dataKey: 'districts',
+    createPath: '/locations/districts', createBody: (parentId, name) => ({ state_id: parentId, name }),
+    itemPath: (id) => `/locations/districts/${id}`, superAdminOnly: false,
+  },
+  {
+    key: 'block', label: 'Block',
+    listPath: (parentId) => `/locations/blocks?district_id=${parentId}`, dataKey: 'blocks',
+    createPath: '/locations/blocks', createBody: (parentId, name) => ({ district_id: parentId, name }),
+    itemPath: (id) => `/locations/blocks/${id}`, superAdminOnly: false,
+  },
+  {
+    key: 'village', label: 'Village',
+    listPath: (parentId) => `/locations/villages?block_id=${parentId}`, dataKey: 'villages',
+    createPath: '/locations/villages', createBody: (parentId, name) => ({ block_id: parentId, name }),
+    itemPath: (id) => `/locations/villages/${id}`, superAdminOnly: false,
+  },
 ];
 
 let currentUser = null;
-const selected = { country: null, state: null, district: null, block: null, village: null };
+const expanded = { country: new Set(), state: new Set(), district: new Set(), block: new Set() };
+const cache = new Map(); // `${levelKey}:${parentId}` -> items array
 
-function levelContainer(key) {
-  return document.getElementById(`level-${key}`);
+function canWrite(level) {
+  if (level.superAdminOnly) return currentUser.role === 'super_admin';
+  return currentUser.role === 'admin' || currentUser.role === 'super_admin';
 }
 
-function renderSkeleton() {
-  const container = document.getElementById('levels');
-  container.innerHTML = LEVELS.map((l) => `
-    <div id="level-${l.key}" style="display:none">
-      <h2>${l.label}</h2>
-      <select id="select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
-      <div id="add-${l.key}" class="inline-form" style="display:none">
-        <input type="text" id="input-${l.key}" placeholder="New ${l.label.toLowerCase()} name" />
-        <button class="primary" id="btn-${l.key}">Add ${l.label}</button>
-      </div>
-      <p class="error" id="error-${l.key}" style="display:none"></p>
-    </div>
-  `).join('');
-}
-
-function canCreate(level) {
-  if (!level.superAdminOnly) return currentUser.role === 'super_admin' || currentUser.role === 'admin';
-  return currentUser.role === 'super_admin';
-}
-
-async function loadLevel(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const container = levelContainer(level.key);
-
-  // Hide this level and everything deeper until we know the parent is chosen
-  if (levelIndex > 0 && !selected[LEVELS[levelIndex - 1].key]) {
-    container.style.display = 'none';
-    return;
-  }
-  container.style.display = 'block';
-
-  const res = await authedFetch(level.list(selected));
+async function fetchLevelItems(level, parentId, force = false) {
+  const cacheKey = `${level.key}:${parentId}`;
+  if (!force && cache.has(cacheKey)) return cache.get(cacheKey);
+  const res = await authedFetch(level.listPath(parentId));
   const data = await res.json();
   const items = data[level.dataKey];
-
-  const select = document.getElementById(`select-${level.key}`);
-  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
-    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
-  select.value = selected[level.key] || '';
-
-  const addForm = document.getElementById(`add-${level.key}`);
-  addForm.style.display = canCreate(level) ? 'flex' : 'none';
+  cache.set(cacheKey, items);
+  return items;
 }
 
-async function onSelectChange(levelIndex) {
+async function buildLevelHtml(levelIndex, parentId, depth) {
   const level = LEVELS[levelIndex];
-  const select = document.getElementById(`select-${level.key}`);
-  selected[level.key] = select.value || null;
+  const items = await fetchLevelItems(level, parentId);
+  const hasNextLevel = levelIndex < LEVELS.length - 1;
 
-  // Clear everything deeper
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) {
-    selected[LEVELS[i].key] = null;
+  let html = '<ul class="tree-level">';
+  for (const item of items) {
+    const isExpanded = hasNextLevel && expanded[level.key].has(item.id);
+    html += `<li>
+      <div class="tree-row">
+        ${hasNextLevel
+          ? `<button class="toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
+          : '<span class="toggle-spacer"></span>'}
+        <span class="tree-name">${escapeHtml(item.name)}</span>
+        ${canWrite(level) ? `
+          <button class="small edit-btn" data-level="${levelIndex}" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Rename</button>
+          <button class="small delete-btn" data-level="${levelIndex}" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Delete</button>
+        ` : ''}
+      </div>`;
+
+    if (isExpanded) {
+      html += await buildLevelHtml(levelIndex + 1, item.id, depth + 1);
+      const nextLevel = LEVELS[levelIndex + 1];
+      if (canWrite(nextLevel)) {
+        html += `<div class="add-child">
+          <input type="text" class="add-input" data-level="${levelIndex + 1}" data-parent="${item.id}" placeholder="New ${nextLevel.label.toLowerCase()} name" />
+          <button class="add-btn" data-level="${levelIndex + 1}" data-parent="${item.id}">+ Add ${nextLevel.label}</button>
+        </div>`;
+      }
+    }
+    html += '</li>';
   }
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) {
-    await loadLevel(i);
-  }
+  html += '</ul>';
+  return html;
 }
 
-async function onAddClick(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const input = document.getElementById(`input-${level.key}`);
-  const errorEl = document.getElementById(`error-${level.key}`);
+async function render() {
+  document.getElementById('tree').innerHTML = await buildLevelHtml(0, null, 0);
+}
+
+document.getElementById('tree').addEventListener('click', async (e) => {
+  const toggleBtn = e.target.closest('.toggle');
+  const editBtn = e.target.closest('.edit-btn');
+  const deleteBtn = e.target.closest('.delete-btn');
+  const addBtn = e.target.closest('.add-btn');
+
+  if (toggleBtn) {
+    const level = LEVELS[toggleBtn.dataset.level].key;
+    const id = toggleBtn.dataset.id;
+    if (expanded[level].has(id)) expanded[level].delete(id);
+    else expanded[level].add(id);
+    render();
+    return;
+  }
+
+  if (editBtn) {
+    const level = LEVELS[editBtn.dataset.level];
+    const newName = prompt(`Rename ${level.label}`, editBtn.dataset.name);
+    if (!newName || newName === editBtn.dataset.name) return;
+    try {
+      const res = await authedFetch(level.itemPath(editBtn.dataset.id), {
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rename failed');
+      cache.clear();
+      render();
+    } catch (err) {
+      alert('Failed: ' + err.message);
+    }
+    return;
+  }
+
+  if (deleteBtn) {
+    const level = LEVELS[deleteBtn.dataset.level];
+    if (!confirm(`Delete "${deleteBtn.dataset.name}"? This only works if nothing exists underneath it.`)) return;
+    try {
+      const res = await authedFetch(level.itemPath(deleteBtn.dataset.id), { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Delete failed');
+      }
+      cache.clear();
+      render();
+    } catch (err) {
+      alert('Failed: ' + err.message);
+    }
+    return;
+  }
+
+  if (addBtn) {
+    const levelIndex = Number(addBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const parentId = addBtn.dataset.parent;
+    const input = document.querySelector(`.add-input[data-level="${levelIndex}"][data-parent="${parentId}"]`);
+    const name = input.value.trim();
+    if (!name) return;
+    try {
+      const res = await authedFetch(level.createPath, {
+        method: 'POST',
+        body: JSON.stringify(level.createBody(parentId, name)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Add failed');
+      expanded[level.key] = expanded[level.key] || new Set();
+      if (levelIndex > 0) expanded[LEVELS[levelIndex - 1].key].add(parentId);
+      cache.delete(`${level.key}:${parentId}`);
+      render();
+    } catch (err) {
+      alert('Failed: ' + err.message);
+    }
+  }
+});
+
+document.getElementById('top-add-btn').addEventListener('click', async () => {
+  const input = document.getElementById('top-add-input');
   const name = input.value.trim();
-  errorEl.style.display = 'none';
   if (!name) return;
-
-  const body = { name };
-  if (level.parentField) {
-    body[level.parentField] = selected[LEVELS[levelIndex - 1].key];
-  }
-
-  const btn = document.getElementById(`btn-${level.key}`);
-  btn.disabled = true;
   try {
-    const res = await authedFetch(level.create, { method: 'POST', body: JSON.stringify(body) });
+    const res = await authedFetch('/locations/countries', { method: 'POST', body: JSON.stringify({ name }) });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to add');
+    if (!res.ok) throw new Error(data.error || 'Add failed');
     input.value = '';
-    await loadLevel(levelIndex);
-    document.getElementById(`select-${level.key}`).value = data[level.key]?.id || '';
-    await onSelectChange(levelIndex);
+    cache.delete('country:null');
+    render();
   } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
+    alert('Failed: ' + err.message);
   }
-}
-
-function wireEvents() {
-  LEVELS.forEach((level, index) => {
-    document.getElementById(`select-${level.key}`).addEventListener('change', () => onSelectChange(index));
-    document.getElementById(`btn-${level.key}`).addEventListener('click', () => onAddClick(index));
-  });
-}
+});
 
 async function init() {
   currentUser = await initAdminPage();
@@ -133,14 +223,13 @@ async function init() {
 
   const scopeNote = document.getElementById('scope-note');
   if (currentUser.role === 'admin') {
-    scopeNote.textContent = 'As Admin, you can add Districts, Blocks, and Villages within your own assigned country. Country and State are managed by Super Admin.';
+    scopeNote.textContent = 'As Admin, you can add/rename/delete Districts, Blocks, and Villages within your own assigned country. Country and State are managed by Super Admin.';
   } else {
     scopeNote.textContent = 'As Super Admin, you can manage the full hierarchy across all countries.';
+    document.getElementById('top-add').style.display = 'flex';
   }
 
-  renderSkeleton();
-  wireEvents();
-  await loadLevel(0);
+  render();
 }
 
 init();

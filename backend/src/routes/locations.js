@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import {
+  countryIdForState,
+  countryIdForDistrict,
+  countryIdForBlock,
+  countryIdForVillage,
+} from '../db/locationHelpers.js';
 
 export const locationsRouter = Router();
 
@@ -39,7 +45,7 @@ locationsRouter.get('/locations/villages', requireAdmin, async (req, res) => {
   res.json({ villages: result.rows });
 });
 
-// --- Write endpoints ---
+// --- Authorization helpers ---
 
 function requireSuperAdmin(req, res, next) {
   if (req.user.role !== 'super_admin') {
@@ -48,14 +54,22 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
+function requireOwnCountry(actualCountryId, req, res) {
+  if (req.user.role === 'super_admin') return true;
+  if (!req.user.countryId || req.user.countryId !== actualCountryId) {
+    res.status(403).json({ error: "You can only manage locations within your own assigned country" });
+    return false;
+  }
+  return true;
+}
+
+// --- Create ---
+
 locationsRouter.post('/locations/countries', requireAdmin, requireSuperAdmin, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   try {
-    const result = await pool.query(
-      'insert into countries (name) values ($1) returning id, name',
-      [name],
-    );
+    const result = await pool.query('insert into countries (name) values ($1) returning id, name', [name]);
     res.status(201).json({ country: result.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'That country already exists' });
@@ -77,37 +91,6 @@ locationsRouter.post('/locations/states', requireAdmin, requireSuperAdmin, async
     res.status(500).json({ error: err.message });
   }
 });
-
-async function countryIdForState(stateId) {
-  const r = await pool.query('select country_id from states where id = $1', [stateId]);
-  return r.rows[0]?.country_id ?? null;
-}
-async function countryIdForDistrict(districtId) {
-  const r = await pool.query(
-    `select s.country_id from districts d join states s on s.id = d.state_id where d.id = $1`,
-    [districtId],
-  );
-  return r.rows[0]?.country_id ?? null;
-}
-async function countryIdForBlock(blockId) {
-  const r = await pool.query(
-    `select s.country_id from blocks b
-     join districts d on d.id = b.district_id
-     join states s on s.id = d.state_id
-     where b.id = $1`,
-    [blockId],
-  );
-  return r.rows[0]?.country_id ?? null;
-}
-
-function requireOwnCountry(actualCountryId, req, res) {
-  if (req.user.role === 'super_admin') return true;
-  if (!req.user.countryId || req.user.countryId !== actualCountryId) {
-    res.status(403).json({ error: "You can only manage locations within your own assigned country" });
-    return false;
-  }
-  return true;
-}
 
 locationsRouter.post('/locations/districts', requireAdmin, async (req, res) => {
   const { state_id, name } = req.body;
@@ -168,3 +151,60 @@ locationsRouter.post('/locations/villages', requireAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// --- Rename ---
+
+const RENAME_TABLES = {
+  countries: { table: 'countries', singular: 'country', superAdminOnly: true, resolveCountry: async (id) => id },
+  states: { table: 'states', singular: 'state', superAdminOnly: true, resolveCountry: countryIdForState },
+  districts: { table: 'districts', singular: 'district', superAdminOnly: false, resolveCountry: countryIdForDistrict },
+  blocks: { table: 'blocks', singular: 'block', superAdminOnly: false, resolveCountry: countryIdForBlock },
+  villages: { table: 'villages', singular: 'village', superAdminOnly: false, resolveCountry: countryIdForVillage },
+};
+
+for (const [path, config] of Object.entries(RENAME_TABLES)) {
+  locationsRouter.patch(`/locations/${path}/:id`, requireAdmin, async (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (config.superAdminOnly && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only Super Admin can do this' });
+    }
+
+    const countryId = await config.resolveCountry(req.params.id);
+    if (!countryId) return res.status(404).json({ error: 'No such location' });
+    if (!requireOwnCountry(countryId, req, res)) return;
+
+    try {
+      const result = await pool.query(
+        `update ${config.table} set name = $2 where id = $1 returning id, name`,
+        [req.params.id, name],
+      );
+      if (result.rowCount === 0) return res.status(404).json({ error: 'No such location' });
+      res.json({ [config.singular]: result.rows[0] });
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ error: 'That name already exists at this level' });
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  locationsRouter.delete(`/locations/${path}/:id`, requireAdmin, async (req, res) => {
+    if (config.superAdminOnly && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Only Super Admin can do this' });
+    }
+
+    const countryId = await config.resolveCountry(req.params.id);
+    if (!countryId) return res.status(404).json({ error: 'No such location' });
+    if (!requireOwnCountry(countryId, req, res)) return;
+
+    try {
+      const result = await pool.query(`delete from ${config.table} where id = $1`, [req.params.id]);
+      if (result.rowCount === 0) return res.status(404).json({ error: 'No such location' });
+      res.status(204).end();
+    } catch (err) {
+      if (err.code === '23503') {
+        return res.status(409).json({ error: 'Delete everything under this location first (or unassign users from it)' });
+      }
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
