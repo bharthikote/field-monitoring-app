@@ -103,7 +103,7 @@ function renderNav(user) {
       return `
         <div class="nav-dropdown">
           <button type="button" class="nav-dropdown-toggle ${isActiveGroup ? 'active' : ''}">
-            ${entry.label} <span class="nav-caret">▾</span>
+            ${entry.label} <span class="nav-caret"></span>
           </button>
           <div class="nav-dropdown-menu">${childLinks}</div>
         </div>
