@@ -53,11 +53,13 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
-    if (data.user.role !== 'admin' && data.user.role !== 'super_admin') {
-      throw new Error('This account does not have admin access');
+    if (!['admin', 'super_admin', 'leadership'].includes(data.user.role)) {
+      throw new Error('This account does not have web access - please use the mobile app instead.');
     }
     setToken(data.token);
-    window.location.href = '/admin';
+    // Leadership can't approve anything, so landing on Pending Approvals
+    // is a dead end for them - send them straight to Reports instead.
+    window.location.href = data.user.role === 'leadership' ? '/admin/reports/demos' : '/admin';
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';

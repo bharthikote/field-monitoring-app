@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireWebAccess } from '../middleware/requireWebAccess.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { resolveCountryId, resolveLocationPath } from '../db/locationHelpers.js';
 import { SELF_REGISTER_ROLES } from '../roles.js';
@@ -20,7 +21,7 @@ async function hasLocationCoverage(userId) {
   return result.rowCount > 0;
 }
 
-adminRouter.get('/admin/me', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/me', requireWebAccess, async (req, res) => {
   const result = await pool.query(`select id, name, role from users where id = $1`, [req.user.userId]);
   res.json({ user: result.rows[0] });
 });
@@ -38,7 +39,14 @@ adminRouter.post('/admin/users/:id/approve', requireAdmin, async (req, res) => {
   if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
     return res.status(400).json({ error: `role must be one of: ${SELF_REGISTER_ROLES.join(', ')}` });
   }
-  if (!(await hasLocationCoverage(req.params.id))) {
+
+  const targetResult = await pool.query('select role from users where id = $1', [req.params.id]);
+  if (targetResult.rowCount === 0) return res.status(404).json({ error: 'No pending user with that id' });
+  const effectiveRole = role ?? targetResult.rows[0].role;
+
+  // Leadership sees all countries by design (PRD Section 2) - a location
+  // assignment would be meaningless for them, not just optional.
+  if (effectiveRole !== 'leadership' && !(await hasLocationCoverage(req.params.id))) {
     return res.status(400).json({ error: 'Assign this user at least one location before approving them.' });
   }
 
@@ -157,8 +165,12 @@ adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
   if (req.params.id === req.user.userId) {
     return res.status(400).json({ error: "You can't change your own status" });
   }
-  if (status === 'approved' && !(await hasLocationCoverage(req.params.id))) {
-    return res.status(400).json({ error: 'Assign this user at least one location before approving them.' });
+  if (status === 'approved') {
+    const targetResult = await pool.query('select role from users where id = $1', [req.params.id]);
+    if (targetResult.rowCount === 0) return res.status(404).json({ error: 'No such user' });
+    if (targetResult.rows[0].role !== 'leadership' && !(await hasLocationCoverage(req.params.id))) {
+      return res.status(400).json({ error: 'Assign this user at least one location before approving them.' });
+    }
   }
   const result = await pool.query(
     `update users set status = $2, reviewed_by = $3, reviewed_at = now(), updated_at = now()

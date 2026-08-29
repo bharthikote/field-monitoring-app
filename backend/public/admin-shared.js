@@ -1,7 +1,12 @@
+// Leadership only gets Reports (PRD Section 2: "View/reporting access
+// only. Cannot approve users, modify data, or change any configuration.") -
+// everything else here is Admin/Super Admin only. Omit `roles` to show an
+// entry to every role allowed into the web panel at all.
 const NAV_STRUCTURE = [
-  { href: '/admin', label: 'Pending Approvals' },
+  { href: '/admin', label: 'Pending Approvals', roles: ['admin', 'super_admin'] },
   {
     label: 'System Update',
+    roles: ['admin', 'super_admin'],
     children: [
       { href: '/admin/locations', label: 'Locations' },
       { href: '/admin/crops', label: 'Crops' },
@@ -75,6 +80,7 @@ const NAV_ROLE_LABELS = {
   country_manager: 'Country Manager',
   admin: 'Admin',
   super_admin: 'Super Admin',
+  leadership: 'Leadership',
 };
 
 function initialsFor(name) {
@@ -88,7 +94,7 @@ function renderNav(user) {
   const nav = document.getElementById('admin-nav');
   if (!nav) return;
 
-  const linksHtml = NAV_STRUCTURE.map((entry) => {
+  const linksHtml = NAV_STRUCTURE.filter((entry) => !entry.roles || entry.roles.includes(user.role)).map((entry) => {
     if (entry.children) {
       const isActiveGroup = entry.children.some((c) => c.href === location.pathname);
       const childLinks = entry.children

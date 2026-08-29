@@ -4,4 +4,5 @@ export const ROLES = [
   { value: 'team_lead', label: 'Team Lead' },
   { value: 'country_manager', label: 'Country Manager' },
   { value: 'admin', label: 'Admin' },
+  { value: 'leadership', label: 'Leadership' },
 ];

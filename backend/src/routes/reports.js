@@ -19,7 +19,9 @@ export const SELECT_DEMO_PLOTS = `
 // Admin sees everything, everyone else is scoped to the villages their
 // location assignments cover.
 async function villageScopeClause(req, params) {
-  if (req.user.role === 'super_admin') return '';
+  // Leadership sees every country too (PRD Section 2: "All countries" /
+  // "View/reporting access only"), same unscoped reach as Super Admin.
+  if (req.user.role === 'super_admin' || req.user.role === 'leadership') return '';
   const villageIds = await getCoveredVillageIds(req.user.userId);
   params.push(villageIds);
   return ` where dp.village_id = any($${params.length})`;
