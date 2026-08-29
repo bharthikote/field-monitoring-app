@@ -1,8 +1,13 @@
-const NAV_LINKS = [
+const NAV_STRUCTURE = [
   { href: '/admin', label: 'Pending Approvals' },
-  { href: '/admin/locations', label: 'Locations' },
-  { href: '/admin/crops', label: 'Crops' },
-  { href: '/admin/master-lists', label: 'Master Lists' },
+  {
+    label: 'System Data',
+    children: [
+      { href: '/admin/locations', label: 'Locations' },
+      { href: '/admin/crops', label: 'Crops' },
+      { href: '/admin/master-lists', label: 'Master Lists' },
+    ],
+  },
   { href: '/admin/manage-users', label: 'All Users' },
 ];
 
@@ -38,18 +43,48 @@ async function authedFetch(path, options = {}) {
 function renderNav(user) {
   const nav = document.getElementById('admin-nav');
   if (!nav) return;
-  const links = NAV_LINKS.map(
-    (l) => `<a href="${l.href}" class="${location.pathname === l.href ? 'active' : ''}">${l.label}</a>`,
-  ).join('');
+
+  const linksHtml = NAV_STRUCTURE.map((entry) => {
+    if (entry.children) {
+      const isActiveGroup = entry.children.some((c) => c.href === location.pathname);
+      const childLinks = entry.children
+        .map((c) => `<a href="${c.href}" class="${location.pathname === c.href ? 'active' : ''}">${c.label}</a>`)
+        .join('');
+      return `
+        <div class="nav-dropdown">
+          <button type="button" class="nav-dropdown-toggle ${isActiveGroup ? 'active' : ''}">
+            ${entry.label} <span class="nav-caret">▾</span>
+          </button>
+          <div class="nav-dropdown-menu">${childLinks}</div>
+        </div>
+      `;
+    }
+    return `<a href="${entry.href}" class="${location.pathname === entry.href ? 'active' : ''}">${entry.label}</a>`;
+  }).join('');
+
   nav.innerHTML = `
-    <div class="nav-links">${links}</div>
+    <div class="nav-links">${linksHtml}</div>
     <div class="who">Logged in as <strong>${escapeHtml(user.name)}</strong> (${escapeHtml(user.role)})
       <button id="logout-btn">Log out</button>
     </div>
   `;
+
   document.getElementById('logout-btn').addEventListener('click', () => {
     clearToken();
     window.location.href = '/login.html';
+  });
+
+  nav.querySelectorAll('.nav-dropdown').forEach((dropdown) => {
+    const toggle = dropdown.querySelector('.nav-dropdown-toggle');
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = dropdown.classList.contains('open');
+      nav.querySelectorAll('.nav-dropdown.open').forEach((d) => d.classList.remove('open'));
+      if (!isOpen) dropdown.classList.add('open');
+    });
+  });
+  document.addEventListener('click', () => {
+    nav.querySelectorAll('.nav-dropdown.open').forEach((d) => d.classList.remove('open'));
   });
 }
 
