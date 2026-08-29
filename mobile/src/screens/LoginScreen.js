@@ -17,7 +17,7 @@ export default function LoginScreen({ onGoToSignUp, onLoggedIn }) {
     try {
       const { token, user } = await login(identifier, password);
       await saveSession({ token, user });
-      onLoggedIn(user);
+      onLoggedIn(user, token);
     } catch (err) {
       Alert.alert('Login failed', err.message);
     } finally {

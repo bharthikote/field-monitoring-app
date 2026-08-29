@@ -4,16 +4,21 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
+import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
+import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import { loadSession } from './src/session';
 
 export default function App() {
   const [screen, setScreen] = useState('loading');
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [createPhone, setCreatePhone] = useState('');
 
   useEffect(() => {
     loadSession().then((session) => {
       if (session) {
         setUser(session.user);
+        setToken(session.token);
         setScreen('home');
       } else {
         setScreen('login');
@@ -35,14 +40,33 @@ export default function App() {
       {screen === 'login' && (
         <LoginScreen
           onGoToSignUp={() => setScreen('signup')}
-          onLoggedIn={(loggedInUser) => {
+          onLoggedIn={(loggedInUser, loggedInToken) => {
             setUser(loggedInUser);
+            setToken(loggedInToken);
             setScreen('home');
           }}
         />
       )}
       {screen === 'home' && user && (
-        <HomeScreen user={user} onLoggedOut={() => setScreen('login')} />
+        <HomeScreen user={user} onLoggedOut={() => setScreen('login')} onFindDemoPlot={() => setScreen('lookup')} />
+      )}
+      {screen === 'lookup' && (
+        <DemoPlotLookupScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreateNew={(phone) => {
+            setCreatePhone(phone);
+            setScreen('create');
+          }}
+        />
+      )}
+      {screen === 'create' && (
+        <CreateDemoPlotScreen
+          token={token}
+          initialPhone={createPhone}
+          onBack={() => setScreen('lookup')}
+          onCreated={() => setScreen('lookup')}
+        />
       )}
       <StatusBar style="auto" />
     </View>
