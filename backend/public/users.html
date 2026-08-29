@@ -169,7 +169,7 @@ function render() {
       <td>${escapeHtml(contact)}</td>
       <td>${roleCell}</td>
       <td>${statusCell}</td>
-      <td class="actions-cell"><a href="/admin/user-profile/${user.id}" class="btn edit-btn">${EYE_ICON} Preview</a></td>
+      <td><div class="actions-cell"><a href="/admin/user-profile/${user.id}" class="btn edit-btn">${EYE_ICON} Preview</a></div></td>
     `;
     rows.appendChild(tr);
   }

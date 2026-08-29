@@ -73,11 +73,11 @@ async function loadPending() {
         <td>${escapeHtml(contact)}</td>
         <td><select class="role-select" data-user-id="${user.id}">${roleOptions}</select></td>
         <td>${requested}</td>
-        <td class="actions-cell">
+        <td><div class="actions-cell">
           <a href="/admin/user-profile/${user.id}" class="btn edit-btn">${EYE_ICON} Preview</a>
           <button class="approve" data-id="${user.id}" data-action="approve">${CHECK_ICON} Approve</button>
           <button class="reject" data-id="${user.id}" data-action="reject">${X_ICON} Reject</button>
-        </td>
+        </div></td>
       `;
       rows.appendChild(tr);
     }
