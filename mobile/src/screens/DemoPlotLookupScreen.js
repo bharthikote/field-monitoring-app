@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { lookupDemoPlots } from '../api';
+import { lookupDemoPlots, listDemoPlots } from '../api';
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 
 export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew }) {
   const [phone, setPhone] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
+  const [searchedPhone, setSearchedPhone] = useState(''); // '' means "browsing all"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSearch = async (searchPhone = phone) => {
-    if (!searchPhone.trim()) return;
+  const loadAll = async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await lookupDemoPlots(token, searchPhone.trim());
+      const data = await listDemoPlots(token);
       setResults(data.demoPlots);
+      setSearchedPhone('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -24,8 +25,35 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   };
 
+  const handleSearch = async (searchPhone = phone) => {
+    const trimmed = searchPhone.trim();
+    if (!trimmed) {
+      return loadAll();
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const data = await lookupDemoPlots(token, trimmed);
+      setResults(data.demoPlots);
+      setSearchedPhone(trimmed);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClear = () => {
+    setPhone('');
+    loadAll();
+  };
+
   useEffect(() => {
-    if (initialPhone) handleSearch(initialPhone);
+    if (initialPhone) {
+      handleSearch(initialPhone);
+    } else {
+      loadAll();
+    }
   }, [initialPhone]);
 
   const showDetail = (plot) => {
@@ -40,10 +68,23 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
       <Pressable onPress={onBack}>
         <Text style={styles.back}>{'< Back'}</Text>
       </Pressable>
-      <Text style={styles.title}>Find Demo Plot</Text>
+      <Text style={styles.title}>Demo Plots</Text>
 
       <Text style={styles.label}>Farmer Phone Number</Text>
-      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <View style={styles.phoneWrap}>
+        <TextInput
+          style={styles.input}
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          placeholder="Search by phone number"
+        />
+        {phone.length > 0 && (
+          <Pressable style={styles.clearButton} onPress={handleClear}>
+            <Text style={styles.clearButtonText}>✕</Text>
+          </Pressable>
+        )}
+      </View>
 
       <Pressable style={styles.button} onPress={() => handleSearch()} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search</Text>}
@@ -53,12 +94,19 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
 
       {results !== null && (
         <View style={{ marginTop: 24 }}>
+          <Text style={styles.sectionLabel}>
+            {searchedPhone ? `Results for ${searchedPhone}` : `All Demo Plots (${results.length})`}
+          </Text>
+
           {results.length === 0 ? (
-            <Text style={styles.empty}>No demo plot found for this number.</Text>
+            <Text style={styles.empty}>
+              {searchedPhone ? 'No demo plot found for this number.' : 'No demo plots created yet.'}
+            </Text>
           ) : (
             results.map((plot) => (
               <Pressable key={plot.id} style={styles.card} onPress={() => showDetail(plot)}>
                 <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
+                <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
                 <Text style={styles.cardLine}>{plot.crop_name} — {plot.variety_name}</Text>
                 <Text style={styles.cardLine}>{plot.village_name}</Text>
                 <Text style={styles.cardStatus}>{STATUS_LABELS[plot.demo_status]}</Text>
@@ -66,8 +114,10 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
             ))
           )}
 
-          <Pressable style={styles.secondaryButton} onPress={() => onCreateNew(phone.trim())}>
-            <Text style={styles.secondaryButtonText}>+ Create New Demo Plot for this Number</Text>
+          <Pressable style={styles.secondaryButton} onPress={() => onCreateNew(searchedPhone)}>
+            <Text style={styles.secondaryButtonText}>
+              {searchedPhone ? '+ Create New Demo Plot for this Number' : '+ Create New Demo Plot'}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -80,10 +130,14 @@ const styles = StyleSheet.create({
   back: { color: '#2563eb', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   label: { fontSize: 13, color: '#555', marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
+  phoneWrap: { position: 'relative', justifyContent: 'center' },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, paddingRight: 40, fontSize: 16 },
+  clearButton: { position: 'absolute', right: 8, padding: 8 },
+  clearButtonText: { fontSize: 16, color: '#888' },
   button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 16 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   error: { color: '#dc2626', marginTop: 12 },
+  sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10 },
   cardTitle: { fontWeight: '700', fontSize: 16 },

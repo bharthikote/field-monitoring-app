@@ -31,6 +31,8 @@ export const listVillages = (token, blockId) => request(`/locations/villages?blo
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });
 
+export const listDemoPlots = (token) => request('/demo-plots', { token });
+
 export const lookupDemoPlots = (token, phone) =>
   request(`/demo-plots/lookup?phone=${encodeURIComponent(phone)}`, { token });
 
