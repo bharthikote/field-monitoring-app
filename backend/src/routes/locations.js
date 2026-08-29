@@ -60,7 +60,7 @@ function requireSuperAdmin(req, res, next) {
 
 function requireOwnCountry(actualCountryId, req, res) {
   if (req.user.role === 'super_admin') return true;
-  if (!req.user.countryId || req.user.countryId !== actualCountryId) {
+  if (!req.user.countryIds.includes(actualCountryId)) {
     res.status(403).json({ error: "You can only manage locations within your own assigned country" });
     return false;
   }

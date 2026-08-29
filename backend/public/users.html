@@ -68,8 +68,7 @@ let sortDir = 'asc';
 const pendingChanges = new Map(); // userId -> { role?, status? }
 
 function locationSummary(user) {
-  const parts = [user.country_name, user.state_name, user.district_name, user.block_name, user.village_name].filter(Boolean);
-  return parts.length ? parts.join(' › ') : '—';
+  return user.location_summary || '—';
 }
 
 function getVisibleUsers() {

@@ -14,6 +14,10 @@
   .section-title:first-child { margin-top: 0; }
   .btn-row { display: flex; gap: 8px; margin-top: 16px; }
   .danger-zone { border: 1px solid var(--danger); border-radius: var(--radius); padding: 18px; margin-top: 12px; }
+  .loc-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .loc-row:last-child { border-bottom: none; }
+  .loc-path { flex: 1; font-size: 0.88rem; }
+  .loc-level-tag { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 999px; }
 </style>
 </head>
 <body>
@@ -47,12 +51,10 @@
     <div class="inline-form" id="status-actions"></div>
     <p class="error" id="status-error" style="display:none"></p>
 
-    <div class="section-title">Location</div>
-    <div class="field-row">
-      <div class="field-label">Current location</div>
-      <div class="field-value" id="location-summary"></div>
-    </div>
-    <p class="scope-note">Pick a level, then click "Assign here" at whichever depth you want. Country/State can only be assigned by Super Admin.</p>
+    <div class="section-title">Locations</div>
+    <p class="scope-note" style="margin-top:0">A user can be assigned multiple locations at any mix of levels - coverage is everything under all of them combined.</p>
+    <div id="location-list"></div>
+    <p class="scope-note">Pick a level, then click "Assign here" to add another one. Country/State can only be assigned by Super Admin.</p>
     <div id="location-levels"></div>
     <p class="error" id="location-error" style="display:none"></p>
 
@@ -97,11 +99,6 @@ const userId = location.pathname.split('/').pop();
 let currentUser = null;
 let profile = null;
 
-function locationSummary(p) {
-  const parts = [p.country_name, p.state_name, p.district_name, p.block_name, p.village_name].filter(Boolean);
-  return parts.length ? parts.join(' › ') : '—';
-}
-
 function fmtDate(d) {
   return d ? new Date(d).toLocaleString() : '—';
 }
@@ -114,7 +111,6 @@ function renderPreview() {
     ['Name', escapeHtml(profile.name)],
     ['Contact', escapeHtml(contact)],
     ['Role', ROLE_LABELS[profile.role] || profile.role],
-    ['Location', escapeHtml(locationSummary(profile))],
     ['Created', fmtDate(profile.created_at)],
     ['Last reviewed', profile.reviewed_at ? `${fmtDate(profile.reviewed_at)} by ${escapeHtml(profile.reviewed_by_name || 'someone no longer in the system')}` : '—'],
     ['Last updated', fmtDate(profile.updated_at)],
@@ -125,9 +121,49 @@ function renderPreview() {
 
   document.getElementById('status-badge').textContent = STATUS_LABELS[profile.status];
   renderStatusActions();
-
-  document.getElementById('location-summary').textContent = locationSummary(profile);
 }
+
+const LEVEL_LABELS = { country: 'Country', state: 'State', district: 'District', block: 'Block', village: 'Village' };
+
+async function loadLocationList() {
+  const res = await authedFetch(`/admin/users/${userId}/locations`);
+  const data = await res.json();
+  const container = document.getElementById('location-list');
+
+  if (!data.assignments.length) {
+    container.innerHTML = '<p class="empty">No locations assigned yet.</p>';
+    return;
+  }
+
+  container.innerHTML = data.assignments
+    .map(
+      (a) => `
+        <div class="loc-row">
+          <span class="loc-level-tag">${LEVEL_LABELS[a.level]}</span>
+          <span class="loc-path">${escapeHtml(a.path)}</span>
+          <button class="small delete-btn" data-assignment-id="${a.id}">Remove</button>
+        </div>`,
+    )
+    .join('');
+}
+
+document.getElementById('location-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-assignment-id]');
+  if (!btn) return;
+  const errorEl = document.getElementById('location-error');
+  errorEl.style.display = 'none';
+  try {
+    const res = await authedFetch(`/admin/users/${userId}/locations/${btn.dataset.assignmentId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to remove');
+    }
+    await loadLocationList();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
 
 function renderLocationLevels() {
   const container = document.getElementById('location-levels');
@@ -183,13 +219,16 @@ async function onLocationAssign(levelKey) {
   if (!locationId) return;
 
   try {
-    const res = await authedFetch(`/admin/users/${userId}/assign-location`, {
+    const res = await authedFetch(`/admin/users/${userId}/locations`, {
       method: 'POST',
       body: JSON.stringify({ level: levelKey, locationId }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to assign');
-    await loadProfile();
+    await loadLocationList();
+    Object.keys(locationSelected).forEach((k) => (locationSelected[k] = null));
+    renderLocationLevels();
+    await loadLocationLevel(0);
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
@@ -340,6 +379,7 @@ async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
   await loadProfile();
+  await loadLocationList();
   renderLocationLevels();
   await loadLocationLevel(0);
 }
