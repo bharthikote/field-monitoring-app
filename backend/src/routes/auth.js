@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 import { SELF_REGISTER_ROLES as ROLES } from '../roles.js';
+import { generateUniqueUserCode } from '../db/userCode.js';
 
 export const authRouter = Router();
 
@@ -25,20 +26,25 @@ authRouter.post('/auth/register', async (req, res) => {
   const mobileNumber = isEmail(identifier) ? null : identifier;
   const passwordHash = await bcrypt.hash(password, 10);
 
-  try {
-    const result = await pool.query(
-      `insert into users (name, mobile_number, email, password_hash, role, status)
-       values ($1, $2, $3, $4, $5, 'pending')
-       returning id, name, mobile_number, email, role, status, created_at`,
-      [name, mobileNumber, email, passwordHash, role],
-    );
-    res.status(201).json({ user: result.rows[0] });
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'An account with that mobile number or email already exists' });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const userCode = await generateUniqueUserCode(pool);
+    try {
+      const result = await pool.query(
+        `insert into users (user_code, name, mobile_number, email, password_hash, role, status)
+         values ($1, $2, $3, $4, $5, $6, 'pending')
+         returning id, user_code, name, mobile_number, email, role, status, created_at`,
+        [userCode, name, mobileNumber, email, passwordHash, role],
+      );
+      return res.status(201).json({ user: result.rows[0] });
+    } catch (err) {
+      if (err.constraint === 'users_user_code_key') continue;
+      if (err.code === '23505') {
+        return res.status(409).json({ error: 'An account with that mobile number or email already exists' });
+      }
+      return res.status(500).json({ error: err.message });
     }
-    res.status(500).json({ error: err.message });
   }
+  res.status(500).json({ error: 'Could not generate a unique user code, please try again' });
 });
 
 authRouter.post('/auth/login', async (req, res) => {
@@ -75,6 +81,7 @@ authRouter.post('/auth/login', async (req, res) => {
     token,
     user: {
       id: user.id,
+      userCode: user.user_code,
       name: user.name,
       mobileNumber: user.mobile_number,
       email: user.email,

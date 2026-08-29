@@ -50,7 +50,7 @@
   <p id="status" class="empty">Loading...</p>
   <table id="table" style="display:none">
     <thead>
-      <tr><th>Name</th><th>Contact</th><th>Role</th><th>Requested</th><th>Action</th></tr>
+      <tr><th>ID</th><th>Name</th><th>Contact</th><th>Role</th><th>Requested</th><th>Action</th></tr>
     </thead>
     <tbody id="rows"></tbody>
   </table>
@@ -182,6 +182,7 @@ async function loadPending() {
         .map((value) => `<option value="${value}" ${value === user.role ? 'selected' : ''}>${ROLE_LABELS[value]}</option>`)
         .join('');
       tr.innerHTML = `
+        <td><code>${escapeHtml(user.user_code)}</code></td>
         <td>${escapeHtml(user.name)}</td>
         <td>${escapeHtml(contact)}</td>
         <td><select class="role-select" data-user-id="${user.id}">${roleOptions}</select></td>

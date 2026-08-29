@@ -12,7 +12,7 @@ adminRouter.get('/admin/me', requireAdmin, async (req, res) => {
 
 adminRouter.get('/admin/users/pending', requireAdmin, async (_req, res) => {
   const result = await pool.query(
-    `select id, name, mobile_number, email, role, status, created_at
+    `select id, user_code, name, mobile_number, email, role, status, created_at
      from users where status = 'pending' order by created_at asc`,
   );
   res.json({ users: result.rows });
