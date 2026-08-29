@@ -5,13 +5,11 @@
   --border-strong: #d8d5cd;
   --text: #2d2a26;
   --text-muted: #837f77;
-  --accent: #c96442;
-  --accent-hover: #b3563a;
-  --accent-soft: #f4e6e0;
-  --danger: #b3432f;
-  --danger-soft: #fbebe7;
-  --success: #4d7c5f;
-  --success-soft: #e8f0ea;
+  --accent: #4f8b5b;
+  --accent-hover: #3e7248;
+  --accent-soft: #e8f3ea;
+  --danger: #c0392b;
+  --danger-soft: #fbeae8;
   --radius: 12px;
   --radius-sm: 8px;
 }
@@ -129,6 +127,6 @@ button.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 4px; }
 .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
 .add-child { display: flex; gap: 8px; margin: 8px 0 8px 33px; }
 .add-child input { font-size: 0.83rem; padding: 6px 10px; }
-.add-child button { background: var(--success-soft); color: var(--success); border: 1px solid transparent; font-size: 0.8rem; }
-.add-child button:hover { background: #d9eae0; }
+.add-child button { background: var(--accent-soft); color: var(--accent-hover); border: 1px solid transparent; font-size: 0.8rem; }
+.add-child button:hover { background: #d7ecdb; }
 .top-add { display: flex; gap: 8px; margin-bottom: 20px; }
