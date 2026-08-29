@@ -8,6 +8,7 @@ import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
 import { locationsRouter } from './routes/locations.js';
 import { masterRouter } from './routes/master.js';
+import { simpleMasterListsRouter } from './routes/simpleMasterLists.js';
 import { demoPlotsRouter } from './routes/demoPlots.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ app.use(authRouter);
 app.use(adminRouter);
 app.use(locationsRouter);
 app.use(masterRouter);
+app.use(simpleMasterListsRouter);
 app.use(demoPlotsRouter);
 app.use(express.static(publicDir));
 
@@ -36,6 +38,9 @@ app.get('/admin/manage-users', (_req, res) => {
 });
 app.get('/admin/crops', (_req, res) => {
   res.sendFile(path.join(publicDir, 'crops.html'));
+});
+app.get('/admin/master-lists', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'master-lists.html'));
 });
 
 const port = process.env.PORT || 4000;
