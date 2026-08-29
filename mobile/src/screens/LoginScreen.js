@@ -51,10 +51,7 @@ export default function LoginScreen({ onGoToSignUp, onLoggedIn }) {
 
       <Pressable
         onPress={() =>
-          Alert.alert(
-            'Forgot password?',
-            'Passwords are reset by your Admin or Super Admin from the web admin panel — ask them to reset yours.',
-          )
+          Alert.alert('Forgot password?', 'Password reset is coming soon.')
         }
       >
         <Text style={styles.forgotLink}>Forgot password?</Text>

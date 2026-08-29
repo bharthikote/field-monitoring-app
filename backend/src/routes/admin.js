@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { SELF_REGISTER_ROLES } from '../roles.js';
@@ -76,20 +75,6 @@ adminRouter.post('/admin/users/:id/role', requireAdmin, async (req, res) => {
   const result = await pool.query(
     `update users set role = $2, updated_at = now() where id = $1 returning id, name, role`,
     [req.params.id, role],
-  );
-  if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
-  res.json({ user: result.rows[0] });
-});
-
-adminRouter.post('/admin/users/:id/reset-password', requireAdmin, async (req, res) => {
-  const { newPassword } = req.body;
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: 'newPassword must be at least 6 characters' });
-  }
-  const passwordHash = await bcrypt.hash(newPassword, 10);
-  const result = await pool.query(
-    `update users set password_hash = $2, updated_at = now() where id = $1 returning id, name`,
-    [req.params.id, passwordHash],
   );
   if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
   res.json({ user: result.rows[0] });

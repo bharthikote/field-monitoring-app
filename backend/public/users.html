@@ -27,18 +27,6 @@
   <p class="error" id="assign-error" style="display:none"></p>
   <button id="assign-cancel" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text);margin-top:12px">Cancel</button>
 </div>
-
-<div id="reset-panel" style="display:none; margin-top: 28px; border-top: 1px solid var(--border); padding-top: 24px;">
-  <h2>Reset Password for <span id="reset-name"></span></h2>
-  <p class="scope-note">Set a new password directly. Share it with the user through a secure channel yourself.</p>
-  <div class="inline-form">
-    <input type="text" id="reset-password-input" placeholder="New password (min 6 characters)" />
-    <button id="reset-save" class="primary">Save</button>
-    <button id="reset-cancel" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Cancel</button>
-  </div>
-  <p class="error" id="reset-error" style="display:none"></p>
-  <p id="reset-success" style="display:none; color:var(--accent-hover); font-size:0.85rem; margin-top:10px;">Password reset. Share the new password with the user through a secure channel.</p>
-</div>
 </div>
 </div>
 
@@ -64,7 +52,6 @@ const LEVELS = [
 
 let currentUser = null;
 let assignTargetUserId = null;
-let resetTargetUserId = null;
 const assignSelected = { country: null, state: null, district: null, block: null, village: null };
 
 function locationSummary(user) {
@@ -110,10 +97,7 @@ async function loadUsers() {
       </td>
       <td>${escapeHtml(user.status)}</td>
       <td>${escapeHtml(locationSummary(user))}</td>
-      <td>
-        <button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button>
-        <button class="reset-password-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Reset Password</button>
-      </td>
+      <td><button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button></td>
     `;
     rows.appendChild(tr);
   }
@@ -122,7 +106,6 @@ async function loadUsers() {
 document.getElementById('rows').addEventListener('click', async (e) => {
   const saveBtn = e.target.closest('.save-role');
   const assignBtn = e.target.closest('.assign-btn');
-  const resetBtn = e.target.closest('.reset-password-btn');
 
   if (saveBtn) {
     const userId = saveBtn.dataset.userId;
@@ -151,53 +134,11 @@ document.getElementById('rows').addEventListener('click', async (e) => {
     await loadAssignLevel(0);
     document.getElementById('assign-panel').scrollIntoView({ behavior: 'smooth' });
   }
-
-  if (resetBtn) {
-    resetTargetUserId = resetBtn.dataset.userId;
-    document.getElementById('reset-name').textContent = resetBtn.dataset.userName;
-    document.getElementById('reset-password-input').value = '';
-    document.getElementById('reset-error').style.display = 'none';
-    document.getElementById('reset-success').style.display = 'none';
-    document.getElementById('reset-panel').style.display = 'block';
-    document.getElementById('reset-panel').scrollIntoView({ behavior: 'smooth' });
-  }
 });
 
 document.getElementById('assign-cancel').addEventListener('click', () => {
   assignTargetUserId = null;
   document.getElementById('assign-panel').style.display = 'none';
-});
-
-document.getElementById('reset-cancel').addEventListener('click', () => {
-  resetTargetUserId = null;
-  document.getElementById('reset-panel').style.display = 'none';
-  document.getElementById('reset-success').style.display = 'none';
-});
-
-document.getElementById('reset-save').addEventListener('click', async () => {
-  const errorEl = document.getElementById('reset-error');
-  errorEl.style.display = 'none';
-  const newPassword = document.getElementById('reset-password-input').value;
-  if (!newPassword || newPassword.length < 6) {
-    errorEl.textContent = 'Password must be at least 6 characters.';
-    errorEl.style.display = 'block';
-    return;
-  }
-  try {
-    const res = await authedFetch(`/admin/users/${resetTargetUserId}/reset-password`, {
-      method: 'POST',
-      body: JSON.stringify({ newPassword }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to reset password');
-    resetTargetUserId = null;
-    errorEl.style.display = 'none';
-    document.getElementById('reset-password-input').value = '';
-    document.getElementById('reset-success').style.display = 'block';
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.style.display = 'block';
-  }
 });
 
 function renderAssignLevels() {
