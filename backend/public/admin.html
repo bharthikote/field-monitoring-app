@@ -12,7 +12,9 @@
 <div class="page">
 <div class="panel">
 <h1>Pending User Approvals</h1>
+<p class="scope-note" style="margin-top:0">A user needs at least one location assigned before they can be approved. Use Preview to assign one first if needed.</p>
 <p id="status" class="empty">Loading...</p>
+<p class="error" id="action-error" style="display:none"></p>
 <table id="table" style="display:none">
   <thead>
     <tr><th>ID</th><th>Name</th><th>Contact</th><th>Role</th><th>Requested</th><th>Action</th></tr>
@@ -69,6 +71,7 @@ async function loadPending() {
         <td><select class="role-select" data-user-id="${user.id}">${roleOptions}</select></td>
         <td>${requested}</td>
         <td>
+          <a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a>
           <button class="approve" data-id="${user.id}" data-action="approve">Approve</button>
           <button class="reject" data-id="${user.id}" data-action="reject">Reject</button>
         </td>
@@ -87,6 +90,8 @@ document.getElementById('rows').addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   const { id, action } = btn.dataset;
+  const errorEl = document.getElementById('action-error');
+  errorEl.style.display = 'none';
   btn.disabled = true;
   try {
     const body = {};
@@ -100,13 +105,15 @@ document.getElementById('rows').addEventListener('click', async (e) => {
     });
     if (!res.ok) {
       const data = await res.json();
-      alert('Failed: ' + (data.error || res.statusText));
+      errorEl.textContent = data.error || res.statusText;
+      errorEl.style.display = 'block';
       btn.disabled = false;
       return;
     }
     loadPending();
   } catch (err) {
-    alert('Failed: ' + err.message);
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
     btn.disabled = false;
   }
 });

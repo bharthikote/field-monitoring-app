@@ -9,6 +9,17 @@ export const adminRouter = Router();
 adminRouter.param('id', validateUuidParam);
 adminRouter.param('assignmentId', validateUuidParam);
 
+// A user can't be Approved without at least one location assignment - an
+// approved account with no coverage would see nothing and be pointless.
+// An exclude-only set doesn't count; there has to be at least one include.
+async function hasLocationCoverage(userId) {
+  const result = await pool.query(
+    `select 1 from user_locations where user_id = $1 and mode = 'include' limit 1`,
+    [userId],
+  );
+  return result.rowCount > 0;
+}
+
 adminRouter.get('/admin/me', requireAdmin, async (req, res) => {
   const result = await pool.query(`select id, name, role from users where id = $1`, [req.user.userId]);
   res.json({ user: result.rows[0] });
@@ -26,6 +37,9 @@ adminRouter.post('/admin/users/:id/approve', requireAdmin, async (req, res) => {
   const { role } = req.body;
   if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
     return res.status(400).json({ error: `role must be one of: ${SELF_REGISTER_ROLES.join(', ')}` });
+  }
+  if (!(await hasLocationCoverage(req.params.id))) {
+    return res.status(400).json({ error: 'Assign this user at least one location before approving them.' });
   }
 
   const result = await pool.query(
@@ -142,6 +156,9 @@ adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
   }
   if (req.params.id === req.user.userId) {
     return res.status(400).json({ error: "You can't change your own status" });
+  }
+  if (status === 'approved' && !(await hasLocationCoverage(req.params.id))) {
+    return res.status(400).json({ error: 'Assign this user at least one location before approving them.' });
   }
   const result = await pool.query(
     `update users set status = $2, reviewed_by = $3, reviewed_at = now(), updated_at = now()
