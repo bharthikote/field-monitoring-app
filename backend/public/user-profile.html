@@ -22,7 +22,6 @@
   .loc-toggle-spacer { display: inline-block; width: 18px; }
   .loc-tree-name { font-size: 0.88rem; }
   .loc-tree-name.inherited { color: var(--text-muted); }
-  .loc-inherited-tag { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
 </style>
 </head>
 <body>
@@ -181,7 +180,6 @@ async function buildTreeHtml(levelIndex, parentId, inheritedFromName) {
         data-inherited="${isInherited}"
         ${isChecked ? 'checked' : ''} ${canCheck ? '' : 'disabled'} />
       <span class="loc-tree-name ${isInherited ? 'inherited' : ''}">${escapeHtml(item.name)}</span>
-      ${isInherited ? `<span class="loc-inherited-tag">via ${escapeHtml(inheritedFromName)}</span>` : ''}
     </div>`;
     if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id, childInherited);
     html += '</li>';
