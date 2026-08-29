@@ -4,33 +4,22 @@
 <meta charset="utf-8" />
 <title>Location Hierarchy</title>
 <link rel="stylesheet" href="/admin.css" />
-<style>
-  .tree-level { list-style: none; padding-left: 0; margin: 4px 0; }
-  .tree-level .tree-level { padding-left: 22px; border-left: 1px dashed #ddd; }
-  .tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
-  .toggle { background: none; border: none; font-size: 0.9rem; width: 20px; padding: 0; margin: 0; cursor: pointer; }
-  .toggle-spacer { display: inline-block; width: 20px; }
-  .tree-name { flex: 1; font-size: 0.9rem; }
-  .tree-row button.small { padding: 2px 8px; font-size: 0.75rem; }
-  .edit-btn { background: #eef2ff; color: #3730a3; }
-  .delete-btn { background: #fee2e2; color: #991b1b; }
-  .add-child { display: flex; gap: 6px; margin: 6px 0 6px 22px; }
-  .add-child input { font-size: 0.82rem; padding: 4px 8px; }
-  .add-child button { background: #16a34a; color: white; font-size: 0.78rem; padding: 4px 10px; }
-  .top-add { display: flex; gap: 8px; margin-bottom: 16px; }
-</style>
 </head>
 <body>
 
 <div id="admin-nav"></div>
 
+<div class="page page-wide">
+<div class="panel">
 <h1>Location Hierarchy</h1>
 <p id="scope-note" class="scope-note"></p>
 <div id="top-add" class="top-add" style="display:none">
   <input type="text" id="top-add-input" placeholder="New country name" />
-  <button id="top-add-btn" style="background:#16a34a;color:white">+ Add Country</button>
+  <button id="top-add-btn" class="primary">+ Add Country</button>
 </div>
 <div id="tree"></div>
+</div>
+</div>
 
 <script src="/admin-shared.js"></script>
 <script>
