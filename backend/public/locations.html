@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Location Hierarchy</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<h1>Location Hierarchy</h1>
+<p id="scope-note" class="scope-note"></p>
+
+<div id="levels"></div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const LEVELS = [
+  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', create: '/locations/countries', parentField: null, superAdminOnly: true },
+  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', create: '/locations/states', parentField: 'country_id', superAdminOnly: true },
+  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', create: '/locations/districts', parentField: 'state_id', superAdminOnly: false },
+  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', create: '/locations/blocks', parentField: 'district_id', superAdminOnly: false },
+  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', create: '/locations/villages', parentField: 'block_id', superAdminOnly: false },
+];
+
+let currentUser = null;
+const selected = { country: null, state: null, district: null, block: null, village: null };
+
+function levelContainer(key) {
+  return document.getElementById(`level-${key}`);
+}
+
+function renderSkeleton() {
+  const container = document.getElementById('levels');
+  container.innerHTML = LEVELS.map((l) => `
+    <div id="level-${l.key}" style="display:none">
+      <h2>${l.label}</h2>
+      <select id="select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
+      <div id="add-${l.key}" class="inline-form" style="display:none">
+        <input type="text" id="input-${l.key}" placeholder="New ${l.label.toLowerCase()} name" />
+        <button class="primary" id="btn-${l.key}">Add ${l.label}</button>
+      </div>
+      <p class="error" id="error-${l.key}" style="display:none"></p>
+    </div>
+  `).join('');
+}
+
+function canCreate(level) {
+  if (!level.superAdminOnly) return currentUser.role === 'super_admin' || currentUser.role === 'admin';
+  return currentUser.role === 'super_admin';
+}
+
+async function loadLevel(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const container = levelContainer(level.key);
+
+  // Hide this level and everything deeper until we know the parent is chosen
+  if (levelIndex > 0 && !selected[LEVELS[levelIndex - 1].key]) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  const res = await authedFetch(level.list(selected));
+  const data = await res.json();
+  const items = data[level.dataKey];
+
+  const select = document.getElementById(`select-${level.key}`);
+  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
+    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+  select.value = selected[level.key] || '';
+
+  const addForm = document.getElementById(`add-${level.key}`);
+  addForm.style.display = canCreate(level) ? 'flex' : 'none';
+}
+
+async function onSelectChange(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const select = document.getElementById(`select-${level.key}`);
+  selected[level.key] = select.value || null;
+
+  // Clear everything deeper
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) {
+    selected[LEVELS[i].key] = null;
+  }
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) {
+    await loadLevel(i);
+  }
+}
+
+async function onAddClick(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const input = document.getElementById(`input-${level.key}`);
+  const errorEl = document.getElementById(`error-${level.key}`);
+  const name = input.value.trim();
+  errorEl.style.display = 'none';
+  if (!name) return;
+
+  const body = { name };
+  if (level.parentField) {
+    body[level.parentField] = selected[LEVELS[levelIndex - 1].key];
+  }
+
+  const btn = document.getElementById(`btn-${level.key}`);
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(level.create, { method: 'POST', body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add');
+    input.value = '';
+    await loadLevel(levelIndex);
+    document.getElementById(`select-${level.key}`).value = data[level.key]?.id || '';
+    await onSelectChange(levelIndex);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function wireEvents() {
+  LEVELS.forEach((level, index) => {
+    document.getElementById(`select-${level.key}`).addEventListener('change', () => onSelectChange(index));
+    document.getElementById(`btn-${level.key}`).addEventListener('click', () => onAddClick(index));
+  });
+}
+
+async function init() {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+
+  const scopeNote = document.getElementById('scope-note');
+  if (currentUser.role === 'admin') {
+    scopeNote.textContent = 'As Admin, you can add Districts, Blocks, and Villages within your own assigned country. Country and State are managed by Super Admin.';
+  } else {
+    scopeNote.textContent = 'As Super Admin, you can manage the full hierarchy across all countries.';
+  }
+
+  renderSkeleton();
+  wireEvents();
+  await loadLevel(0);
+}
+
+init();
+</script>
+</body>
+</html>

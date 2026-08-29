@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { pool } from '../db/pool.js';
 
 export function requireAdmin(req, res, next) {
   const header = req.headers.authorization || '';
@@ -8,14 +9,21 @@ export function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Login required' });
   }
 
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+  jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
+    if (err) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
     if (payload.role !== 'admin' && payload.role !== 'super_admin') {
       return res.status(403).json({ error: 'Admin access required' });
     }
-    req.user = payload;
+
+    const result = await pool.query('select id, role, country_id from users where id = $1', [payload.userId]);
+    const user = result.rows[0];
+    if (!user) {
+      return res.status(401).json({ error: 'Account no longer exists' });
+    }
+
+    req.user = { userId: user.id, role: user.role, countryId: user.country_id };
     next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid or expired session' });
-  }
+  });
 }

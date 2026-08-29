@@ -6,8 +6,10 @@ import 'dotenv/config';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { adminRouter } from './routes/admin.js';
+import { locationsRouter } from './routes/locations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const publicDir = path.join(__dirname, '..', 'public');
 
 const app = express();
 
@@ -16,9 +18,17 @@ app.use(express.json());
 app.use(healthRouter);
 app.use(authRouter);
 app.use(adminRouter);
+app.use(locationsRouter);
+app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+  res.sendFile(path.join(publicDir, 'admin.html'));
+});
+app.get('/admin/locations', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'locations.html'));
+});
+app.get('/admin/manage-users', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'users.html'));
 });
 
 const port = process.env.PORT || 4000;

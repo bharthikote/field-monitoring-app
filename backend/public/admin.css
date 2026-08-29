@@ -1,0 +1,29 @@
+body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+h1 { font-size: 1.4rem; }
+h2 { font-size: 1.1rem; margin-top: 32px; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e2e2; font-size: 0.9rem; }
+th { color: #666; font-weight: 600; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+.role-badge { background: #eef2ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+button { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; margin-right: 6px; }
+select, input[type=text] { padding: 6px 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 0.85rem; }
+.approve, .primary { background: #16a34a; color: white; }
+.reject { background: #dc2626; color: white; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.empty { color: #888; margin-top: 30px; }
+.error { color: #dc2626; margin-top: 10px; }
+code { background: #f1f1f1; padding: 2px 6px; border-radius: 4px; }
+
+#admin-nav { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e2e2; padding-bottom: 16px; margin-bottom: 24px; }
+.nav-links a { margin-right: 18px; text-decoration: none; color: #555; font-size: 0.9rem; padding-bottom: 4px; }
+.nav-links a.active { color: #2563eb; border-bottom: 2px solid #2563eb; font-weight: 600; }
+.who { font-size: 0.85rem; color: #555; }
+.who button { background: none; border: 1px solid #ccc; color: #333; margin-left: 10px; }
+
+.login-wrap { max-width: 340px; margin: 80px auto; }
+.login-wrap label { display: block; font-size: 13px; color: #555; margin: 12px 0 4px; }
+.login-wrap input { width: 100%; box-sizing: border-box; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
+.login-wrap button { width: 100%; margin-top: 20px; padding: 10px; background: #2563eb; color: #fff; font-size: 15px; }
+
+.inline-form { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+.scope-note { font-size: 0.8rem; color: #888; margin-top: 4px; }

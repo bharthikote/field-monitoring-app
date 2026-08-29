@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Admin Login</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div class="login-wrap">
+  <h1>Admin Login</h1>
+  <label>Email or Mobile</label>
+  <input id="login-identifier" type="text" autocomplete="username" />
+  <label>Password</label>
+  <input id="login-password" type="password" autocomplete="current-password" />
+  <p id="login-error" class="error" style="display:none"></p>
+  <button id="login-submit">Log In</button>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+if (getToken()) {
+  window.location.href = '/admin';
+}
+
+document.getElementById('login-submit').addEventListener('click', async () => {
+  const identifier = document.getElementById('login-identifier').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.style.display = 'none';
+
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    if (data.user.role !== 'admin' && data.user.role !== 'super_admin') {
+      throw new Error('This account does not have admin access');
+    }
+    setToken(data.token);
+    window.location.href = '/admin';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+</script>
+</body>
+</html>

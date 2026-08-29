@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>All Users</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<h1>All Users</h1>
+<p id="status" class="empty">Loading...</p>
+<table id="table" style="display:none">
+  <thead>
+    <tr><th>ID</th><th>Name</th><th>Contact</th><th>Role</th><th>Status</th><th>Current Location</th><th>Action</th></tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div id="assign-panel" style="display:none; margin-top: 32px; border-top: 1px solid #e2e2e2; padding-top: 20px;">
+  <h2>Assign Location to <span id="assign-name"></span></h2>
+  <p class="scope-note">Pick a level, then click "Assign here" at whichever depth you want. Country/State can only be assigned by Super Admin.</p>
+  <div id="assign-levels"></div>
+  <p class="error" id="assign-error" style="display:none"></p>
+  <button id="assign-cancel" style="background:none;border:1px solid #ccc;color:#333;margin-top:12px">Cancel</button>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)',
+  supervisor: 'Supervisor',
+  team_lead: 'Team Lead',
+  country_manager: 'Country Manager',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+};
+const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
+
+const LEVELS = [
+  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', parentField: null, superAdminOnly: true },
+  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', parentField: 'country', superAdminOnly: true },
+  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', parentField: 'state', superAdminOnly: false },
+  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', parentField: 'district', superAdminOnly: false },
+  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', parentField: 'block', superAdminOnly: false },
+];
+
+let currentUser = null;
+let assignTargetUserId = null;
+const assignSelected = { country: null, state: null, district: null, block: null, village: null };
+
+function locationSummary(user) {
+  const parts = [user.country_name, user.state_name, user.district_name, user.block_name, user.village_name].filter(Boolean);
+  return parts.length ? parts.join(' › ') : '—';
+}
+
+async function loadUsers() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+
+  const res = await authedFetch('/admin/users');
+  const data = await res.json();
+
+  if (!data.users.length) {
+    statusEl.textContent = 'No users found.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  rows.innerHTML = '';
+
+  for (const user of data.users) {
+    const tr = document.createElement('tr');
+    const contact = user.email || user.mobile_number;
+    const roleOptions = ASSIGNABLE_ROLES
+      .map((value) => `<option value="${value}" ${value === user.role ? 'selected' : ''}>${ROLE_LABELS[value]}</option>`)
+      .join('');
+    const canEditRole = ASSIGNABLE_ROLES.includes(user.role);
+    tr.innerHTML = `
+      <td><code>${escapeHtml(user.user_code)}</code></td>
+      <td>${escapeHtml(user.name)}</td>
+      <td>${escapeHtml(contact)}</td>
+      <td>
+        ${canEditRole
+          ? `<select class="role-select" data-user-id="${user.id}">${roleOptions}</select>
+             <button class="primary save-role" data-user-id="${user.id}">Save</button>`
+          : `<span class="role-badge">${ROLE_LABELS[user.role] || user.role}</span>`}
+      </td>
+      <td>${escapeHtml(user.status)}</td>
+      <td>${escapeHtml(locationSummary(user))}</td>
+      <td><button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button></td>
+    `;
+    rows.appendChild(tr);
+  }
+}
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const saveBtn = e.target.closest('.save-role');
+  const assignBtn = e.target.closest('.assign-btn');
+
+  if (saveBtn) {
+    const userId = saveBtn.dataset.userId;
+    const select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
+    saveBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/admin/users/${userId}/role`, {
+        method: 'POST',
+        body: JSON.stringify({ role: select.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update role');
+      loadUsers();
+    } catch (err) {
+      alert('Failed: ' + err.message);
+      saveBtn.disabled = false;
+    }
+  }
+
+  if (assignBtn) {
+    assignTargetUserId = assignBtn.dataset.userId;
+    document.getElementById('assign-name').textContent = assignBtn.dataset.userName;
+    document.getElementById('assign-panel').style.display = 'block';
+    Object.keys(assignSelected).forEach((k) => (assignSelected[k] = null));
+    renderAssignLevels();
+    await loadAssignLevel(0);
+    document.getElementById('assign-panel').scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
+document.getElementById('assign-cancel').addEventListener('click', () => {
+  assignTargetUserId = null;
+  document.getElementById('assign-panel').style.display = 'none';
+});
+
+function renderAssignLevels() {
+  const container = document.getElementById('assign-levels');
+  container.innerHTML = LEVELS.map((l) => `
+    <div id="assign-level-${l.key}" style="display:none; margin-bottom: 10px;">
+      <label style="display:inline-block; width: 80px; font-size: 0.85rem; color:#555;">${l.label}</label>
+      <select id="assign-select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
+      <button class="approve" id="assign-here-${l.key}">Assign here</button>
+    </div>
+  `).join('');
+
+  LEVELS.forEach((level, index) => {
+    document.getElementById(`assign-select-${level.key}`).addEventListener('change', () => onAssignSelectChange(index));
+    document.getElementById(`assign-here-${level.key}`).addEventListener('click', () => onAssignHere(level.key));
+  });
+}
+
+async function loadAssignLevel(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const container = document.getElementById(`assign-level-${level.key}`);
+
+  if (levelIndex > 0 && !assignSelected[LEVELS[levelIndex - 1].key]) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  const res = await authedFetch(level.list(assignSelected));
+  const data = await res.json();
+  const items = data[level.dataKey];
+
+  const select = document.getElementById(`assign-select-${level.key}`);
+  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
+    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+  select.value = assignSelected[level.key] || '';
+
+  const canAssign = level.superAdminOnly ? currentUser.role === 'super_admin' : true;
+  document.getElementById(`assign-here-${level.key}`).style.display = canAssign ? 'inline-block' : 'none';
+}
+
+async function onAssignSelectChange(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const select = document.getElementById(`assign-select-${level.key}`);
+  assignSelected[level.key] = select.value || null;
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) assignSelected[LEVELS[i].key] = null;
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) await loadAssignLevel(i);
+}
+
+async function onAssignHere(levelKey) {
+  const errorEl = document.getElementById('assign-error');
+  errorEl.style.display = 'none';
+  const locationId = assignSelected[levelKey];
+  if (!locationId) return;
+
+  try {
+    const res = await authedFetch(`/admin/users/${assignTargetUserId}/assign-location`, {
+      method: 'POST',
+      body: JSON.stringify({ level: levelKey, locationId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to assign');
+    document.getElementById('assign-panel').style.display = 'none';
+    assignTargetUserId = null;
+    loadUsers();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+async function init() {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+  await loadUsers();
+}
+
+init();
+</script>
+</body>
+</html>

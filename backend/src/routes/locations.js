@@ -1,0 +1,170 @@
+import { Router } from 'express';
+import { pool } from '../db/pool.js';
+import { requireAdmin } from '../middleware/requireAdmin.js';
+
+export const locationsRouter = Router();
+
+// --- Read endpoints: any logged-in admin/super_admin can browse the hierarchy ---
+
+locationsRouter.get('/locations/countries', requireAdmin, async (_req, res) => {
+  const result = await pool.query('select id, name from countries order by name');
+  res.json({ countries: result.rows });
+});
+
+locationsRouter.get('/locations/states', requireAdmin, async (req, res) => {
+  const { country_id } = req.query;
+  if (!country_id) return res.status(400).json({ error: 'country_id is required' });
+  const result = await pool.query('select id, name from states where country_id = $1 order by name', [country_id]);
+  res.json({ states: result.rows });
+});
+
+locationsRouter.get('/locations/districts', requireAdmin, async (req, res) => {
+  const { state_id } = req.query;
+  if (!state_id) return res.status(400).json({ error: 'state_id is required' });
+  const result = await pool.query('select id, name from districts where state_id = $1 order by name', [state_id]);
+  res.json({ districts: result.rows });
+});
+
+locationsRouter.get('/locations/blocks', requireAdmin, async (req, res) => {
+  const { district_id } = req.query;
+  if (!district_id) return res.status(400).json({ error: 'district_id is required' });
+  const result = await pool.query('select id, name from blocks where district_id = $1 order by name', [district_id]);
+  res.json({ blocks: result.rows });
+});
+
+locationsRouter.get('/locations/villages', requireAdmin, async (req, res) => {
+  const { block_id } = req.query;
+  if (!block_id) return res.status(400).json({ error: 'block_id is required' });
+  const result = await pool.query('select id, name from villages where block_id = $1 order by name', [block_id]);
+  res.json({ villages: result.rows });
+});
+
+// --- Write endpoints ---
+
+function requireSuperAdmin(req, res, next) {
+  if (req.user.role !== 'super_admin') {
+    return res.status(403).json({ error: 'Only Super Admin can do this' });
+  }
+  next();
+}
+
+locationsRouter.post('/locations/countries', requireAdmin, requireSuperAdmin, async (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  try {
+    const result = await pool.query(
+      'insert into countries (name) values ($1) returning id, name',
+      [name],
+    );
+    res.status(201).json({ country: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That country already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+locationsRouter.post('/locations/states', requireAdmin, requireSuperAdmin, async (req, res) => {
+  const { country_id, name } = req.body;
+  if (!country_id || !name) return res.status(400).json({ error: 'country_id and name are required' });
+  try {
+    const result = await pool.query(
+      'insert into states (country_id, name) values ($1, $2) returning id, name',
+      [country_id, name],
+    );
+    res.status(201).json({ state: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That state already exists in this country' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function countryIdForState(stateId) {
+  const r = await pool.query('select country_id from states where id = $1', [stateId]);
+  return r.rows[0]?.country_id ?? null;
+}
+async function countryIdForDistrict(districtId) {
+  const r = await pool.query(
+    `select s.country_id from districts d join states s on s.id = d.state_id where d.id = $1`,
+    [districtId],
+  );
+  return r.rows[0]?.country_id ?? null;
+}
+async function countryIdForBlock(blockId) {
+  const r = await pool.query(
+    `select s.country_id from blocks b
+     join districts d on d.id = b.district_id
+     join states s on s.id = d.state_id
+     where b.id = $1`,
+    [blockId],
+  );
+  return r.rows[0]?.country_id ?? null;
+}
+
+function requireOwnCountry(actualCountryId, req, res) {
+  if (req.user.role === 'super_admin') return true;
+  if (!req.user.countryId || req.user.countryId !== actualCountryId) {
+    res.status(403).json({ error: "You can only manage locations within your own assigned country" });
+    return false;
+  }
+  return true;
+}
+
+locationsRouter.post('/locations/districts', requireAdmin, async (req, res) => {
+  const { state_id, name } = req.body;
+  if (!state_id || !name) return res.status(400).json({ error: 'state_id and name are required' });
+
+  const countryId = await countryIdForState(state_id);
+  if (!countryId) return res.status(404).json({ error: 'No such state' });
+  if (!requireOwnCountry(countryId, req, res)) return;
+
+  try {
+    const result = await pool.query(
+      'insert into districts (state_id, name) values ($1, $2) returning id, name',
+      [state_id, name],
+    );
+    res.status(201).json({ district: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That district already exists in this state' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+locationsRouter.post('/locations/blocks', requireAdmin, async (req, res) => {
+  const { district_id, name } = req.body;
+  if (!district_id || !name) return res.status(400).json({ error: 'district_id and name are required' });
+
+  const countryId = await countryIdForDistrict(district_id);
+  if (!countryId) return res.status(404).json({ error: 'No such district' });
+  if (!requireOwnCountry(countryId, req, res)) return;
+
+  try {
+    const result = await pool.query(
+      'insert into blocks (district_id, name) values ($1, $2) returning id, name',
+      [district_id, name],
+    );
+    res.status(201).json({ block: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That block already exists in this district' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+locationsRouter.post('/locations/villages', requireAdmin, async (req, res) => {
+  const { block_id, name } = req.body;
+  if (!block_id || !name) return res.status(400).json({ error: 'block_id and name are required' });
+
+  const countryId = await countryIdForBlock(block_id);
+  if (!countryId) return res.status(404).json({ error: 'No such block' });
+  if (!requireOwnCountry(countryId, req, res)) return;
+
+  try {
+    const result = await pool.query(
+      'insert into villages (block_id, name) values ($1, $2) returning id, name',
+      [block_id, name],
+    );
+    res.status(201).json({ village: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'That village already exists in this block' });
+    res.status(500).json({ error: err.message });
+  }
+});
