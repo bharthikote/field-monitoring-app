@@ -35,6 +35,7 @@ const ROLE_LABELS = {
   super_admin: 'Super Admin',
 };
 const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
+const EYE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
 
 async function loadPending() {
   const statusEl = document.getElementById('status');
@@ -70,10 +71,10 @@ async function loadPending() {
         <td>${escapeHtml(contact)}</td>
         <td><select class="role-select" data-user-id="${user.id}">${roleOptions}</select></td>
         <td>${requested}</td>
-        <td>
-          <a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a>
-          <button class="approve" data-id="${user.id}" data-action="approve">Approve</button>
-          <button class="reject" data-id="${user.id}" data-action="reject">Reject</button>
+        <td class="actions-cell">
+          <a href="/admin/user-profile/${user.id}" class="btn edit-btn small">${EYE_ICON} Preview</a>
+          <button class="approve small" data-id="${user.id}" data-action="approve">Approve</button>
+          <button class="reject small" data-id="${user.id}" data-action="reject">Reject</button>
         </td>
       `;
       rows.appendChild(tr);

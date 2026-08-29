@@ -118,7 +118,10 @@ tr:last-child td { border-bottom: none; }
 
 .role-badge { background: var(--accent-soft); color: var(--accent-hover); padding: 3px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 500; }
 
-button {
+button, .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -126,8 +129,12 @@ button {
   font-size: 0.85rem;
   margin-right: 6px;
   font-family: inherit;
-  transition: background 0.15s, border-color 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
+.btn:hover { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+.btn svg { flex-shrink: 0; }
 select, input[type=text], input[type=password] {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
@@ -144,6 +151,9 @@ select:focus, input:focus { outline: none; border-color: var(--accent); }
 .reject { background: var(--surface); color: var(--danger); border: 1px solid var(--border-strong); }
 .reject:hover { background: var(--danger-soft); border-color: var(--danger); }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.actions-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.actions-cell > * { margin-right: 0; }
 .empty { color: var(--text-muted); margin-top: 24px; }
 .error { color: var(--danger); margin-top: 10px; font-size: 0.85rem; }
 code { background: var(--bg); border: 1px solid var(--border); padding: 2px 7px; border-radius: 6px; font-size: 0.82rem; }
@@ -165,9 +175,9 @@ code { background: var(--bg); border: 1px solid var(--border); padding: 2px 7px;
 .toggle { background: none; border: none; font-size: 0.8rem; width: 20px; padding: 0; margin: 0; cursor: pointer; color: var(--text-muted); }
 .toggle-spacer { display: inline-block; width: 20px; }
 .tree-name { flex: 1; font-size: 0.9rem; }
-button.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 4px; }
+button.small, .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 4px; }
 .edit-btn, .cancel-btn { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border-strong); }
-.edit-btn:hover, .cancel-btn:hover { background: var(--bg); }
+.edit-btn:hover, .cancel-btn:hover { background: var(--bg); border-color: var(--text-muted); color: var(--text); }
 .rename-input { flex: 1; }
 .delete-btn { background: var(--surface); color: var(--danger); border: 1px solid var(--border); }
 .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
