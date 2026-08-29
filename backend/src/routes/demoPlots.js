@@ -20,13 +20,20 @@ demoPlotsRouter.get('/demo-plots', requireAuth, async (_req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
-demoPlotsRouter.get('/demo-plots/lookup', requireAuth, async (req, res) => {
-  const { phone } = req.query;
-  if (!phone) return res.status(400).json({ error: 'phone is required' });
+demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: 'q is required' });
 
   const result = await pool.query(
-    `${SELECT_DEMO_PLOTS} where dp.farmer_phone = $1 order by dp.created_at desc`,
-    [phone],
+    `${SELECT_DEMO_PLOTS}
+     where dp.farmer_name ilike $1
+        or dp.farmer_phone ilike $1
+        or vi.name ilike $1
+        or c.name ilike $1
+        or v.name ilike $1
+     order by dp.created_at desc
+     limit 100`,
+    [`%${q}%`],
   );
   res.json({ demoPlots: result.rows });
 });

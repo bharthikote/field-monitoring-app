@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { lookupDemoPlots, listDemoPlots } from '../api';
+import { searchDemoPlots, listDemoPlots } from '../api';
+
+const PHONE_LIKE = /^\d{6,}$/;
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 const STATUS_COLORS = {
@@ -10,9 +12,9 @@ const STATUS_COLORS = {
 };
 
 export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew }) {
-  const [phone, setPhone] = useState(initialPhone || '');
+  const [query, setQuery] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
-  const [searchedPhone, setSearchedPhone] = useState(''); // '' means "browsing all"
+  const [searchedQuery, setSearchedQuery] = useState(''); // '' means "browsing all"
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,7 +24,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     try {
       const data = await listDemoPlots(token);
       setResults(data.demoPlots);
-      setSearchedPhone('');
+      setSearchedQuery('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -30,17 +32,17 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   };
 
-  const handleSearch = async (searchPhone = phone) => {
-    const trimmed = searchPhone.trim();
+  const handleSearch = async (searchQuery = query) => {
+    const trimmed = searchQuery.trim();
     if (!trimmed) {
       return loadAll();
     }
     setLoading(true);
     setError('');
     try {
-      const data = await lookupDemoPlots(token, trimmed);
+      const data = await searchDemoPlots(token, trimmed);
       setResults(data.demoPlots);
-      setSearchedPhone(trimmed);
+      setSearchedQuery(trimmed);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -49,7 +51,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
   };
 
   const handleClear = () => {
-    setPhone('');
+    setQuery('');
     loadAll();
   };
 
@@ -76,17 +78,17 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
         </Pressable>
         <Text style={styles.title}>Demo Plots</Text>
 
-        <Text style={styles.label}>Farmer Phone Number</Text>
+        <Text style={styles.label}>Search</Text>
         <View style={styles.phoneRow}>
           <View style={styles.phoneWrap}>
             <TextInput
               style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="Search by phone number"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Name, phone, or village"
+              autoCapitalize="none"
             />
-            {phone.length > 0 && (
+            {query.length > 0 && (
               <Pressable style={styles.clearButton} onPress={handleClear}>
                 <Text style={styles.clearButtonText}>✕</Text>
               </Pressable>
@@ -103,12 +105,12 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
         {results !== null && (
           <View style={{ marginTop: 24 }}>
             <Text style={styles.sectionLabel}>
-              {searchedPhone ? `Results for ${searchedPhone}` : `All Demo Plots (${results.length})`}
+              {searchedQuery ? `Results for "${searchedQuery}"` : `All Demo Plots (${results.length})`}
             </Text>
 
             {results.length === 0 ? (
               <Text style={styles.empty}>
-                {searchedPhone ? 'No demo plot found for this number.' : 'No demo plots created yet.'}
+                {searchedQuery ? 'No demo plot matched your search.' : 'No demo plots created yet.'}
               </Text>
             ) : (
               results.map((plot) => (
@@ -133,7 +135,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
         )}
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => onCreateNew(searchedPhone)}>
+      <Pressable style={styles.fab} onPress={() => onCreateNew(PHONE_LIKE.test(searchedQuery) ? searchedQuery : '')}>
         <Text style={styles.fabIcon}>+</Text>
       </Pressable>
     </View>

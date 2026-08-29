@@ -33,8 +33,8 @@ export const listVarieties = (token, cropId) => request(`/master/varieties?crop_
 
 export const listDemoPlots = (token) => request('/demo-plots', { token });
 
-export const lookupDemoPlots = (token, phone) =>
-  request(`/demo-plots/lookup?phone=${encodeURIComponent(phone)}`, { token });
+export const searchDemoPlots = (token, query) =>
+  request(`/demo-plots/search?q=${encodeURIComponent(query)}`, { token });
 
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
