@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
+import { countryIdsSubquery, scopeClause, registerCountryAssignmentRoutes } from '../db/masterDataScope.js';
 
 export const simpleMasterListsRouter = Router();
 simpleMasterListsRouter.param('id', validateUuidParam);
@@ -29,8 +30,20 @@ function requireSuperAdmin(req, res, next) {
 }
 
 for (const list of SIMPLE_LISTS) {
-  simpleMasterListsRouter.get(`/master/${list.path}`, requireAuth, async (_req, res) => {
-    const result = await pool.query(`select id, name from ${list.table} order by name`);
+  simpleMasterListsRouter.get(`/master/${list.path}`, requireAuth, async (req, res) => {
+    if (req.user.role === 'super_admin') {
+      const result = await pool.query(
+        `select id, name, ${countryIdsSubquery('t', list.table)} as country_ids from ${list.table} t order by name`,
+      );
+      return res.json({ items: result.rows });
+    }
+    const result = await pool.query(
+      `select t.id, t.name, ${countryIdsSubquery('t', list.table)} as country_ids
+       from ${list.table} t
+       where ${scopeClause('t', list.table, 1)}
+       order by t.name`,
+      [req.user.countryIds],
+    );
     res.json({ items: result.rows });
   });
 
@@ -72,4 +85,6 @@ for (const list of SIMPLE_LISTS) {
       res.status(500).json({ error: err.message });
     }
   });
+
+  registerCountryAssignmentRoutes(simpleMasterListsRouter, requireAdmin, { path: list.path, table: list.table });
 }

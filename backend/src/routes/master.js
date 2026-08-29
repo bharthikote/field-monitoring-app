@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
+import { countryIdsSubquery, scopeClause, registerCountryAssignmentRoutes } from '../db/masterDataScope.js';
 
 export const masterRouter = Router();
 masterRouter.param('id', validateUuidParam);
@@ -16,15 +17,53 @@ function requireSuperAdmin(req, res, next) {
 
 // --- Read: any logged-in, approved user (needed for the demo plot form) ---
 
-masterRouter.get('/master/crops', requireAuth, async (_req, res) => {
-  const result = await pool.query('select id, name from crops order by name');
+// Super Admin manages the full global list, so always sees everything
+// unfiltered. Everyone else only sees crops/varieties usable in a country
+// they're covered in - either because the item has no country restriction
+// at all (the default), or because one of its assigned countries matches
+// one of theirs.
+masterRouter.get('/master/crops', requireAuth, async (req, res) => {
+  if (req.user.role === 'super_admin') {
+    const result = await pool.query(
+      `select id, name, ${countryIdsSubquery('c', 'crops')} as country_ids from crops c order by name`,
+    );
+    return res.json({ crops: result.rows });
+  }
+  const result = await pool.query(
+    `select c.id, c.name, ${countryIdsSubquery('c', 'crops')} as country_ids
+     from crops c
+     where ${scopeClause('c', 'crops', 1)}
+     order by c.name`,
+    [req.user.countryIds],
+  );
   res.json({ crops: result.rows });
 });
 
 masterRouter.get('/master/varieties', requireAuth, async (req, res) => {
   const { crop_id } = req.query;
   if (!crop_id) return res.status(400).json({ error: 'crop_id is required' });
-  const result = await pool.query('select id, name from varieties where crop_id = $1 order by name', [crop_id]);
+
+  if (req.user.role === 'super_admin') {
+    const result = await pool.query(
+      `select id, name, ${countryIdsSubquery('v', 'varieties')} as country_ids
+       from varieties v where crop_id = $1 order by name`,
+      [crop_id],
+    );
+    return res.json({ varieties: result.rows });
+  }
+
+  // A variety only shows up where its crop is also usable - its own
+  // assignment (if any) can only narrow that further, never expand it.
+  const result = await pool.query(
+    `select v.id, v.name, ${countryIdsSubquery('v', 'varieties')} as country_ids
+     from varieties v
+     join crops c on c.id = v.crop_id
+     where v.crop_id = $1
+       and ${scopeClause('c', 'crops', 2)}
+       and ${scopeClause('v', 'varieties', 2)}
+     order by v.name`,
+    [crop_id, req.user.countryIds],
+  );
   res.json({ varieties: result.rows });
 });
 
@@ -104,3 +143,6 @@ masterRouter.delete('/master/varieties/:id', requireAdmin, requireSuperAdmin, as
     res.status(500).json({ error: err.message });
   }
 });
+
+registerCountryAssignmentRoutes(masterRouter, requireAdmin, { path: 'crops', table: 'crops' });
+registerCountryAssignmentRoutes(masterRouter, requireAdmin, { path: 'varieties', table: 'varieties' });
