@@ -64,69 +64,70 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Pressable onPress={onBack}>
-        <Text style={styles.back}>{'< Back'}</Text>
-      </Pressable>
-      <Text style={styles.title}>Demo Plots</Text>
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Pressable onPress={onBack}>
+          <Text style={styles.back}>{'< Back'}</Text>
+        </Pressable>
+        <Text style={styles.title}>Demo Plots</Text>
 
-      <Text style={styles.label}>Farmer Phone Number</Text>
-      <View style={styles.phoneWrap}>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="Search by phone number"
-        />
-        {phone.length > 0 && (
-          <Pressable style={styles.clearButton} onPress={handleClear}>
-            <Text style={styles.clearButtonText}>✕</Text>
-          </Pressable>
-        )}
-      </View>
-
-      <Pressable style={styles.button} onPress={() => handleSearch()} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search</Text>}
-      </Pressable>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      {results !== null && (
-        <View style={{ marginTop: 24 }}>
-          <Text style={styles.sectionLabel}>
-            {searchedPhone ? `Results for ${searchedPhone}` : `All Demo Plots (${results.length})`}
-          </Text>
-
-          {results.length === 0 ? (
-            <Text style={styles.empty}>
-              {searchedPhone ? 'No demo plot found for this number.' : 'No demo plots created yet.'}
-            </Text>
-          ) : (
-            results.map((plot) => (
-              <Pressable key={plot.id} style={styles.card} onPress={() => showDetail(plot)}>
-                <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
-                <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
-                <Text style={styles.cardLine}>{plot.crop_name} — {plot.variety_name}</Text>
-                <Text style={styles.cardLine}>{plot.village_name}</Text>
-                <Text style={styles.cardStatus}>{STATUS_LABELS[plot.demo_status]}</Text>
-              </Pressable>
-            ))
+        <Text style={styles.label}>Farmer Phone Number</Text>
+        <View style={styles.phoneWrap}>
+          <TextInput
+            style={styles.input}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            placeholder="Search by phone number"
+          />
+          {phone.length > 0 && (
+            <Pressable style={styles.clearButton} onPress={handleClear}>
+              <Text style={styles.clearButtonText}>✕</Text>
+            </Pressable>
           )}
-
-          <Pressable style={styles.secondaryButton} onPress={() => onCreateNew(searchedPhone)}>
-            <Text style={styles.secondaryButtonText}>
-              {searchedPhone ? '+ Create New Demo Plot for this Number' : '+ Create New Demo Plot'}
-            </Text>
-          </Pressable>
         </View>
-      )}
-    </ScrollView>
+
+        <Pressable style={styles.button} onPress={() => handleSearch()} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Search</Text>}
+        </Pressable>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {results !== null && (
+          <View style={{ marginTop: 24 }}>
+            <Text style={styles.sectionLabel}>
+              {searchedPhone ? `Results for ${searchedPhone}` : `All Demo Plots (${results.length})`}
+            </Text>
+
+            {results.length === 0 ? (
+              <Text style={styles.empty}>
+                {searchedPhone ? 'No demo plot found for this number.' : 'No demo plots created yet.'}
+              </Text>
+            ) : (
+              results.map((plot) => (
+                <Pressable key={plot.id} style={styles.card} onPress={() => showDetail(plot)}>
+                  <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
+                  <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
+                  <Text style={styles.cardLine}>{plot.crop_name} — {plot.variety_name}</Text>
+                  <Text style={styles.cardLine}>{plot.village_name}</Text>
+                  <Text style={styles.cardStatus}>{STATUS_LABELS[plot.demo_status]}</Text>
+                </Pressable>
+              ))
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      <Pressable style={styles.fab} onPress={() => onCreateNew(searchedPhone)}>
+        <Text style={styles.fabIcon}>+</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24 },
+  screen: { flex: 1, backgroundColor: '#fff' },
+  container: { padding: 24, paddingBottom: 100 },
   back: { color: '#2563eb', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   label: { fontSize: 13, color: '#555', marginBottom: 4 },
@@ -153,6 +154,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     overflow: 'hidden',
   },
-  secondaryButton: { borderWidth: 1, borderColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 8 },
-  secondaryButtonText: { color: '#2563eb', fontWeight: '600' },
+  fab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  fabIcon: { color: '#fff', fontSize: 28, lineHeight: 30, fontWeight: '400' },
 });
