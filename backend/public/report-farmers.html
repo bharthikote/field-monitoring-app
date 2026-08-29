@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Farmers Report</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Farmers</h1>
+    <p class="scope-note" style="margin-top:0">Every farmer with a demo plot you can see, grouped from the Demo Plots they've created.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+<div class="inline-form" style="margin-bottom: 4px;">
+  <input type="text" id="search-input" placeholder="Search by name, phone, village..." style="flex:1" />
+</div>
+<p id="status" class="empty">Loading...</p>
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Farmer Name</th>
+      <th>Phone</th>
+      <th>Village(s)</th>
+      <th>Demo Plots</th>
+      <th>First Registered</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+let allRows = [];
+let searchQuery = '';
+
+function getVisibleRows() {
+  if (!searchQuery.trim()) return allRows;
+  const q = searchQuery.trim().toLowerCase();
+  return allRows.filter((r) => {
+    const haystack = [r.farmer_name, r.farmer_phone, r.villages].join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+async function loadRows() {
+  const res = await authedFetch('/reports/farmers');
+  const data = await res.json();
+  allRows = data.farmers;
+  render();
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+  const visible = getVisibleRows();
+
+  if (!allRows.length) {
+    statusEl.textContent = 'No farmers visible to you yet.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'No farmers match your search.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  rows.innerHTML = visible.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.farmer_name)}</td>
+      <td>${escapeHtml(r.farmer_phone)}</td>
+      <td>${escapeHtml(r.villages)}</td>
+      <td>${r.demo_plot_count}</td>
+      <td>${new Date(r.first_created_at).toLocaleDateString()}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  render();
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const visible = getVisibleRows();
+  const headers = ['Farmer Name', 'Phone', 'Village(s)', 'Demo Plots', 'First Registered'];
+  const csvRows = visible.map((r) => [
+    r.farmer_name, r.farmer_phone, r.villages, r.demo_plot_count, new Date(r.first_created_at).toLocaleDateString(),
+  ]);
+  exportToCsv('farmers.csv', headers, csvRows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  await loadRows();
+}
+
+init();
+</script>
+</body>
+</html>

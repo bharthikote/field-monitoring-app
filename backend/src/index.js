@@ -10,6 +10,7 @@ import { locationsRouter } from './routes/locations.js';
 import { masterRouter } from './routes/master.js';
 import { simpleMasterListsRouter } from './routes/simpleMasterLists.js';
 import { demoPlotsRouter } from './routes/demoPlots.js';
+import { reportsRouter } from './routes/reports.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -36,6 +37,7 @@ app.use(locationsRouter);
 app.use(masterRouter);
 app.use(simpleMasterListsRouter);
 app.use(demoPlotsRouter);
+app.use(reportsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -55,6 +57,15 @@ app.get('/admin/master-lists', (_req, res) => {
 });
 app.get('/admin/user-profile/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'user-profile.html'));
+});
+app.get('/admin/reports/farmers', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-farmers.html'));
+});
+app.get('/admin/reports/demos', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-demos.html'));
+});
+app.get('/admin/reports/master-list', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-master-list.html'));
 });
 
 const port = process.env.PORT || 4000;

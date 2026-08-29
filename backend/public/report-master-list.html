@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Master List Report</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+  .tab-btn { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-muted); font-size: 0.82rem; padding: 7px 14px; }
+  .tab-btn.active { background: var(--accent-soft); color: var(--accent-hover); border-color: transparent; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Master List</h1>
+    <p class="scope-note" style="margin-top:0">Pick a list, then export it.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="tabs" id="tabs"></div>
+<p id="status" class="empty">Loading...</p>
+<table id="table" style="display:none">
+  <thead id="thead"></thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+let lists = [];
+let currentKey = null;
+let currentItems = [];
+const cache = new Map();
+
+function renderTabs() {
+  document.getElementById('tabs').innerHTML = lists.map(
+    (l) => `<button class="tab-btn ${l.key === currentKey ? 'active' : ''}" data-key="${l.key}">${escapeHtml(l.label)}</button>`,
+  ).join('');
+}
+
+function isVarieties() {
+  return currentKey === 'varieties';
+}
+
+async function loadItems(key, force = false) {
+  if (!force && cache.has(key)) return cache.get(key);
+  const res = await authedFetch(`/reports/master-lists/${key}`);
+  const data = await res.json();
+  cache.set(key, data.items);
+  return data.items;
+}
+
+async function render() {
+  renderTabs();
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const thead = document.getElementById('thead');
+  const rows = document.getElementById('rows');
+
+  currentItems = await loadItems(currentKey);
+
+  if (!currentItems.length) {
+    statusEl.textContent = 'Nothing in this list yet.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  thead.innerHTML = isVarieties()
+    ? '<tr><th>Variety</th><th>Crop</th></tr>'
+    : '<tr><th>Name</th></tr>';
+  rows.innerHTML = currentItems.map((item) => isVarieties()
+    ? `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(item.crop_name)}</td></tr>`
+    : `<tr><td>${escapeHtml(item.name)}</td></tr>`,
+  ).join('');
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  currentKey = btn.dataset.key;
+  render();
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const list = lists.find((l) => l.key === currentKey);
+  const filename = `${currentKey}.csv`;
+  if (isVarieties()) {
+    exportToCsv(filename, ['Variety', 'Crop'], currentItems.map((i) => [i.name, i.crop_name]));
+  } else {
+    exportToCsv(filename, ['Name'], currentItems.map((i) => [i.name]));
+  }
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+
+  const res = await authedFetch('/reports/master-lists');
+  const data = await res.json();
+  lists = data.lists;
+  currentKey = lists[0].key;
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

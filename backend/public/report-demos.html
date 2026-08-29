@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Demos Report</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Demo Plots</h1>
+    <p class="scope-note" style="margin-top:0">Every demo plot you can see, in one exportable table.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+<div class="inline-form" style="margin-bottom: 4px;">
+  <input type="text" id="search-input" placeholder="Search by farmer, phone, village, crop, variety, status..." style="flex:1" />
+</div>
+<p id="status" class="empty">Loading...</p>
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Farmer Name</th>
+      <th>Phone</th>
+      <th>Village</th>
+      <th>Crop</th>
+      <th>Variety</th>
+      <th>Status</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
+
+let allRows = [];
+let searchQuery = '';
+
+function getVisibleRows() {
+  if (!searchQuery.trim()) return allRows;
+  const q = searchQuery.trim().toLowerCase();
+  return allRows.filter((r) => {
+    const haystack = [
+      r.farmer_name, r.farmer_phone, r.village_name, r.crop_name, r.variety_name, STATUS_LABELS[r.demo_status],
+    ].join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+async function loadRows() {
+  const res = await authedFetch('/reports/demos');
+  const data = await res.json();
+  allRows = data.demoPlots;
+  render();
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+  const visible = getVisibleRows();
+
+  if (!allRows.length) {
+    statusEl.textContent = 'No demo plots visible to you yet.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'No demo plots match your search.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  rows.innerHTML = visible.map((r) => `
+    <tr>
+      <td>${escapeHtml(r.farmer_name)}</td>
+      <td>${escapeHtml(r.farmer_phone)}</td>
+      <td>${escapeHtml(r.village_name)}</td>
+      <td>${escapeHtml(r.crop_name)}</td>
+      <td>${escapeHtml(r.variety_name)}</td>
+      <td><span class="status-badge status-${r.demo_status}">${STATUS_LABELS[r.demo_status] || r.demo_status}</span></td>
+      <td>${new Date(r.created_at).toLocaleDateString()}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  render();
+});
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const visible = getVisibleRows();
+  const headers = ['Farmer Name', 'Phone', 'Village', 'Crop', 'Variety', 'Status', 'Created'];
+  const csvRows = visible.map((r) => [
+    r.farmer_name, r.farmer_phone, r.village_name, r.crop_name, r.variety_name,
+    STATUS_LABELS[r.demo_status] || r.demo_status, new Date(r.created_at).toLocaleDateString(),
+  ]);
+  exportToCsv('demo-plots.csv', headers, csvRows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  await loadRows();
+}
+
+init();
+</script>
+</body>
+</html>

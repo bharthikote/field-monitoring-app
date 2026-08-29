@@ -9,6 +9,14 @@ const NAV_STRUCTURE = [
       { href: '/admin/manage-users', label: 'All Users' },
     ],
   },
+  {
+    label: 'Reports',
+    children: [
+      { href: '/admin/reports/farmers', label: 'Farmers' },
+      { href: '/admin/reports/demos', label: 'Demos' },
+      { href: '/admin/reports/master-list', label: 'Master List' },
+    ],
+  },
 ];
 
 function getToken() {
@@ -86,6 +94,28 @@ function renderNav(user) {
   document.addEventListener('click', () => {
     nav.querySelectorAll('.nav-dropdown.open').forEach((d) => d.classList.remove('open'));
   });
+}
+
+// Downloads `rows` (array of arrays, matching `headers`) as a .csv file.
+// A CSV opens directly in Excel and imports cleanly into Google Sheets, so
+// this one function covers every "export" button in the Reports section.
+function exportToCsv(filename, headers, rows) {
+  const escapeCell = (val) => {
+    const str = val === null || val === undefined ? '' : String(val);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  };
+  const lines = [headers, ...rows].map((row) => row.map(escapeCell).join(','));
+  // Leading BOM so Excel opens the file as UTF-8 instead of guessing wrong
+  // and mangling non-ASCII names.
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // Upgrades a plain <select> into a custom-styled dropdown, in place. The
