@@ -74,6 +74,9 @@ authRouter.post('/auth/login', async (req, res) => {
   if (user.status === 'rejected') {
     return res.status(403).json({ error: 'Your account registration was rejected' });
   }
+  if (user.status === 'deactivated') {
+    return res.status(403).json({ error: 'Your account has been deactivated. Contact your Admin.' });
+  }
 
   const token = jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET);
 

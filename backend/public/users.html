@@ -65,8 +65,8 @@ const ROLE_LABELS = {
   super_admin: 'Super Admin',
 };
 const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
-const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
-const STATUSES = ['pending', 'approved', 'rejected'];
+const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', deactivated: 'Deactivated' };
+const STATUSES = ['pending', 'approved', 'rejected', 'deactivated'];
 
 const LEVELS = [
   { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', parentField: null, superAdminOnly: true },
@@ -189,7 +189,10 @@ function render() {
       <td>${roleCell}</td>
       <td>${statusCell}</td>
       <td>${escapeHtml(locationSummary(user))}</td>
-      <td><button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button></td>
+      <td>
+        <a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a>
+        <button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button>
+      </td>
     `;
     rows.appendChild(tr);
   }

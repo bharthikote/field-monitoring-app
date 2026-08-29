@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>User Profile</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .field-row { display: flex; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .field-row:last-child { border-bottom: none; }
+  .field-label { width: 160px; color: var(--text-muted); font-size: 0.85rem; flex-shrink: 0; }
+  .field-value { font-size: 0.92rem; }
+  .field-row input, .field-row select { width: 320px; max-width: 100%; }
+  .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 28px 0 8px; }
+  .section-title:first-child { margin-top: 0; }
+  .btn-row { display: flex; gap: 8px; margin-top: 16px; }
+  .danger-zone { border: 1px solid var(--danger); border-radius: var(--radius); padding: 18px; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page">
+<div class="panel">
+  <p><a href="/admin/manage-users" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to All Users</a></p>
+  <h1 id="page-title">User Profile</h1>
+  <p id="load-status" class="empty">Loading...</p>
+
+  <div id="content" style="display:none">
+    <div class="section-title">Profile</div>
+    <div id="preview-fields"></div>
+    <div class="btn-row" id="edit-toggle-row">
+      <button id="edit-btn" class="edit-btn small">Edit</button>
+    </div>
+    <div id="edit-fields" style="display:none"></div>
+    <div class="btn-row" id="edit-save-row" style="display:none">
+      <button id="save-edit-btn" class="primary">Save</button>
+      <button id="cancel-edit-btn" class="edit-btn small">Cancel</button>
+    </div>
+    <p class="error" id="edit-error" style="display:none"></p>
+
+    <div class="section-title">Status</div>
+    <div class="field-row">
+      <div class="field-label">Current status</div>
+      <div class="field-value"><span class="role-badge" id="status-badge"></span></div>
+    </div>
+    <div class="inline-form" id="status-actions"></div>
+    <p class="error" id="status-error" style="display:none"></p>
+
+    <div class="section-title">Danger Zone</div>
+    <div class="danger-zone">
+      <p class="scope-note" style="margin-top:0">Permanently delete this account. This cannot be undone, and only works if nothing else references this user (approvals they've reviewed, demo plots they've created, etc.) — deactivate instead if it's blocked.</p>
+      <button id="delete-btn" class="delete-btn small">Delete User</button>
+      <div id="delete-confirm" style="display:none; margin-top:12px;">
+        <p style="color:var(--danger); font-size:0.9rem;">Are you sure? This permanently deletes the account.</p>
+        <button id="confirm-delete-btn" style="background:var(--danger);color:white">Confirm Delete</button>
+        <button id="cancel-delete-btn" class="edit-btn small">Cancel</button>
+      </div>
+      <p class="error" id="delete-error" style="display:none"></p>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)',
+  supervisor: 'Supervisor',
+  team_lead: 'Team Lead',
+  country_manager: 'Country Manager',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+};
+const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
+const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', deactivated: 'Deactivated' };
+
+const userId = location.pathname.split('/').pop();
+let currentUser = null;
+let profile = null;
+
+function locationSummary(p) {
+  const parts = [p.country_name, p.state_name, p.district_name, p.block_name, p.village_name].filter(Boolean);
+  return parts.length ? parts.join(' › ') : '—';
+}
+
+function fmtDate(d) {
+  return d ? new Date(d).toLocaleString() : '—';
+}
+
+function renderPreview() {
+  document.getElementById('page-title').textContent = profile.name;
+  const contact = profile.email || profile.mobile_number;
+  const rows = [
+    ['User ID', `<code>${escapeHtml(profile.user_code)}</code>`],
+    ['Name', escapeHtml(profile.name)],
+    ['Contact', escapeHtml(contact)],
+    ['Role', ROLE_LABELS[profile.role] || profile.role],
+    ['Location', escapeHtml(locationSummary(profile))],
+    ['Created', fmtDate(profile.created_at)],
+    ['Last reviewed', profile.reviewed_at ? `${fmtDate(profile.reviewed_at)} by ${escapeHtml(profile.reviewed_by_name || 'someone no longer in the system')}` : '—'],
+    ['Last updated', fmtDate(profile.updated_at)],
+  ];
+  document.getElementById('preview-fields').innerHTML = rows
+    .map(([label, value]) => `<div class="field-row"><div class="field-label">${label}</div><div class="field-value">${value}</div></div>`)
+    .join('');
+
+  document.getElementById('status-badge').textContent = STATUS_LABELS[profile.status];
+  renderStatusActions();
+}
+
+function renderStatusActions() {
+  const container = document.getElementById('status-actions');
+  const isSelf = profile.id === currentUser.id;
+  if (isSelf) {
+    container.innerHTML = '<span class="scope-note">You can\'t change your own status.</span>';
+    return;
+  }
+
+  const actions = [];
+  if (profile.status === 'pending') {
+    actions.push(['approved', 'Approve', 'approve'], ['rejected', 'Reject', 'reject']);
+  } else if (profile.status === 'approved') {
+    actions.push(['deactivated', 'Deactivate', 'reject']);
+  } else if (profile.status === 'deactivated' || profile.status === 'rejected') {
+    actions.push(['approved', 'Reactivate / Approve', 'approve']);
+  }
+
+  container.innerHTML = actions
+    .map(([status, label, cls]) => `<button class="${cls}" data-status="${status}">${label}</button>`)
+    .join('');
+}
+
+function renderEditFields() {
+  document.getElementById('edit-fields').innerHTML = `
+    <div class="field-row"><div class="field-label">Name</div><input type="text" id="edit-name" value="${escapeHtml(profile.name)}" /></div>
+    <div class="field-row"><div class="field-label">Mobile Number</div><input type="text" id="edit-mobile" value="${escapeHtml(profile.mobile_number || '')}" /></div>
+    <div class="field-row"><div class="field-label">Email</div><input type="text" id="edit-email" value="${escapeHtml(profile.email || '')}" /></div>
+    <div class="field-row"><div class="field-label">Role</div>
+      <select id="edit-role" ${!ASSIGNABLE_ROLES.includes(profile.role) ? 'disabled' : ''}>
+        ${ASSIGNABLE_ROLES.map((v) => `<option value="${v}" ${v === profile.role ? 'selected' : ''}>${ROLE_LABELS[v]}</option>`).join('')}
+      </select>
+    </div>
+  `;
+}
+
+async function loadProfile() {
+  const res = await authedFetch(`/admin/users/${userId}/profile`);
+  if (!res.ok) {
+    document.getElementById('load-status').textContent = 'User not found.';
+    return;
+  }
+  const data = await res.json();
+  profile = data.user;
+  document.getElementById('load-status').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  renderPreview();
+}
+
+document.getElementById('edit-btn').addEventListener('click', () => {
+  renderEditFields();
+  document.getElementById('edit-fields').style.display = 'block';
+  document.getElementById('edit-save-row').style.display = 'flex';
+  document.getElementById('edit-toggle-row').style.display = 'none';
+});
+
+document.getElementById('cancel-edit-btn').addEventListener('click', () => {
+  document.getElementById('edit-fields').style.display = 'none';
+  document.getElementById('edit-save-row').style.display = 'none';
+  document.getElementById('edit-toggle-row').style.display = 'flex';
+  document.getElementById('edit-error').style.display = 'none';
+});
+
+document.getElementById('save-edit-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('edit-error');
+  errorEl.style.display = 'none';
+  const name = document.getElementById('edit-name').value.trim();
+  const mobileNumber = document.getElementById('edit-mobile').value.trim();
+  const email = document.getElementById('edit-email').value.trim();
+  const roleSelect = document.getElementById('edit-role');
+  const role = roleSelect.disabled ? undefined : roleSelect.value;
+
+  if (!name) {
+    errorEl.textContent = 'Name is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (!mobileNumber && !email) {
+    errorEl.textContent = 'Mobile number or email is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res = await authedFetch(`/admin/users/${userId}/profile`, {
+      method: 'POST',
+      body: JSON.stringify({ name, mobileNumber: mobileNumber || null, email: email || null, role }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save');
+    document.getElementById('edit-fields').style.display = 'none';
+    document.getElementById('edit-save-row').style.display = 'none';
+    document.getElementById('edit-toggle-row').style.display = 'flex';
+    await loadProfile();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('status-actions').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-status]');
+  if (!btn) return;
+  const errorEl = document.getElementById('status-error');
+  errorEl.style.display = 'none';
+  try {
+    const res = await authedFetch(`/admin/users/${userId}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status: btn.dataset.status }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update status');
+    await loadProfile();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('delete-btn').addEventListener('click', () => {
+  document.getElementById('delete-confirm').style.display = 'block';
+});
+document.getElementById('cancel-delete-btn').addEventListener('click', () => {
+  document.getElementById('delete-confirm').style.display = 'none';
+});
+document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('delete-error');
+  errorEl.style.display = 'none';
+  try {
+    const res = await authedFetch(`/admin/users/${userId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete');
+    }
+    window.location.href = '/admin/manage-users';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+async function init() {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+  await loadProfile();
+}
+
+init();
+</script>
+</body>
+</html>

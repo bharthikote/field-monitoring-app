@@ -80,7 +80,7 @@ adminRouter.post('/admin/users/:id/role', requireAdmin, async (req, res) => {
   res.json({ user: result.rows[0] });
 });
 
-const STATUSES = ['pending', 'approved', 'rejected'];
+const STATUSES = ['pending', 'approved', 'rejected', 'deactivated'];
 
 adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
   const { status } = req.body;
@@ -97,6 +97,69 @@ adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
   );
   if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
   res.json({ user: result.rows[0] });
+});
+
+adminRouter.get('/admin/users/:id/profile', requireAdmin, async (req, res) => {
+  const result = await pool.query(
+    `select u.id, u.user_code, u.name, u.mobile_number, u.email, u.role, u.status,
+       u.location_level, c.name as country_name, s.name as state_name,
+       d.name as district_name, b.name as block_name, v.name as village_name,
+       u.created_at, u.updated_at, u.reviewed_at, r.name as reviewed_by_name
+     from users u
+     left join countries c on c.id = u.country_id
+     left join states s on s.id = u.state_id
+     left join districts d on d.id = u.district_id
+     left join blocks b on b.id = u.block_id
+     left join villages v on v.id = u.village_id
+     left join users r on r.id = u.reviewed_by
+     where u.id = $1`,
+    [req.params.id],
+  );
+  if (!result.rows[0]) return res.status(404).json({ error: 'No such user' });
+  res.json({ user: result.rows[0] });
+});
+
+adminRouter.post('/admin/users/:id/profile', requireAdmin, async (req, res) => {
+  const { name, mobileNumber, email, role } = req.body;
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  if (!mobileNumber && !email) return res.status(400).json({ error: 'mobileNumber or email is required' });
+  if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
+    return res.status(400).json({ error: `role must be one of: ${SELF_REGISTER_ROLES.join(', ')}` });
+  }
+
+  try {
+    const result = await pool.query(
+      `update users set name = $2, mobile_number = $3, email = $4, role = coalesce($5, role), updated_at = now()
+       where id = $1
+       returning id, name, mobile_number, email, role`,
+      [req.params.id, name, mobileNumber || null, email || null, role ?? null],
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Another account already uses that mobile number or email' });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+adminRouter.delete('/admin/users/:id', requireAdmin, async (req, res) => {
+  if (req.params.id === req.user.userId) {
+    return res.status(400).json({ error: "You can't delete your own account" });
+  }
+  try {
+    const result = await pool.query('delete from users where id = $1', [req.params.id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
+    res.status(204).end();
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({
+        error: 'This user has related records (approvals reviewed, demo plots created, etc.) and can\'t be permanently deleted. Deactivate them instead.',
+      });
+    }
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const LOCATION_LEVELS = ['country', 'state', 'district', 'block', 'village'];

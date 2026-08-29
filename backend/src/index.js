@@ -42,6 +42,9 @@ app.get('/admin/crops', (_req, res) => {
 app.get('/admin/master-lists', (_req, res) => {
   res.sendFile(path.join(publicDir, 'master-lists.html'));
 });
+app.get('/admin/user-profile/:id', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'user-profile.html'));
+});
 
 const port = process.env.PORT || 4000;
 
