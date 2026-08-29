@@ -1,7 +1,7 @@
 const NAV_STRUCTURE = [
   { href: '/admin', label: 'Pending Approvals' },
   {
-    label: 'System Data',
+    label: 'System Update',
     children: [
       { href: '/admin/locations', label: 'Locations' },
       { href: '/admin/crops', label: 'Crops' },

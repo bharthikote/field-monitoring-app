@@ -18,6 +18,12 @@
     <p id="login-error" class="error" style="display:none"></p>
     <button id="login-submit" class="primary" type="submit">Log In</button>
   </form>
+  <p style="text-align:center; margin-top:16px;">
+    <a href="#" id="forgot-password" style="color:var(--text-muted); font-size:0.85rem;">Forgot password?</a>
+  </p>
+  <p id="forgot-password-note" style="display:none; color:var(--text-muted); font-size:0.85rem; text-align:center; margin-top:8px;">
+    Passwords are reset by an Admin or Super Admin from the All Users page — ask them to reset yours there.
+  </p>
 </div>
 </div>
 
@@ -26,6 +32,11 @@
 if (getToken()) {
   window.location.href = '/admin';
 }
+
+document.getElementById('forgot-password').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('forgot-password-note').style.display = 'block';
+});
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();

@@ -48,6 +48,17 @@ export default function LoginScreen({ onGoToSignUp, onLoggedIn }) {
       <Pressable onPress={onGoToSignUp}>
         <Text style={styles.link}>Don't have an account? Sign up</Text>
       </Pressable>
+
+      <Pressable
+        onPress={() =>
+          Alert.alert(
+            'Forgot password?',
+            'Passwords are reset by your Admin or Super Admin from the web admin panel — ask them to reset yours.',
+          )
+        }
+      >
+        <Text style={styles.forgotLink}>Forgot password?</Text>
+      </Pressable>
     </View>
   );
 }
@@ -60,4 +71,5 @@ const styles = StyleSheet.create({
   button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   link: { color: '#2563eb', textAlign: 'center', marginTop: 16 },
+  forgotLink: { color: '#888', textAlign: 'center', marginTop: 20, fontSize: 13 },
 });
