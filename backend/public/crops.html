@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Crops &amp; Varieties</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<h1>Crops &amp; Varieties</h1>
+<p id="scope-note" class="scope-note"></p>
+<div id="top-add" class="top-add" style="display:none">
+  <input type="text" id="top-add-input" placeholder="New crop name" />
+  <button id="top-add-btn" class="primary">+ Add Crop</button>
+</div>
+<p id="tree-error" class="error" style="display:none"></p>
+<div id="tree"></div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const LEVELS = [
+  {
+    key: 'crop', label: 'Crop',
+    listPath: () => '/master/crops', dataKey: 'crops',
+    createPath: '/master/crops', createBody: (parentId, name) => ({ name }),
+    itemPath: (id) => `/master/crops/${id}`,
+  },
+  {
+    key: 'variety', label: 'Variety',
+    listPath: (parentId) => `/master/varieties?crop_id=${parentId}`, dataKey: 'varieties',
+    createPath: '/master/varieties', createBody: (parentId, name) => ({ crop_id: parentId, name }),
+    itemPath: (id) => `/master/varieties/${id}`,
+  },
+];
+
+let currentUser = null;
+const expanded = { crop: new Set() };
+const cache = new Map();
+let editingId = null;
+let deletingId = null;
+
+function canWrite() {
+  return currentUser.role === 'super_admin';
+}
+
+function showTreeError(message) {
+  const el = document.getElementById('tree-error');
+  el.textContent = message;
+  el.style.display = 'block';
+}
+function clearTreeError() {
+  document.getElementById('tree-error').style.display = 'none';
+}
+
+async function fetchLevelItems(level, parentId) {
+  const cacheKey = `${level.key}:${parentId}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  const res = await authedFetch(level.listPath(parentId));
+  const data = await res.json();
+  const items = data[level.dataKey];
+  cache.set(cacheKey, items);
+  return items;
+}
+
+async function buildLevelHtml(levelIndex, parentId) {
+  const level = LEVELS[levelIndex];
+  const items = await fetchLevelItems(level, parentId);
+  const hasNextLevel = levelIndex < LEVELS.length - 1;
+
+  let html = '<ul class="tree-level">';
+  for (const item of items) {
+    const isExpanded = hasNextLevel && expanded[level.key].has(item.id);
+    const isEditing = item.id === editingId;
+    const isDeleting = item.id === deletingId;
+
+    html += '<li><div class="tree-row">';
+
+    if (isEditing) {
+      html += `
+        <span class="toggle-spacer"></span>
+        <input type="text" class="rename-input" value="${escapeHtml(item.name)}" data-id="${item.id}" />
+        <button class="small save-rename-btn primary" data-level="${levelIndex}" data-id="${item.id}">Save</button>
+        <button class="small cancel-btn" data-action="cancel">Cancel</button>
+      `;
+    } else if (isDeleting) {
+      html += `
+        <span class="toggle-spacer"></span>
+        <span class="tree-name" style="color:var(--danger)">Delete "${escapeHtml(item.name)}"? Only works if nothing depends on it.</span>
+        <button class="small confirm-delete-btn" data-level="${levelIndex}" data-id="${item.id}" style="background:var(--danger);color:white">Confirm Delete</button>
+        <button class="small cancel-btn" data-action="cancel">Cancel</button>
+      `;
+    } else {
+      html += `
+        ${hasNextLevel
+          ? `<button class="toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
+          : '<span class="toggle-spacer"></span>'}
+        <span class="tree-name">${escapeHtml(item.name)}</span>
+        ${canWrite() ? `
+          <button class="small edit-btn" data-id="${item.id}">Rename</button>
+          <button class="small delete-btn" data-id="${item.id}">Delete</button>
+        ` : ''}
+      `;
+    }
+    html += '</div>';
+
+    if (isExpanded) {
+      html += await buildLevelHtml(levelIndex + 1, item.id);
+      const nextLevel = LEVELS[levelIndex + 1];
+      if (canWrite()) {
+        html += `<div class="add-child">
+          <input type="text" class="add-input" data-level="${levelIndex + 1}" data-parent="${item.id}" placeholder="New ${nextLevel.label.toLowerCase()} name" />
+          <button class="add-btn" data-level="${levelIndex + 1}" data-parent="${item.id}">+ Add ${nextLevel.label}</button>
+        </div>`;
+      }
+    }
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+async function render() {
+  document.getElementById('tree').innerHTML = await buildLevelHtml(0, null);
+}
+
+document.getElementById('tree').addEventListener('click', async (e) => {
+  const toggleBtn = e.target.closest('.toggle');
+  const editBtn = e.target.closest('.edit-btn');
+  const deleteBtn = e.target.closest('.delete-btn');
+  const addBtn = e.target.closest('.add-btn');
+  const saveRenameBtn = e.target.closest('.save-rename-btn');
+  const confirmDeleteBtn = e.target.closest('.confirm-delete-btn');
+  const cancelBtn = e.target.closest('.cancel-btn');
+
+  if (toggleBtn) {
+    const level = LEVELS[toggleBtn.dataset.level].key;
+    const id = toggleBtn.dataset.id;
+    if (expanded[level].has(id)) expanded[level].delete(id);
+    else expanded[level].add(id);
+    render();
+    return;
+  }
+
+  if (editBtn) {
+    editingId = editBtn.dataset.id;
+    deletingId = null;
+    clearTreeError();
+    render();
+    return;
+  }
+
+  if (deleteBtn) {
+    deletingId = deleteBtn.dataset.id;
+    editingId = null;
+    clearTreeError();
+    render();
+    return;
+  }
+
+  if (cancelBtn) {
+    editingId = null;
+    deletingId = null;
+    render();
+    return;
+  }
+
+  if (saveRenameBtn) {
+    const levelIndex = Number(saveRenameBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const id = saveRenameBtn.dataset.id;
+    const input = document.querySelector(`.rename-input[data-id="${id}"]`);
+    const newName = input.value.trim();
+    if (!newName) return;
+    try {
+      const res = await authedFetch(level.itemPath(id), { method: 'PATCH', body: JSON.stringify({ name: newName }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rename failed');
+      editingId = null;
+      cache.clear();
+      clearTreeError();
+      render();
+    } catch (err) {
+      showTreeError('Rename failed: ' + err.message);
+    }
+    return;
+  }
+
+  if (confirmDeleteBtn) {
+    const levelIndex = Number(confirmDeleteBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const id = confirmDeleteBtn.dataset.id;
+    try {
+      const res = await authedFetch(level.itemPath(id), { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Delete failed');
+      }
+      deletingId = null;
+      cache.clear();
+      clearTreeError();
+      render();
+    } catch (err) {
+      showTreeError('Delete failed: ' + err.message);
+    }
+    return;
+  }
+
+  if (addBtn) {
+    const levelIndex = Number(addBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const parentId = addBtn.dataset.parent;
+    const input = document.querySelector(`.add-input[data-level="${levelIndex}"][data-parent="${parentId}"]`);
+    const name = input.value.trim();
+    if (!name) return;
+    try {
+      const res = await authedFetch(level.createPath, {
+        method: 'POST',
+        body: JSON.stringify(level.createBody(parentId, name)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Add failed');
+      expanded[level.key] = expanded[level.key] || new Set();
+      if (levelIndex > 0) expanded[LEVELS[levelIndex - 1].key].add(parentId);
+      cache.delete(`${level.key}:${parentId}`);
+      clearTreeError();
+      render();
+    } catch (err) {
+      showTreeError('Add failed: ' + err.message);
+    }
+  }
+});
+
+document.getElementById('top-add-btn').addEventListener('click', async () => {
+  const input = document.getElementById('top-add-input');
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    const res = await authedFetch('/master/crops', { method: 'POST', body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Add failed');
+    input.value = '';
+    cache.delete('crop:null');
+    clearTreeError();
+    render();
+  } catch (err) {
+    showTreeError('Add failed: ' + err.message);
+  }
+});
+
+async function init() {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+
+  const scopeNote = document.getElementById('scope-note');
+  if (currentUser.role === 'admin') {
+    scopeNote.textContent = 'Crops and Varieties are managed by Super Admin only. You can view the list here.';
+  } else {
+    scopeNote.textContent = 'As Super Admin, you manage the global Crop and Variety list.';
+    document.getElementById('top-add').style.display = 'flex';
+  }
+
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { requireAuth } from '../middleware/requireAuth.js';
 import {
   countryIdForState,
   countryIdForDistrict,
@@ -10,35 +11,36 @@ import {
 
 export const locationsRouter = Router();
 
-// --- Read endpoints: any logged-in admin/super_admin can browse the hierarchy ---
+// --- Read endpoints: any logged-in, approved user can browse the hierarchy
+// (every field role needs this to pick a Village, not just Admin/Super Admin) ---
 
-locationsRouter.get('/locations/countries', requireAdmin, async (_req, res) => {
+locationsRouter.get('/locations/countries', requireAuth, async (_req, res) => {
   const result = await pool.query('select id, name from countries order by name');
   res.json({ countries: result.rows });
 });
 
-locationsRouter.get('/locations/states', requireAdmin, async (req, res) => {
+locationsRouter.get('/locations/states', requireAuth, async (req, res) => {
   const { country_id } = req.query;
   if (!country_id) return res.status(400).json({ error: 'country_id is required' });
   const result = await pool.query('select id, name from states where country_id = $1 order by name', [country_id]);
   res.json({ states: result.rows });
 });
 
-locationsRouter.get('/locations/districts', requireAdmin, async (req, res) => {
+locationsRouter.get('/locations/districts', requireAuth, async (req, res) => {
   const { state_id } = req.query;
   if (!state_id) return res.status(400).json({ error: 'state_id is required' });
   const result = await pool.query('select id, name from districts where state_id = $1 order by name', [state_id]);
   res.json({ districts: result.rows });
 });
 
-locationsRouter.get('/locations/blocks', requireAdmin, async (req, res) => {
+locationsRouter.get('/locations/blocks', requireAuth, async (req, res) => {
   const { district_id } = req.query;
   if (!district_id) return res.status(400).json({ error: 'district_id is required' });
   const result = await pool.query('select id, name from blocks where district_id = $1 order by name', [district_id]);
   res.json({ blocks: result.rows });
 });
 
-locationsRouter.get('/locations/villages', requireAdmin, async (req, res) => {
+locationsRouter.get('/locations/villages', requireAuth, async (req, res) => {
   const { block_id } = req.query;
   if (!block_id) return res.status(400).json({ error: 'block_id is required' });
   const result = await pool.query('select id, name from villages where block_id = $1 order by name', [block_id]);

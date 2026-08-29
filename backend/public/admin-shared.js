@@ -1,6 +1,7 @@
 const NAV_LINKS = [
   { href: '/admin', label: 'Pending Approvals' },
   { href: '/admin/locations', label: 'Locations' },
+  { href: '/admin/crops', label: 'Crops' },
   { href: '/admin/manage-users', label: 'All Users' },
 ];
 
