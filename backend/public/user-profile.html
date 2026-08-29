@@ -14,10 +14,6 @@
   .section-title:first-child { margin-top: 0; }
   .btn-row { display: flex; gap: 8px; margin-top: 16px; }
   .danger-zone { border: 1px solid var(--danger); border-radius: var(--radius); padding: 18px; margin-top: 12px; }
-  .loc-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
-  .loc-row:last-child { border-bottom: none; }
-  .loc-path { flex: 1; font-size: 0.88rem; }
-  .loc-level-tag { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 999px; }
   .loc-tree-level { list-style: none; padding-left: 0; margin: 2px 0; }
   .loc-tree-level .loc-tree-level { padding-left: 24px; border-left: 1px solid var(--border); margin-left: 9px; }
   .loc-tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--radius-sm); }
@@ -25,6 +21,8 @@
   .loc-toggle { background: none; border: none; font-size: 0.8rem; width: 18px; padding: 0; margin: 0; cursor: pointer; color: var(--text-muted); }
   .loc-toggle-spacer { display: inline-block; width: 18px; }
   .loc-tree-name { font-size: 0.88rem; }
+  .loc-tree-name.inherited { color: var(--text-muted); }
+  .loc-inherited-tag { font-size: 0.7rem; color: var(--text-muted); font-style: italic; }
 </style>
 </head>
 <body>
@@ -59,9 +57,7 @@
     <p class="error" id="status-error" style="display:none"></p>
 
     <div class="section-title">Locations</div>
-    <p class="scope-note" style="margin-top:0">Currently assigned:</p>
-    <div id="location-list"></div>
-    <p class="scope-note">Expand the tree and tick anything to assign it - villages, blocks, districts, whatever mix you need. Country/State can only be ticked by Super Admin.</p>
+    <p class="scope-note" style="margin-top:0">Tick anything to assign it - villages, blocks, districts, whatever mix you need. Ticking a higher level (e.g. a state) covers everything under it, shown greyed-out and checked below. Country/State can only be ticked by Super Admin.</p>
     <p class="error" id="location-error" style="display:none"></p>
     <div id="location-tree"></div>
 
@@ -133,53 +129,11 @@ function renderPreview() {
   renderStatusActions();
 }
 
-const LEVEL_LABELS = { country: 'Country', state: 'State', district: 'District', block: 'Block', village: 'Village' };
-
-async function loadLocationList() {
+async function loadLocationAssignments() {
   const res = await authedFetch(`/admin/users/${userId}/locations`);
   const data = await res.json();
-
   assignedKeys = new Set(data.assignments.map((a) => `${a.level}:${a.locationId}`));
   assignmentIdByKey = new Map(data.assignments.map((a) => [`${a.level}:${a.locationId}`, a.id]));
-
-  const container = document.getElementById('location-list');
-  if (!data.assignments.length) {
-    container.innerHTML = '<p class="empty">No locations assigned yet.</p>';
-    return;
-  }
-  container.innerHTML = data.assignments
-    .map(
-      (a) => `
-        <div class="loc-row">
-          <span class="loc-level-tag">${LEVEL_LABELS[a.level]}</span>
-          <span class="loc-path">${escapeHtml(a.path)}</span>
-          <button class="small delete-btn" data-assignment-id="${a.id}">Remove</button>
-        </div>`,
-    )
-    .join('');
-}
-
-document.getElementById('location-list').addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-assignment-id]');
-  if (!btn) return;
-  await removeAssignment(btn.dataset.assignmentId);
-});
-
-async function removeAssignment(assignmentId) {
-  const errorEl = document.getElementById('location-error');
-  errorEl.style.display = 'none';
-  try {
-    const res = await authedFetch(`/admin/users/${userId}/locations/${assignmentId}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || 'Failed to remove');
-    }
-    await loadLocationList();
-    await renderTree();
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.style.display = 'block';
-  }
 }
 
 function canCheckLevel(level) {
@@ -195,7 +149,7 @@ async function fetchTreeItems(level, parentId) {
   return data[level.dataKey];
 }
 
-async function buildTreeHtml(levelIndex, parentId) {
+async function buildTreeHtml(levelIndex, parentId, inheritedFromName) {
   const level = LEVELS[levelIndex];
   const items = await fetchTreeItems(level, parentId);
   const hasNext = levelIndex < LEVELS.length - 1;
@@ -204,17 +158,23 @@ async function buildTreeHtml(levelIndex, parentId) {
   let html = '<ul class="loc-tree-level">';
   for (const item of items) {
     const key = `${level.key}:${item.id}`;
-    const isChecked = assignedKeys.has(key);
+    const isDirect = assignedKeys.has(key);
+    const isInherited = !isDirect && !!inheritedFromName;
     const isExpanded = hasNext && treeExpanded[level.key].has(item.id);
+
     html += `<li><div class="loc-tree-row">
       ${hasNext
         ? `<button class="loc-toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
         : '<span class="loc-toggle-spacer"></span>'}
       <input type="checkbox" class="loc-check" data-level-key="${level.key}" data-id="${item.id}"
-        ${isChecked ? 'checked' : ''} ${canCheck ? '' : 'disabled'} />
-      <span class="loc-tree-name">${escapeHtml(item.name)}</span>
+        ${isDirect || isInherited ? 'checked' : ''} ${canCheck && !isInherited ? '' : 'disabled'} />
+      <span class="loc-tree-name ${isInherited ? 'inherited' : ''}">${escapeHtml(item.name)}</span>
+      ${isInherited ? `<span class="loc-inherited-tag">via ${escapeHtml(inheritedFromName)}</span>` : ''}
     </div>`;
-    if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id);
+    if (isExpanded) {
+      const childInherited = isDirect ? item.name : inheritedFromName;
+      html += await buildTreeHtml(levelIndex + 1, item.id, childInherited);
+    }
     html += '</li>';
   }
   html += '</ul>';
@@ -222,7 +182,7 @@ async function buildTreeHtml(levelIndex, parentId) {
 }
 
 async function renderTree() {
-  document.getElementById('location-tree').innerHTML = await buildTreeHtml(0, null);
+  document.getElementById('location-tree').innerHTML = await buildTreeHtml(0, null, null);
 }
 
 document.getElementById('location-tree').addEventListener('click', async (e) => {
@@ -265,13 +225,14 @@ document.getElementById('location-tree').addEventListener('change', async (e) =>
       assignedKeys.delete(key);
       assignmentIdByKey.delete(key);
     }
-    await loadLocationList();
+    // Full re-render so any expanded descendants immediately pick up
+    // inherited coverage from this change (or lose it, on uncheck).
+    await renderTree();
   } catch (err) {
     cb.checked = !cb.checked;
+    cb.disabled = false;
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
-  } finally {
-    cb.disabled = !canCheckLevel(LEVELS.find((l) => l.key === levelKey));
   }
 });
 
@@ -419,7 +380,7 @@ async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
   await loadProfile();
-  await loadLocationList();
+  await loadLocationAssignments();
   await renderTree();
 }
 
