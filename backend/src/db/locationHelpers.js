@@ -84,3 +84,41 @@ export async function resolveLocationPath(level, id) {
   const r = await pool.query(queries[level], [id]);
   return r.rows[0] ?? null;
 }
+
+// All village ids that fall under a location node at any level (a village
+// resolves to just itself).
+export async function resolveVillageIds(level, id) {
+  const queries = {
+    village: `select id from villages where id = $1`,
+    block: `select id from villages where block_id = $1`,
+    district: `select v.id from villages v join blocks b on b.id = v.block_id where b.district_id = $1`,
+    state: `select v.id from villages v
+              join blocks b on b.id = v.block_id
+              join districts d on d.id = b.district_id
+              where d.state_id = $1`,
+    country: `select v.id from villages v
+                join blocks b on b.id = v.block_id
+                join districts d on d.id = b.district_id
+                join states s on s.id = d.state_id
+                where s.country_id = $1`,
+  };
+  const r = await pool.query(queries[level], [id]);
+  return r.rows.map((row) => row.id);
+}
+
+// A user's effective village coverage: union of everything under every
+// 'include' assignment, minus everything under every 'exclude' assignment
+// (an exclude nested inside a broader include carves those villages back
+// out). No assignments at all means no coverage - not everything.
+export async function getCoveredVillageIds(userId) {
+  const result = await pool.query('select level, location_id, mode from user_locations where user_id = $1', [userId]);
+  const included = new Set();
+  const excluded = new Set();
+  for (const row of result.rows) {
+    const villageIds = await resolveVillageIds(row.level, row.location_id);
+    const target = row.mode === 'exclude' ? excluded : included;
+    for (const id of villageIds) target.add(id);
+  }
+  for (const id of excluded) included.delete(id);
+  return [...included];
+}

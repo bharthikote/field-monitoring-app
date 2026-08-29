@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { getCoveredVillageIds } from '../db/locationHelpers.js';
 
 export const demoPlotsRouter = Router();
 
@@ -15,8 +16,20 @@ const SELECT_DEMO_PLOTS = `
   join villages vi on vi.id = dp.village_id
 `;
 
-demoPlotsRouter.get('/demo-plots', requireAuth, async (_req, res) => {
-  const result = await pool.query(`${SELECT_DEMO_PLOTS} order by dp.created_at desc limit 200`);
+// Super Admin sees everything, like everywhere else in this app. Everyone
+// else is scoped to the villages their location assignments cover - no
+// assignment means no visibility, not "see everything".
+demoPlotsRouter.get('/demo-plots', requireAuth, async (req, res) => {
+  if (req.user.role === 'super_admin') {
+    const result = await pool.query(`${SELECT_DEMO_PLOTS} order by dp.created_at desc limit 200`);
+    return res.json({ demoPlots: result.rows });
+  }
+
+  const villageIds = await getCoveredVillageIds(req.user.userId);
+  const result = await pool.query(
+    `${SELECT_DEMO_PLOTS} where dp.village_id = any($1) order by dp.created_at desc limit 200`,
+    [villageIds],
+  );
   res.json({ demoPlots: result.rows });
 });
 
@@ -24,16 +37,18 @@ demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
 
+  const params = [`%${q}%`];
+  let whereClause = `(dp.farmer_name ilike $1 or dp.farmer_phone ilike $1 or vi.name ilike $1 or c.name ilike $1 or v.name ilike $1)`;
+
+  if (req.user.role !== 'super_admin') {
+    const villageIds = await getCoveredVillageIds(req.user.userId);
+    params.push(villageIds);
+    whereClause += ` and dp.village_id = any($${params.length})`;
+  }
+
   const result = await pool.query(
-    `${SELECT_DEMO_PLOTS}
-     where dp.farmer_name ilike $1
-        or dp.farmer_phone ilike $1
-        or vi.name ilike $1
-        or c.name ilike $1
-        or v.name ilike $1
-     order by dp.created_at desc
-     limit 100`,
-    [`%${q}%`],
+    `${SELECT_DEMO_PLOTS} where ${whereClause} order by dp.created_at desc limit 100`,
+    params,
   );
   res.json({ demoPlots: result.rows });
 });
