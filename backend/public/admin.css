@@ -35,6 +35,9 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 .nav-links a {
   margin-right: 4px;
@@ -50,8 +53,8 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
 
 .nav-dropdown { position: relative; display: inline-block; }
 .nav-dropdown-toggle {
-  background: none;
-  border: none;
+  background: var(--surface);
+  border: 1px solid transparent;
   cursor: pointer;
   font-family: inherit;
   color: var(--text-muted);
@@ -60,25 +63,28 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   margin-right: 4px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.nav-dropdown-toggle:hover { background: var(--bg); color: var(--text); }
+.nav-dropdown-toggle:hover { background: var(--bg); color: var(--text); border-color: var(--border-strong); }
 .nav-dropdown-toggle.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-.nav-caret { font-size: 0.65rem; }
+.nav-dropdown.open .nav-dropdown-toggle { background: var(--surface); color: var(--text); border-color: var(--accent); }
+.nav-caret { font-size: 0.6rem; display: inline-block; transition: transform 0.15s; }
+.nav-dropdown.open .nav-caret { transform: rotate(180deg); }
 .nav-dropdown-menu {
   display: none;
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 4px;
+  margin-top: 6px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  min-width: 170px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  min-width: 180px;
   padding: 6px;
-  z-index: 20;
+  z-index: 60;
 }
 .nav-dropdown.open .nav-dropdown-menu { display: block; }
 .nav-dropdown-menu a {
@@ -89,6 +95,7 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   color: var(--text-muted);
   font-size: 0.85rem;
   margin-right: 0;
+  transition: background 0.15s, color 0.15s;
 }
 .nav-dropdown-menu a:hover { background: var(--bg); color: var(--text); }
 .nav-dropdown-menu a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
@@ -189,6 +196,8 @@ code { background: var(--bg); border: 1px solid var(--border); padding: 2px 7px;
 
 .inline-form { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
 .scope-note { font-size: 0.85rem; color: var(--text-muted); margin-top: -2px; }
+.bottom-add { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+.table-scroll { overflow-x: auto; }
 
 /* Floating action button, e.g. "Create User" on All Users */
 .fab {
@@ -253,6 +262,10 @@ button.small, .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 
 .status-terminated { background: #fee2e2; color: #991b1b; }
 .report-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .report-header .inline-form { flex: 1; min-width: 240px; margin-bottom: 4px; }
+/* Keeps the export button pinned to the right even when it wraps onto
+   its own line on a narrow screen - space-between only pushes it right
+   when there's a sibling to space against. */
+.report-header > button { margin-left: auto; }
 
 /* Custom-styled dropdown, replaces plain <select> wherever it appears */
 .custom-select { position: relative; display: inline-block; min-width: 168px; vertical-align: middle; }

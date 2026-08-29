@@ -13,12 +13,12 @@
 <div class="panel">
 <h1>Location Hierarchy</h1>
 <p id="scope-note" class="scope-note"></p>
-<div id="top-add" class="top-add" style="display:none">
+<p id="tree-error" class="error" style="display:none"></p>
+<div id="tree"></div>
+<div id="top-add" class="bottom-add" style="display:none">
   <input type="text" id="top-add-input" placeholder="New country name" />
   <button id="top-add-btn" class="primary">+ Add Country</button>
 </div>
-<p id="tree-error" class="error" style="display:none"></p>
-<div id="tree"></div>
 
 <div id="bulk-upload-section" class="bulk-upload-section" style="display:none">
   <h2 style="margin-top:0">Bulk Upload Villages</h2>
@@ -298,12 +298,14 @@ function renderBulkUploadReport(data) {
 
   if (skippedRows.length) {
     html += `
+      <div class="table-scroll">
       <table>
         <thead><tr><th>Row</th><th>Reason</th></tr></thead>
         <tbody>
           ${skippedRows.map((r) => `<tr><td>${r.row}</td><td>${escapeHtml(r.reason)}</td></tr>`).join('')}
         </tbody>
       </table>
+      </div>
     `;
   }
 
