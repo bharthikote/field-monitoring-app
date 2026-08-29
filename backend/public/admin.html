@@ -66,6 +66,8 @@ const ROLE_LABELS = {
   super_admin: 'Super Admin',
 };
 
+const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
+
 function getToken() {
   return localStorage.getItem('admin_token');
 }
@@ -176,10 +178,13 @@ async function loadPending() {
       const tr = document.createElement('tr');
       const contact = user.email || user.mobile_number;
       const requested = new Date(user.created_at).toLocaleString();
+      const roleOptions = ASSIGNABLE_ROLES
+        .map((value) => `<option value="${value}" ${value === user.role ? 'selected' : ''}>${ROLE_LABELS[value]}</option>`)
+        .join('');
       tr.innerHTML = `
         <td>${escapeHtml(user.name)}</td>
         <td>${escapeHtml(contact)}</td>
-        <td><span class="role-badge">${ROLE_LABELS[user.role] || user.role}</span></td>
+        <td><select class="role-select" data-user-id="${user.id}">${roleOptions}</select></td>
         <td>${requested}</td>
         <td>
           <button class="approve" data-id="${user.id}" data-action="approve">Approve</button>
@@ -202,7 +207,16 @@ document.getElementById('rows').addEventListener('click', async (e) => {
   const { id, action } = btn.dataset;
   btn.disabled = true;
   try {
-    const res = await authedFetch(`/admin/users/${id}/${action}`, { method: 'POST' });
+    const body = {};
+    if (action === 'approve') {
+      const select = document.querySelector(`.role-select[data-user-id="${id}"]`);
+      if (select) body.role = select.value;
+    }
+    const res = await authedFetch(`/admin/users/${id}/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
     if (!res.ok) {
       const data = await res.json();
       alert('Failed: ' + (data.error || res.statusText));

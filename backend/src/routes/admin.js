@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { SELF_REGISTER_ROLES } from '../roles.js';
 
 export const adminRouter = Router();
 
@@ -18,10 +19,16 @@ adminRouter.get('/admin/users/pending', requireAdmin, async (_req, res) => {
 });
 
 adminRouter.post('/admin/users/:id/approve', requireAdmin, async (req, res) => {
+  const { role } = req.body;
+  if (role !== undefined && !SELF_REGISTER_ROLES.includes(role)) {
+    return res.status(400).json({ error: `role must be one of: ${SELF_REGISTER_ROLES.join(', ')}` });
+  }
+
   const result = await pool.query(
-    `update users set status = 'approved', reviewed_by = $2, reviewed_at = now(), updated_at = now()
-     where id = $1 and status = 'pending' returning id, name, status`,
-    [req.params.id, req.user.userId],
+    `update users set role = coalesce($3, role), status = 'approved',
+       reviewed_by = $2, reviewed_at = now(), updated_at = now()
+     where id = $1 and status = 'pending' returning id, name, role, status`,
+    [req.params.id, req.user.userId, role ?? null],
   );
   if (result.rowCount === 0) {
     return res.status(404).json({ error: 'No pending user with that id' });

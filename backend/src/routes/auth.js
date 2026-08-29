@@ -2,10 +2,10 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
+import { SELF_REGISTER_ROLES as ROLES } from '../roles.js';
 
 export const authRouter = Router();
 
-const ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
 const isEmail = (identifier) => identifier.includes('@');
 
 authRouter.post('/auth/register', async (req, res) => {
