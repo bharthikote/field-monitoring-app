@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pending User Approvals</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e2e2; font-size: 0.95rem; }
+  th { color: #666; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.04em; }
+  .role-badge { background: #eef2ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+  button { padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; margin-right: 6px; }
+  .approve { background: #16a34a; color: white; }
+  .reject { background: #dc2626; color: white; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .empty { color: #888; margin-top: 30px; }
+  .error { color: #dc2626; margin-top: 10px; }
+</style>
+</head>
+<body>
+  <h1>Pending User Approvals</h1>
+  <p id="status" class="empty">Loading...</p>
+  <table id="table" style="display:none">
+    <thead>
+      <tr><th>Name</th><th>Contact</th><th>Role</th><th>Requested</th><th>Action</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+<script>
+const ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)',
+  supervisor: 'Supervisor',
+  team_lead: 'Team Lead',
+  country_manager: 'Country Manager',
+  admin: 'Admin',
+};
+
+async function loadPending() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+
+  try {
+    const res = await fetch('/admin/users/pending');
+    const data = await res.json();
+
+    if (!data.users.length) {
+      statusEl.textContent = 'No pending users right now.';
+      statusEl.className = 'empty';
+      table.style.display = 'none';
+      return;
+    }
+
+    statusEl.style.display = 'none';
+    table.style.display = 'table';
+    rows.innerHTML = '';
+
+    for (const user of data.users) {
+      const tr = document.createElement('tr');
+      const contact = user.email || user.mobile_number;
+      const requested = new Date(user.created_at).toLocaleString();
+      tr.innerHTML = `
+        <td>${escapeHtml(user.name)}</td>
+        <td>${escapeHtml(contact)}</td>
+        <td><span class="role-badge">${ROLE_LABELS[user.role] || user.role}</span></td>
+        <td>${requested}</td>
+        <td>
+          <button class="approve" data-id="${user.id}" data-action="approve">Approve</button>
+          <button class="reject" data-id="${user.id}" data-action="reject">Reject</button>
+        </td>
+      `;
+      rows.appendChild(tr);
+    }
+  } catch (err) {
+    statusEl.textContent = 'Failed to load pending users: ' + err.message;
+    statusEl.className = 'error';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const { id, action } = btn.dataset;
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/users/${id}/${action}`, { method: 'POST' });
+    if (!res.ok) {
+      const data = await res.json();
+      alert('Failed: ' + (data.error || res.statusText));
+      btn.disabled = false;
+      return;
+    }
+    loadPending();
+  } catch (err) {
+    alert('Failed: ' + err.message);
+    btn.disabled = false;
+  }
+});
+
+loadPending();
+</script>
+</body>
+</html>
