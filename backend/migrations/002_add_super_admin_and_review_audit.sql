@@ -1,6 +1,8 @@
-alter table users drop constraint if exists users_role_check;
-alter table users add constraint users_role_check
-  check (role in ('tfo', 'supervisor', 'team_lead', 'country_manager', 'admin', 'super_admin'));
+-- The role-check widening that used to live here is superseded by
+-- 012_add_leadership_role.sql, which is now the single source of truth
+-- for the full role list. Narrowing it here on every replay used to
+-- break once a 'leadership' row existed, since migrate.js has no
+-- tracking table and re-runs every file from scratch each time.
 
 alter table users add column if not exists reviewed_by uuid references users(id);
 alter table users add column if not exists reviewed_at timestamptz;
