@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import {
   countryIdForState,
   countryIdForDistrict,
@@ -10,6 +11,7 @@ import {
 } from '../db/locationHelpers.js';
 
 export const locationsRouter = Router();
+locationsRouter.param('id', validateUuidParam);
 
 // --- Read endpoints: any logged-in, approved user can browse the hierarchy
 // (every field role needs this to pick a Village, not just Admin/Super Admin) ---

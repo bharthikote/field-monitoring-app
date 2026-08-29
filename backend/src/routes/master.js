@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { validateUuidParam } from '../middleware/validateUuidParam.js';
 
 export const masterRouter = Router();
+masterRouter.param('id', validateUuidParam);
 
 function requireSuperAdmin(req, res, next) {
   if (req.user.role !== 'super_admin') {

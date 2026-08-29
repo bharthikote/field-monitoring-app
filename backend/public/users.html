@@ -43,14 +43,6 @@
   <button id="discard-btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Discard</button>
   <button id="save-all-btn" class="primary">Save Changes</button>
 </div>
-
-<div id="assign-panel" style="display:none; margin-top: 28px; border-top: 1px solid var(--border); padding-top: 24px;">
-  <h2>Assign Location to <span id="assign-name"></span></h2>
-  <p class="scope-note">Pick a level, then click "Assign here" at whichever depth you want. Country/State can only be assigned by Super Admin.</p>
-  <div id="assign-levels"></div>
-  <p class="error" id="assign-error" style="display:none"></p>
-  <button id="assign-cancel" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text);margin-top:12px">Cancel</button>
-</div>
 </div>
 </div>
 
@@ -68,23 +60,12 @@ const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', '
 const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', deactivated: 'Deactivated' };
 const STATUSES = ['pending', 'approved', 'rejected', 'deactivated'];
 
-const LEVELS = [
-  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', parentField: null, superAdminOnly: true },
-  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', parentField: 'country', superAdminOnly: true },
-  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', parentField: 'state', superAdminOnly: false },
-  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', parentField: 'district', superAdminOnly: false },
-  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', parentField: 'block', superAdminOnly: false },
-];
-
 let currentUser = null;
 let allUsers = [];
 let searchQuery = '';
 let sortField = null;
 let sortDir = 'asc';
 const pendingChanges = new Map(); // userId -> { role?, status? }
-
-let assignTargetUserId = null;
-const assignSelected = { country: null, state: null, district: null, block: null, village: null };
 
 function locationSummary(user) {
   const parts = [user.country_name, user.state_name, user.district_name, user.block_name, user.village_name].filter(Boolean);
@@ -189,10 +170,7 @@ function render() {
       <td>${roleCell}</td>
       <td>${statusCell}</td>
       <td>${escapeHtml(locationSummary(user))}</td>
-      <td>
-        <a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a>
-        <button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button>
-      </td>
+      <td><a href="/admin/user-profile/${user.id}" class="edit-btn small" style="text-decoration:none; display:inline-block;">Preview</a></td>
     `;
     rows.appendChild(tr);
   }
@@ -276,93 +254,6 @@ document.getElementById('save-all-btn').addEventListener('click', async () => {
 
   if (errors.length) alert('Some changes failed:\n' + errors.join('\n'));
 });
-
-document.getElementById('rows').addEventListener('click', async (e) => {
-  const assignBtn = e.target.closest('.assign-btn');
-  if (assignBtn) {
-    assignTargetUserId = assignBtn.dataset.userId;
-    document.getElementById('assign-name').textContent = assignBtn.dataset.userName;
-    document.getElementById('assign-panel').style.display = 'block';
-    Object.keys(assignSelected).forEach((k) => (assignSelected[k] = null));
-    renderAssignLevels();
-    await loadAssignLevel(0);
-    document.getElementById('assign-panel').scrollIntoView({ behavior: 'smooth' });
-  }
-});
-
-document.getElementById('assign-cancel').addEventListener('click', () => {
-  assignTargetUserId = null;
-  document.getElementById('assign-panel').style.display = 'none';
-});
-
-function renderAssignLevels() {
-  const container = document.getElementById('assign-levels');
-  container.innerHTML = LEVELS.map((l) => `
-    <div id="assign-level-${l.key}" style="display:none; margin-bottom: 10px;">
-      <label style="display:inline-block; width: 80px; font-size: 0.85rem; color:#555;">${l.label}</label>
-      <select id="assign-select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
-      <button class="approve" id="assign-here-${l.key}">Assign here</button>
-    </div>
-  `).join('');
-
-  LEVELS.forEach((level, index) => {
-    document.getElementById(`assign-select-${level.key}`).addEventListener('change', () => onAssignSelectChange(index));
-    document.getElementById(`assign-here-${level.key}`).addEventListener('click', () => onAssignHere(level.key));
-  });
-}
-
-async function loadAssignLevel(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const container = document.getElementById(`assign-level-${level.key}`);
-
-  if (levelIndex > 0 && !assignSelected[LEVELS[levelIndex - 1].key]) {
-    container.style.display = 'none';
-    return;
-  }
-  container.style.display = 'block';
-
-  const res = await authedFetch(level.list(assignSelected));
-  const data = await res.json();
-  const items = data[level.dataKey];
-
-  const select = document.getElementById(`assign-select-${level.key}`);
-  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
-    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
-  select.value = assignSelected[level.key] || '';
-
-  const canAssign = level.superAdminOnly ? currentUser.role === 'super_admin' : true;
-  document.getElementById(`assign-here-${level.key}`).style.display = canAssign ? 'inline-block' : 'none';
-}
-
-async function onAssignSelectChange(levelIndex) {
-  const level = LEVELS[levelIndex];
-  const select = document.getElementById(`assign-select-${level.key}`);
-  assignSelected[level.key] = select.value || null;
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) assignSelected[LEVELS[i].key] = null;
-  for (let i = levelIndex + 1; i < LEVELS.length; i++) await loadAssignLevel(i);
-}
-
-async function onAssignHere(levelKey) {
-  const errorEl = document.getElementById('assign-error');
-  errorEl.style.display = 'none';
-  const locationId = assignSelected[levelKey];
-  if (!locationId) return;
-
-  try {
-    const res = await authedFetch(`/admin/users/${assignTargetUserId}/assign-location`, {
-      method: 'POST',
-      body: JSON.stringify({ level: levelKey, locationId }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to assign');
-    document.getElementById('assign-panel').style.display = 'none';
-    assignTargetUserId = null;
-    loadUsers();
-  } catch (err) {
-    errorEl.textContent = err.message;
-    errorEl.style.display = 'block';
-  }
-}
 
 async function init() {
   currentUser = await initAdminPage();

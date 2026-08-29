@@ -47,6 +47,15 @@
     <div class="inline-form" id="status-actions"></div>
     <p class="error" id="status-error" style="display:none"></p>
 
+    <div class="section-title">Location</div>
+    <div class="field-row">
+      <div class="field-label">Current location</div>
+      <div class="field-value" id="location-summary"></div>
+    </div>
+    <p class="scope-note">Pick a level, then click "Assign here" at whichever depth you want. Country/State can only be assigned by Super Admin.</p>
+    <div id="location-levels"></div>
+    <p class="error" id="location-error" style="display:none"></p>
+
     <div class="section-title">Danger Zone</div>
     <div class="danger-zone">
       <p class="scope-note" style="margin-top:0">Permanently delete this account. This cannot be undone, and only works if nothing else references this user (approvals they've reviewed, demo plots they've created, etc.) — deactivate instead if it's blocked.</p>
@@ -74,6 +83,15 @@ const ROLE_LABELS = {
 };
 const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
 const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', deactivated: 'Deactivated' };
+
+const LEVELS = [
+  { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', superAdminOnly: true },
+  { key: 'state', label: 'State', list: (sel) => `/locations/states?country_id=${sel.country}`, dataKey: 'states', superAdminOnly: true },
+  { key: 'district', label: 'District', list: (sel) => `/locations/districts?state_id=${sel.state}`, dataKey: 'districts', superAdminOnly: false },
+  { key: 'block', label: 'Block', list: (sel) => `/locations/blocks?district_id=${sel.district}`, dataKey: 'blocks', superAdminOnly: false },
+  { key: 'village', label: 'Village', list: (sel) => `/locations/villages?block_id=${sel.block}`, dataKey: 'villages', superAdminOnly: false },
+];
+const locationSelected = { country: null, state: null, district: null, block: null };
 
 const userId = location.pathname.split('/').pop();
 let currentUser = null;
@@ -107,6 +125,75 @@ function renderPreview() {
 
   document.getElementById('status-badge').textContent = STATUS_LABELS[profile.status];
   renderStatusActions();
+
+  document.getElementById('location-summary').textContent = locationSummary(profile);
+}
+
+function renderLocationLevels() {
+  const container = document.getElementById('location-levels');
+  container.innerHTML = LEVELS.map((l) => `
+    <div id="loc-level-${l.key}" style="display:none; margin-bottom: 10px;">
+      <label style="display:inline-block; width: 80px; font-size: 0.85rem; color:var(--text-muted);">${l.label}</label>
+      <select id="loc-select-${l.key}"><option value="">-- choose ${l.label.toLowerCase()} --</option></select>
+      <button class="approve" id="loc-assign-${l.key}">Assign here</button>
+    </div>
+  `).join('');
+
+  LEVELS.forEach((level, index) => {
+    document.getElementById(`loc-select-${level.key}`).addEventListener('change', () => onLocationSelectChange(index));
+    document.getElementById(`loc-assign-${level.key}`).addEventListener('click', () => onLocationAssign(level.key));
+  });
+}
+
+async function loadLocationLevel(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const container = document.getElementById(`loc-level-${level.key}`);
+
+  if (levelIndex > 0 && !locationSelected[LEVELS[levelIndex - 1].key]) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'block';
+
+  const res = await authedFetch(level.list(locationSelected));
+  const data = await res.json();
+  const items = data[level.dataKey];
+
+  const select = document.getElementById(`loc-select-${level.key}`);
+  select.innerHTML = `<option value="">-- choose ${level.label.toLowerCase()} --</option>` +
+    items.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join('');
+  select.value = locationSelected[level.key] || '';
+
+  const canAssign = level.superAdminOnly ? currentUser.role === 'super_admin' : true;
+  document.getElementById(`loc-assign-${level.key}`).style.display = canAssign ? 'inline-block' : 'none';
+}
+
+async function onLocationSelectChange(levelIndex) {
+  const level = LEVELS[levelIndex];
+  const select = document.getElementById(`loc-select-${level.key}`);
+  locationSelected[level.key] = select.value || null;
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) locationSelected[LEVELS[i].key] = null;
+  for (let i = levelIndex + 1; i < LEVELS.length; i++) await loadLocationLevel(i);
+}
+
+async function onLocationAssign(levelKey) {
+  const errorEl = document.getElementById('location-error');
+  errorEl.style.display = 'none';
+  const locationId = locationSelected[levelKey];
+  if (!locationId) return;
+
+  try {
+    const res = await authedFetch(`/admin/users/${userId}/assign-location`, {
+      method: 'POST',
+      body: JSON.stringify({ level: levelKey, locationId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to assign');
+    await loadProfile();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
 }
 
 function renderStatusActions() {
@@ -253,6 +340,8 @@ async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
   await loadProfile();
+  renderLocationLevels();
+  await loadLocationLevel(0);
 }
 
 init();

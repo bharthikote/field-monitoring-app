@@ -14,6 +14,17 @@ import { demoPlotsRouter } from './routes/demoPlots.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
 
+// A single bad request (e.g. a malformed id hitting a raw DB query) must
+// never take the whole server down for every other user. Node's default
+// for an unhandled promise rejection is to crash the process - override
+// that so it just gets logged instead.
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+});
+
 const app = express();
 
 app.use(cors());

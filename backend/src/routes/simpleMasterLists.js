@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { validateUuidParam } from '../middleware/validateUuidParam.js';
 
 export const simpleMasterListsRouter = Router();
+simpleMasterListsRouter.param('id', validateUuidParam);
 
 // Flat, single-level master lists per PRD Section 7. Each gets its own
 // table (rather than one polymorphic table) since future features -

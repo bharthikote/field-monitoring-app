@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
+import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { SELF_REGISTER_ROLES } from '../roles.js';
 
 export const adminRouter = Router();
+adminRouter.param('id', validateUuidParam);
 
 adminRouter.get('/admin/me', requireAdmin, async (req, res) => {
   const result = await pool.query(`select id, name, role from users where id = $1`, [req.user.userId]);
