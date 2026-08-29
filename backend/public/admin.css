@@ -112,7 +112,7 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
 }
 
 table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; vertical-align: middle; }
 th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
 tr:last-child td { border-bottom: none; }
 
