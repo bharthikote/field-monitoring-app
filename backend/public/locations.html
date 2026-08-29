@@ -17,6 +17,7 @@
   <input type="text" id="top-add-input" placeholder="New country name" />
   <button id="top-add-btn" class="primary">+ Add Country</button>
 </div>
+<p id="tree-error" class="error" style="display:none"></p>
 <div id="tree"></div>
 </div>
 </div>
@@ -59,10 +60,21 @@ const LEVELS = [
 let currentUser = null;
 const expanded = { country: new Set(), state: new Set(), district: new Set(), block: new Set() };
 const cache = new Map(); // `${levelKey}:${parentId}` -> items array
+let editingId = null;
+let deletingId = null;
 
 function canWrite(level) {
   if (level.superAdminOnly) return currentUser.role === 'super_admin';
   return currentUser.role === 'admin' || currentUser.role === 'super_admin';
+}
+
+function showTreeError(message) {
+  const el = document.getElementById('tree-error');
+  el.textContent = message;
+  el.style.display = 'block';
+}
+function clearTreeError() {
+  document.getElementById('tree-error').style.display = 'none';
 }
 
 async function fetchLevelItems(level, parentId, force = false) {
@@ -83,17 +95,38 @@ async function buildLevelHtml(levelIndex, parentId, depth) {
   let html = '<ul class="tree-level">';
   for (const item of items) {
     const isExpanded = hasNextLevel && expanded[level.key].has(item.id);
-    html += `<li>
-      <div class="tree-row">
+    const isEditing = item.id === editingId;
+    const isDeleting = item.id === deletingId;
+
+    html += '<li><div class="tree-row">';
+
+    if (isEditing) {
+      html += `
+        <span class="toggle-spacer"></span>
+        <input type="text" class="rename-input" value="${escapeHtml(item.name)}" data-id="${item.id}" />
+        <button class="small save-rename-btn primary" data-level="${levelIndex}" data-id="${item.id}">Save</button>
+        <button class="small cancel-btn" data-action="cancel-rename">Cancel</button>
+      `;
+    } else if (isDeleting) {
+      html += `
+        <span class="toggle-spacer"></span>
+        <span class="tree-name" style="color:var(--danger)">Delete "${escapeHtml(item.name)}"? Only works if nothing exists underneath it.</span>
+        <button class="small confirm-delete-btn" data-level="${levelIndex}" data-id="${item.id}" style="background:var(--danger);color:white">Confirm Delete</button>
+        <button class="small cancel-btn" data-action="cancel-delete">Cancel</button>
+      `;
+    } else {
+      html += `
         ${hasNextLevel
           ? `<button class="toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
           : '<span class="toggle-spacer"></span>'}
         <span class="tree-name">${escapeHtml(item.name)}</span>
         ${canWrite(level) ? `
-          <button class="small edit-btn" data-level="${levelIndex}" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Rename</button>
-          <button class="small delete-btn" data-level="${levelIndex}" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Delete</button>
+          <button class="small edit-btn" data-id="${item.id}">Rename</button>
+          <button class="small delete-btn" data-id="${item.id}">Delete</button>
         ` : ''}
-      </div>`;
+      `;
+    }
+    html += '</div>';
 
     if (isExpanded) {
       html += await buildLevelHtml(levelIndex + 1, item.id, depth + 1);
@@ -120,6 +153,9 @@ document.getElementById('tree').addEventListener('click', async (e) => {
   const editBtn = e.target.closest('.edit-btn');
   const deleteBtn = e.target.closest('.delete-btn');
   const addBtn = e.target.closest('.add-btn');
+  const saveRenameBtn = e.target.closest('.save-rename-btn');
+  const confirmDeleteBtn = e.target.closest('.confirm-delete-btn');
+  const cancelBtn = e.target.closest('.cancel-btn');
 
   if (toggleBtn) {
     const level = LEVELS[toggleBtn.dataset.level].key;
@@ -131,37 +167,65 @@ document.getElementById('tree').addEventListener('click', async (e) => {
   }
 
   if (editBtn) {
-    const level = LEVELS[editBtn.dataset.level];
-    const newName = prompt(`Rename ${level.label}`, editBtn.dataset.name);
-    if (!newName || newName === editBtn.dataset.name) return;
-    try {
-      const res = await authedFetch(level.itemPath(editBtn.dataset.id), {
-        method: 'PATCH',
-        body: JSON.stringify({ name: newName }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Rename failed');
-      cache.clear();
-      render();
-    } catch (err) {
-      alert('Failed: ' + err.message);
-    }
+    editingId = editBtn.dataset.id;
+    deletingId = null;
+    clearTreeError();
+    render();
     return;
   }
 
   if (deleteBtn) {
-    const level = LEVELS[deleteBtn.dataset.level];
-    if (!confirm(`Delete "${deleteBtn.dataset.name}"? This only works if nothing exists underneath it.`)) return;
+    deletingId = deleteBtn.dataset.id;
+    editingId = null;
+    clearTreeError();
+    render();
+    return;
+  }
+
+  if (cancelBtn) {
+    editingId = null;
+    deletingId = null;
+    render();
+    return;
+  }
+
+  if (saveRenameBtn) {
+    const levelIndex = Number(saveRenameBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const id = saveRenameBtn.dataset.id;
+    const input = document.querySelector(`.rename-input[data-id="${id}"]`);
+    const newName = input.value.trim();
+    if (!newName) return;
     try {
-      const res = await authedFetch(level.itemPath(deleteBtn.dataset.id), { method: 'DELETE' });
+      const res = await authedFetch(level.itemPath(id), { method: 'PATCH', body: JSON.stringify({ name: newName }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Rename failed');
+      editingId = null;
+      cache.clear();
+      clearTreeError();
+      render();
+    } catch (err) {
+      showTreeError('Rename failed: ' + err.message);
+    }
+    return;
+  }
+
+  if (confirmDeleteBtn) {
+    const levelIndex = Number(confirmDeleteBtn.dataset.level);
+    const level = LEVELS[levelIndex];
+    const id = confirmDeleteBtn.dataset.id;
+    try {
+      const res = await authedFetch(level.itemPath(id), { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed');
       }
+      deletingId = null;
       cache.clear();
+      clearTreeError();
       render();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      showTreeError('Delete failed: ' + err.message);
     }
     return;
   }
@@ -183,9 +247,10 @@ document.getElementById('tree').addEventListener('click', async (e) => {
       expanded[level.key] = expanded[level.key] || new Set();
       if (levelIndex > 0) expanded[LEVELS[levelIndex - 1].key].add(parentId);
       cache.delete(`${level.key}:${parentId}`);
+      clearTreeError();
       render();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      showTreeError('Add failed: ' + err.message);
     }
   }
 });
@@ -200,9 +265,10 @@ document.getElementById('top-add-btn').addEventListener('click', async () => {
     if (!res.ok) throw new Error(data.error || 'Add failed');
     input.value = '';
     cache.delete('country:null');
+    clearTreeError();
     render();
   } catch (err) {
-    alert('Failed: ' + err.message);
+    showTreeError('Add failed: ' + err.message);
   }
 });
 

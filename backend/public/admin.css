@@ -121,8 +121,9 @@ code { background: var(--bg); border: 1px solid var(--border); padding: 2px 7px;
 .toggle-spacer { display: inline-block; width: 20px; }
 .tree-name { flex: 1; font-size: 0.9rem; }
 button.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 4px; }
-.edit-btn { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border-strong); }
-.edit-btn:hover { background: var(--bg); }
+.edit-btn, .cancel-btn { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border-strong); }
+.edit-btn:hover, .cancel-btn:hover { background: var(--bg); }
+.rename-input { flex: 1; }
 .delete-btn { background: var(--surface); color: var(--danger); border: 1px solid var(--border); }
 .delete-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
 .add-child { display: flex; gap: 8px; margin: 8px 0 8px 33px; }
