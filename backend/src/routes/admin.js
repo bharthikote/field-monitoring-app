@@ -80,6 +80,25 @@ adminRouter.post('/admin/users/:id/role', requireAdmin, async (req, res) => {
   res.json({ user: result.rows[0] });
 });
 
+const STATUSES = ['pending', 'approved', 'rejected'];
+
+adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
+  const { status } = req.body;
+  if (!STATUSES.includes(status)) {
+    return res.status(400).json({ error: `status must be one of: ${STATUSES.join(', ')}` });
+  }
+  if (req.params.id === req.user.userId) {
+    return res.status(400).json({ error: "You can't change your own status" });
+  }
+  const result = await pool.query(
+    `update users set status = $2, reviewed_by = $3, reviewed_at = now(), updated_at = now()
+     where id = $1 returning id, name, status`,
+    [req.params.id, status, req.user.userId],
+  );
+  if (result.rowCount === 0) return res.status(404).json({ error: 'No such user' });
+  res.json({ user: result.rows[0] });
+});
+
 const LOCATION_LEVELS = ['country', 'state', 'district', 'block', 'village'];
 
 adminRouter.post('/admin/users/:id/assign-location', requireAdmin, async (req, res) => {

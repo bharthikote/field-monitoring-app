@@ -4,6 +4,13 @@
 <meta charset="utf-8" />
 <title>All Users</title>
 <link rel="stylesheet" href="/admin.css" />
+<style>
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  .sort-arrow { font-size: 0.65rem; margin-left: 3px; opacity: 0.6; }
+  tr.changed-row { background: var(--accent-soft); }
+  .save-bar { display: none; margin-top: 20px; justify-content: flex-end; align-items: center; gap: 12px; }
+</style>
 </head>
 <body>
 
@@ -12,13 +19,30 @@
 <div class="page page-wide">
 <div class="panel">
 <h1>All Users</h1>
+<div class="inline-form" style="margin-bottom: 4px;">
+  <input type="text" id="search-input" placeholder="Search by name, contact, role, status, location..." style="flex:1" />
+</div>
 <p id="status" class="empty">Loading...</p>
 <table id="table" style="display:none">
   <thead>
-    <tr><th>ID</th><th>Name</th><th>Contact</th><th>Role</th><th>Status</th><th>Current Location</th><th>Action</th></tr>
+    <tr>
+      <th class="sortable" data-sort="user_code">ID<span class="sort-arrow" id="arrow-user_code"></span></th>
+      <th class="sortable" data-sort="name">Name<span class="sort-arrow" id="arrow-name"></span></th>
+      <th>Contact</th>
+      <th class="sortable" data-sort="role">Role<span class="sort-arrow" id="arrow-role"></span></th>
+      <th class="sortable" data-sort="status">Status<span class="sort-arrow" id="arrow-status"></span></th>
+      <th>Current Location</th>
+      <th>Action</th>
+    </tr>
   </thead>
   <tbody id="rows"></tbody>
 </table>
+
+<div class="save-bar" id="save-bar">
+  <span class="scope-note" id="pending-count"></span>
+  <button id="discard-btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Discard</button>
+  <button id="save-all-btn" class="primary">Save Changes</button>
+</div>
 
 <div id="assign-panel" style="display:none; margin-top: 28px; border-top: 1px solid var(--border); padding-top: 24px;">
   <h2>Assign Location to <span id="assign-name"></span></h2>
@@ -41,6 +65,8 @@ const ROLE_LABELS = {
   super_admin: 'Super Admin',
 };
 const ASSIGNABLE_ROLES = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin'];
+const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' };
+const STATUSES = ['pending', 'approved', 'rejected'];
 
 const LEVELS = [
   { key: 'country', label: 'Country', list: (sel) => '/locations/countries', dataKey: 'countries', parentField: null, superAdminOnly: true },
@@ -51,6 +77,12 @@ const LEVELS = [
 ];
 
 let currentUser = null;
+let allUsers = [];
+let searchQuery = '';
+let sortField = null;
+let sortDir = 'asc';
+const pendingChanges = new Map(); // userId -> { role?, status? }
+
 let assignTargetUserId = null;
 const assignSelected = { country: null, state: null, district: null, block: null, village: null };
 
@@ -59,16 +91,64 @@ function locationSummary(user) {
   return parts.length ? parts.join(' › ') : '—';
 }
 
+function getVisibleUsers() {
+  let list = allUsers;
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    list = list.filter((u) => {
+      const contact = (u.email || u.mobile_number || '').toLowerCase();
+      const haystack = [
+        u.name, contact, u.user_code, ROLE_LABELS[u.role], STATUS_LABELS[u.status], locationSummary(u),
+      ].join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+  if (sortField) {
+    const labelFor = { role: ROLE_LABELS, status: STATUS_LABELS };
+    list = [...list].sort((a, b) => {
+      const av = (labelFor[sortField] ? labelFor[sortField][a[sortField]] : a[sortField]) || '';
+      const bv = (labelFor[sortField] ? labelFor[sortField][b[sortField]] : b[sortField]) || '';
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }
+  return list;
+}
+
+function updateSortArrows() {
+  ['user_code', 'name', 'role', 'status'].forEach((f) => {
+    document.getElementById(`arrow-${f}`).textContent = f === sortField ? (sortDir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
+function updateSaveBar() {
+  const bar = document.getElementById('save-bar');
+  const count = pendingChanges.size;
+  bar.style.display = count > 0 ? 'flex' : 'none';
+  document.getElementById('pending-count').textContent = count === 1 ? '1 unsaved change' : `${count} unsaved changes`;
+}
+
 async function loadUsers() {
+  const res = await authedFetch('/admin/users');
+  const data = await res.json();
+  allUsers = data.users;
+  render();
+}
+
+function render() {
   const statusEl = document.getElementById('status');
   const table = document.getElementById('table');
   const rows = document.getElementById('rows');
+  const visible = getVisibleUsers();
 
-  const res = await authedFetch('/admin/users');
-  const data = await res.json();
-
-  if (!data.users.length) {
+  if (!allUsers.length) {
     statusEl.textContent = 'No users found.';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'No users match your search.';
     statusEl.style.display = 'block';
     table.style.display = 'none';
     return;
@@ -76,26 +156,38 @@ async function loadUsers() {
 
   statusEl.style.display = 'none';
   table.style.display = 'table';
+  updateSortArrows();
   rows.innerHTML = '';
 
-  for (const user of data.users) {
+  for (const user of visible) {
     const tr = document.createElement('tr');
+    const isSelf = user.id === currentUser.id;
+    const change = pendingChanges.get(user.id);
+    if (change) tr.classList.add('changed-row');
+
     const contact = user.email || user.mobile_number;
-    const roleOptions = ASSIGNABLE_ROLES
-      .map((value) => `<option value="${value}" ${value === user.role ? 'selected' : ''}>${ROLE_LABELS[value]}</option>`)
-      .join('');
-    const canEditRole = ASSIGNABLE_ROLES.includes(user.role);
+    const effectiveRole = change?.role ?? user.role;
+    const effectiveStatus = change?.status ?? user.status;
+
+    const canEditRole = !isSelf && ASSIGNABLE_ROLES.includes(user.role);
+    const roleCell = canEditRole
+      ? `<select class="role-select" data-user-id="${user.id}">
+          ${ASSIGNABLE_ROLES.map((v) => `<option value="${v}" ${v === effectiveRole ? 'selected' : ''}>${ROLE_LABELS[v]}</option>`).join('')}
+        </select>`
+      : `<span class="role-badge">${ROLE_LABELS[user.role] || user.role}</span>`;
+
+    const statusCell = !isSelf
+      ? `<select class="status-select" data-user-id="${user.id}">
+          ${STATUSES.map((v) => `<option value="${v}" ${v === effectiveStatus ? 'selected' : ''}>${STATUS_LABELS[v]}</option>`).join('')}
+        </select>`
+      : `<span class="role-badge">${STATUS_LABELS[user.status]}</span>`;
+
     tr.innerHTML = `
       <td><code>${escapeHtml(user.user_code)}</code></td>
       <td>${escapeHtml(user.name)}</td>
       <td>${escapeHtml(contact)}</td>
-      <td>
-        ${canEditRole
-          ? `<select class="role-select" data-user-id="${user.id}">${roleOptions}</select>
-             <button class="primary save-role" data-user-id="${user.id}">Save</button>`
-          : `<span class="role-badge">${ROLE_LABELS[user.role] || user.role}</span>`}
-      </td>
-      <td>${escapeHtml(user.status)}</td>
+      <td>${roleCell}</td>
+      <td>${statusCell}</td>
       <td>${escapeHtml(locationSummary(user))}</td>
       <td><button class="primary assign-btn" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Assign Location</button></td>
     `;
@@ -103,28 +195,87 @@ async function loadUsers() {
   }
 }
 
-document.getElementById('rows').addEventListener('click', async (e) => {
-  const saveBtn = e.target.closest('.save-role');
-  const assignBtn = e.target.closest('.assign-btn');
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  render();
+});
 
-  if (saveBtn) {
-    const userId = saveBtn.dataset.userId;
-    const select = document.querySelector(`.role-select[data-user-id="${userId}"]`);
-    saveBtn.disabled = true;
+document.querySelectorAll('th.sortable').forEach((th) => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.sort;
+    if (sortField === field) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      sortDir = 'asc';
+    }
+    render();
+  });
+});
+
+document.getElementById('rows').addEventListener('change', (e) => {
+  const roleSelect = e.target.closest('.role-select');
+  const statusSelect = e.target.closest('.status-select');
+  if (roleSelect) {
+    const userId = roleSelect.dataset.userId;
+    const existing = pendingChanges.get(userId) || {};
+    pendingChanges.set(userId, { ...existing, role: roleSelect.value });
+    render();
+    updateSaveBar();
+  }
+  if (statusSelect) {
+    const userId = statusSelect.dataset.userId;
+    const existing = pendingChanges.get(userId) || {};
+    pendingChanges.set(userId, { ...existing, status: statusSelect.value });
+    render();
+    updateSaveBar();
+  }
+});
+
+document.getElementById('discard-btn').addEventListener('click', () => {
+  pendingChanges.clear();
+  updateSaveBar();
+  render();
+});
+
+document.getElementById('save-all-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('save-all-btn');
+  btn.disabled = true;
+  const errors = [];
+
+  for (const [userId, change] of pendingChanges.entries()) {
     try {
-      const res = await authedFetch(`/admin/users/${userId}/role`, {
-        method: 'POST',
-        body: JSON.stringify({ role: select.value }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to update role');
-      loadUsers();
+      if (change.role !== undefined) {
+        const res = await authedFetch(`/admin/users/${userId}/role`, {
+          method: 'POST',
+          body: JSON.stringify({ role: change.role }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update role');
+      }
+      if (change.status !== undefined) {
+        const res = await authedFetch(`/admin/users/${userId}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: change.status }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to update status');
+      }
     } catch (err) {
-      alert('Failed: ' + err.message);
-      saveBtn.disabled = false;
+      errors.push(err.message);
     }
   }
 
+  pendingChanges.clear();
+  updateSaveBar();
+  btn.disabled = false;
+  await loadUsers();
+
+  if (errors.length) alert('Some changes failed:\n' + errors.join('\n'));
+});
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const assignBtn = e.target.closest('.assign-btn');
   if (assignBtn) {
     assignTargetUserId = assignBtn.dataset.userId;
     document.getElementById('assign-name').textContent = assignBtn.dataset.userName;
