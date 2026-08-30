@@ -24,7 +24,7 @@ const ACTIVITIES = [
 // Plot", a heart for "Adoption Plot") that didn't actually depict their
 // activity and read as placeholder art rather than a real icon set.
 function ActivityIcon({ name, color }) {
-  const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const common = { width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round' };
   if (name === 'training') {
     return (
       <Svg {...common}>
@@ -93,8 +93,8 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
     <Pressable style={styles.activityCard} onPress={onPress}>
       <View style={[styles.iconBadge, { backgroundColor: tint }]}>
         <ActivityIcon name={icon} color={solid} />
-        {!!count && <Text style={[styles.countText, { color: solid }]}>{count}</Text>}
       </View>
+      {!!count && <Text style={[styles.countText, { color: solid }]}>{count} logged</Text>}
       <Text style={styles.activityCardLabel}>{label}</Text>
     </Pressable>
   );
@@ -108,6 +108,13 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
 // mapped to the plot_type they pass through to it. The rest still show
 // "Coming Soon" until built out.
 const PLOT_ACTIVITY_TYPES = { demoplot: 'demo', adoption: 'adoption' };
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit }) {
   const showActivities = user.role !== 'tfo';
@@ -166,14 +173,16 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   if (!showActivities) {
     return (
       <View style={styles.centeredContainer}>
-        <Text style={styles.title}>Welcome, {user.name}</Text>
+        <Text style={styles.greeting}>{getGreeting()}</Text>
+        <Text style={styles.title}>{user.name}</Text>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Welcome, {user.name}</Text>
+      <Text style={styles.greeting}>{getGreeting()}</Text>
+      <Text style={styles.title}>{user.name}</Text>
 
       <Text style={styles.sectionLabel}>What are you monitoring today?</Text>
       <View style={styles.grid}>
@@ -197,7 +206,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingTop: 56, paddingBottom: 60 },
   centeredContainer: { flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '700' },
+  greeting: { fontSize: 13, color: '#837f77' },
+  title: { fontSize: 22, fontWeight: '700', marginTop: 2 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   activityCard: {
@@ -205,10 +215,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#e6e4de', alignItems: 'center',
   },
   iconBadge: {
-    minWidth: 44, height: 44, borderRadius: 12, paddingHorizontal: 11,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    marginBottom: 10,
+    width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8,
   },
-  countText: { fontSize: 14, fontWeight: '700' },
+  countText: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
   activityCardLabel: { fontSize: 13, fontWeight: '600', color: '#2d2a26', textAlign: 'center' },
 });
