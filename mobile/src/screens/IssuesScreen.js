@@ -109,7 +109,7 @@ export default function IssuesScreen({ token, user, onSelectIssue }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  header: { paddingTop: 24, paddingHorizontal: 24 },
+  header: { paddingTop: 56, paddingHorizontal: 24 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
   tabRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 8, marginBottom: 8 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },

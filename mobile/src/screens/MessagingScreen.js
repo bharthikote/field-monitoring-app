@@ -10,7 +10,7 @@ export default function MessagingScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff', padding: 24 },
+  screen: { flex: 1, backgroundColor: '#fff', padding: 24, paddingTop: 56 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   empty: { color: '#888' },
 });

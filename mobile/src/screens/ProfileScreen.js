@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { clearSession } from '../session';
 import { ROLES } from '../roles';
@@ -43,9 +43,18 @@ function Field({ icon, label, value, last }) {
 export default function ProfileScreen({ user, onLoggedOut }) {
   const roleLabel = ROLES.find((r) => r.value === user.role)?.label || user.role;
 
-  const handleLogout = async () => {
-    await clearSession();
-    onLoggedOut();
+  const handleLogout = () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          await clearSession();
+          onLoggedOut();
+        },
+      },
+    ]);
   };
 
   return (
@@ -73,7 +82,7 @@ export default function ProfileScreen({ user, onLoggedOut }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff', padding: 24 },
+  screen: { flex: 1, backgroundColor: '#fff', padding: 24, paddingTop: 56 },
   header: { alignItems: 'center', marginBottom: 28 },
   avatar: {
     width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary,
