@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { createTraining } from '../api';
 import RatingSelect from '../components/RatingSelect';
 import SearchableSelect from '../components/SearchableSelect';
@@ -79,7 +79,7 @@ export default function CreateTrainingScreen({ token, farmer, onBack, onCreated 
   };
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <Pressable onPress={onBack}>
           <Text style={styles.back}>{'< Back'}</Text>
@@ -127,7 +127,7 @@ export default function CreateTrainingScreen({ token, farmer, onBack, onCreated 
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save Training</Text>}
         </Pressable>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { listIssueTypes, listGoodThings, listDiseases, listPests, listTechniques, createVisit } from '../api';
 import { COLORS } from '../theme';
 import MultiSelectField from '../components/MultiSelectField';
@@ -159,7 +159,8 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView contentContainerStyle={styles.container}>
       <MultiSelectField
         label="Issues Observed Today"
         placeholder="-- select issues observed --"
@@ -269,6 +270,7 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
         {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>Save Visit</Text>}
       </Pressable>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
