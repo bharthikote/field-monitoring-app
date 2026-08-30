@@ -87,21 +87,35 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
 // entire role in this system (Phase 1) is viewing/resolving assigned
 // issues (its own bottom tab); the six activities stay in the vendor app
 // for TFO specifically.
+// Activity keys that already have a real plot-lookup flow behind them,
+// mapped to the plot_type they pass through to it. The rest still show
+// "Coming Soon" until built out.
+const PLOT_ACTIVITY_TYPES = { demoplot: 'demo', adoption: 'adoption' };
+
 export default function HomeScreen({ token, user, onFindDemoPlot }) {
   const showActivities = user.role !== 'tfo';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
+  const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
 
   useEffect(() => {
     if (!showActivities) return;
-    getMyVisitCount(token).then((data) => setDemoPlotCount(data.count)).catch(() => {});
+    getMyVisitCount(token, 'demo').then((data) => setDemoPlotCount(data.count)).catch(() => {});
+    getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
   }, [token, showActivities]);
 
   const handleActivity = (activity) => {
-    if (activity.key === 'demoplot') {
-      onFindDemoPlot();
+    const plotType = PLOT_ACTIVITY_TYPES[activity.key];
+    if (plotType) {
+      onFindDemoPlot(plotType);
       return;
     }
     Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
+  };
+
+  const countFor = (activityKey) => {
+    if (activityKey === 'demoplot') return demoPlotCount;
+    if (activityKey === 'adoption') return adoptionPlotCount;
+    return null;
   };
 
   if (!showActivities) {
@@ -125,7 +139,7 @@ export default function HomeScreen({ token, user, onFindDemoPlot }) {
             icon={activity.icon}
             solid={activity.solid}
             tint={activity.tint}
-            count={activity.key === 'demoplot' ? demoPlotCount : null}
+            count={countFor(activity.key)}
             onPress={() => handleActivity(activity)}
           />
         ))}

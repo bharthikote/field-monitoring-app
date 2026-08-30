@@ -43,6 +43,15 @@ function VisitCard({ visit }) {
         </>
       )}
 
+      {visit.techniques?.length > 0 && (
+        <>
+          <Text style={styles.visitSectionLabel}>Techniques Adopted</Text>
+          <View style={styles.chipRow}>
+            {visit.techniques.map((t) => <Chip key={t.name} label={t.name} />)}
+          </View>
+        </>
+      )}
+
       {visit.disease_name || visit.disease_other ? (
         <Text style={styles.visitLine}>Disease: {visit.disease_name || visit.disease_other}</Text>
       ) : null}

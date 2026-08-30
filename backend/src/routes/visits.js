@@ -50,7 +50,7 @@ const SELECT_VISITS = `
 async function attachIssuesAndGoodThings(visits) {
   if (!visits.length) return visits;
   const ids = visits.map((v) => v.id);
-  const [issuesResult, goodThingsResult] = await Promise.all([
+  const [issuesResult, goodThingsResult, techniquesResult] = await Promise.all([
     pool.query(
       `select vi.visit_id, it.name, vi.photo_url from visit_issues vi
        join issue_types it on it.id = vi.issue_type_id where vi.visit_id = any($1)`,
@@ -59,6 +59,11 @@ async function attachIssuesAndGoodThings(visits) {
     pool.query(
       `select vg.visit_id, gt.name, vg.photo_url from visit_good_things vg
        join good_things_observed gt on gt.id = vg.good_thing_id where vg.visit_id = any($1)`,
+      [ids],
+    ),
+    pool.query(
+      `select vt.visit_id, t.name from visit_techniques vt
+       join techniques t on t.id = vt.technique_id where vt.visit_id = any($1)`,
       [ids],
     ),
   ]);
@@ -72,17 +77,30 @@ async function attachIssuesAndGoodThings(visits) {
     if (!goodThingsByVisit.has(row.visit_id)) goodThingsByVisit.set(row.visit_id, []);
     goodThingsByVisit.get(row.visit_id).push({ name: row.name, photoUrl: row.photo_url });
   }
+  const techniquesByVisit = new Map();
+  for (const row of techniquesResult.rows) {
+    if (!techniquesByVisit.has(row.visit_id)) techniquesByVisit.set(row.visit_id, []);
+    techniquesByVisit.get(row.visit_id).push({ name: row.name });
+  }
   return visits.map((v) => ({
     ...v,
     issues: issuesByVisit.get(v.id) || [],
     goodThings: goodThingsByVisit.get(v.id) || [],
+    techniques: techniquesByVisit.get(v.id) || [],
   }));
 }
 
-// Powers the count badge on the Home screen's Demo Plot activity card -
-// how many visits this user has personally logged, all-time.
+// Powers the count badge on the Home screen's activity cards - how many
+// visits this user has personally logged, all-time, optionally scoped to
+// one plot type (Demo Plot vs Adoption Plot each show their own count).
 visitsRouter.get('/visits/my-count', requireAuth, async (req, res) => {
-  const result = await pool.query('select count(*)::int as count from visits where visited_by = $1', [req.user.userId]);
+  const { plot_type } = req.query;
+  const result = await pool.query(
+    `select count(*)::int as count from visits v
+     join demo_plots dp on dp.id = v.demo_plot_id
+     where v.visited_by = $1 and ($2::text is null or dp.plot_type = $2)`,
+    [req.user.userId, plot_type || null],
+  );
   res.json({ count: result.rows[0].count });
 });
 
@@ -114,11 +132,12 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
   const { demoPlotId, actionPlan, comments, diseaseId, diseaseOther, pestId, pestOther } = req.body;
   const issueTypeIds = parseIdList(req.body.issueTypeIds);
   const goodThingIds = parseIdList(req.body.goodThingIds);
+  const techniqueIds = parseIdList(req.body.techniqueIds);
 
   if (!demoPlotId || !actionPlan?.trim() || !comments?.trim()) {
     return res.status(400).json({ error: 'demoPlotId, actionPlan, and comments are all required' });
   }
-  if (![demoPlotId, diseaseId, pestId, ...issueTypeIds, ...goodThingIds].every(isValidId)) {
+  if (![demoPlotId, diseaseId, pestId, ...issueTypeIds, ...goodThingIds, ...techniqueIds].every(isValidId)) {
     return res.status(400).json({ error: 'One of the submitted ids is invalid' });
   }
 
@@ -178,12 +197,18 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
         [visitId, goodThingId, photoUrl],
       );
     }
+    for (const techniqueId of techniqueIds) {
+      await client.query(
+        'insert into visit_techniques (visit_id, technique_id) values ($1, $2)',
+        [visitId, techniqueId],
+      );
+    }
 
     await client.query('commit');
     res.status(201).json({ visit: { id: visitId, createdAt: visitResult.rows[0].created_at } });
   } catch (err) {
     await client.query('rollback');
-    if (err.code === '23503') return res.status(400).json({ error: 'One of the selected issues/good-things/disease/pest no longer exists' });
+    if (err.code === '23503') return res.status(400).json({ error: 'One of the selected issues/good-things/techniques/disease/pest no longer exists' });
     res.status(500).json({ error: err.message });
   } finally {
     client.release();

@@ -12,7 +12,10 @@ const STATUSES = [
   { value: 'terminated', label: 'Terminated' },
 ];
 
-export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCreated }) {
+const TITLES = { demo: 'New Demo Plot', adoption: 'New Adoption Plot' };
+const BUTTON_LABELS = { demo: 'Create Demo Plot', adoption: 'Create Adoption Plot' };
+
+export default function CreateDemoPlotScreen({ token, plotType = 'demo', initialPhone, onBack, onCreated }) {
   const [farmerName, setFarmerName] = useState('');
   const [phone, setPhone] = useState(initialPhone || '');
   const [cropId, setCropId] = useState(null);
@@ -25,7 +28,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
     const finalName = nameOverride ?? farmerName;
     setLoading(true);
     try {
-      await createDemoPlot(token, { farmerName: finalName, phone, cropId, varietyId, villageId, demoStatus: status });
+      await createDemoPlot(token, { farmerName: finalName, phone, cropId, varietyId, villageId, demoStatus: status, plotType });
       Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: () => onCreated(phone) }]);
     } catch (err) {
       if (err.code === 'duplicate_plot') {
@@ -56,7 +59,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
       <Pressable onPress={onBack}>
         <Text style={styles.back}>{'< Back'}</Text>
       </Pressable>
-      <Text style={styles.title}>New Demo Plot</Text>
+      <Text style={styles.title}>{TITLES[plotType]}</Text>
 
       <Text style={styles.label}>Farmer Name</Text>
       <TextInput style={styles.input} value={farmerName} onChangeText={setFarmerName} />
@@ -74,7 +77,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
 
       <LocationPicker token={token} onVillageChange={setVillageId} />
 
-      <Text style={styles.label}>Demo Status</Text>
+      <Text style={styles.label}>Status</Text>
       <View style={styles.pickerWrap}>
         <Picker selectedValue={status} onValueChange={setStatus}>
           {STATUSES.map((s) => (
@@ -84,7 +87,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
       </View>
 
       <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Create Demo Plot</Text>}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{BUTTON_LABELS[plotType]}</Text>}
       </Pressable>
     </ScrollView>
   );

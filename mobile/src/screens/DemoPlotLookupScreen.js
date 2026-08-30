@@ -23,7 +23,10 @@ const STATUS_COLORS = {
   terminated: { bg: '#fee2e2', text: '#991b1b' },
 };
 
-export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onScrollDirectionChange, onCreateNew, onSelectPlot }) {
+const PLOT_TYPE_LABELS = { demo: 'Demo Plots', adoption: 'Adoption Plots' };
+const PLOT_TYPE_LABELS_SINGULAR = { demo: 'demo plot', adoption: 'adoption plot' };
+
+export default function DemoPlotLookupScreen({ token, plotType = 'demo', initialPhone, onBack, onScrollDirectionChange, onCreateNew, onSelectPlot }) {
   const [searchOpen, setSearchOpen] = useState(!!initialPhone);
   const [query, setQuery] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
@@ -36,7 +39,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onSc
     setLoading(true);
     setError('');
     try {
-      const data = await listDemoPlots(token);
+      const data = await listDemoPlots(token, plotType);
       setResults(data.demoPlots);
       setSearchedQuery('');
     } catch (err) {
@@ -54,7 +57,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onSc
     setLoading(true);
     setError('');
     try {
-      const data = await searchDemoPlots(token, trimmed);
+      const data = await searchDemoPlots(token, trimmed, plotType);
       setResults(data.demoPlots);
       setSearchedQuery(trimmed);
     } catch (err) {
@@ -111,7 +114,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onSc
 
         {!searchOpen ? (
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Demo Plots</Text>
+            <Text style={styles.title}>{PLOT_TYPE_LABELS[plotType]}</Text>
             <Pressable style={styles.searchIconButton} onPress={() => setSearchOpen(true)}>
               <SearchIcon color={COLORS.primary} />
             </Pressable>
@@ -153,14 +156,16 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onSc
         ListHeaderComponent={
           results !== null && results.length > 0 ? (
             <Text style={styles.sectionLabel}>
-              {searchedQuery ? `Results for "${searchedQuery}"` : `All Demo Plots (${results.length})`}
+              {searchedQuery ? `Results for "${searchedQuery}"` : `All ${PLOT_TYPE_LABELS[plotType]} (${results.length})`}
             </Text>
           ) : null
         }
         ListEmptyComponent={
           !loading && results !== null ? (
             <Text style={styles.empty}>
-              {searchedQuery ? 'No demo plot matched your search.' : 'No demo plots created yet.'}
+              {searchedQuery
+                ? `No ${PLOT_TYPE_LABELS_SINGULAR[plotType]} matched your search.`
+                : `No ${PLOT_TYPE_LABELS_SINGULAR[plotType]}s created yet.`}
             </Text>
           ) : null
         }

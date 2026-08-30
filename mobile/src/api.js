@@ -30,10 +30,11 @@ export const searchVillages = (token, q) => request(`/locations/villages/search?
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });
 
-export const listDemoPlots = (token) => request('/demo-plots', { token });
+export const listDemoPlots = (token, plotType = 'demo') =>
+  request(`/demo-plots?plot_type=${plotType}`, { token });
 
-export const searchDemoPlots = (token, query) =>
-  request(`/demo-plots/search?q=${encodeURIComponent(query)}`, { token });
+export const searchDemoPlots = (token, query, plotType = 'demo') =>
+  request(`/demo-plots/search?q=${encodeURIComponent(query)}&plot_type=${plotType}`, { token });
 
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
@@ -42,11 +43,13 @@ export const listIssueTypes = (token) => request('/master/issue-types', { token 
 export const listGoodThings = (token) => request('/master/good-things-observed', { token });
 export const listDiseases = (token) => request('/master/diseases', { token });
 export const listPests = (token) => request('/master/pests', { token });
+export const listTechniques = (token) => request('/master/techniques', { token });
 
 export const listVisits = (token, demoPlotId) =>
   request(`/visits?demo_plot_id=${demoPlotId}`, { token });
 
-export const getMyVisitCount = (token) => request('/visits/my-count', { token });
+export const getMyVisitCount = (token, plotType) =>
+  request(`/visits/my-count${plotType ? `?plot_type=${plotType}` : ''}`, { token });
 
 // Visits carry photos, so this posts multipart/form-data directly rather
 // than going through the JSON-only `request` helper above.

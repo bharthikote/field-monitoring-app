@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { listIssueTypes, listGoodThings, listDiseases, listPests, createVisit } from '../api';
+import { listIssueTypes, listGoodThings, listDiseases, listPests, listTechniques, createVisit } from '../api';
 import { COLORS } from '../theme';
 import MultiSelectField from '../components/MultiSelectField';
 import SearchableSelect from '../components/SearchableSelect';
@@ -43,16 +43,20 @@ function assetToFormFile(asset) {
 }
 
 export default function LogVisitScreen({ token, plot, onSubmitted }) {
+  const isAdoptionPlot = plot.plot_type === 'adoption';
+
   const [issueTypes, setIssueTypes] = useState([]);
   const [goodThings, setGoodThings] = useState([]);
   const [diseases, setDiseases] = useState([]);
   const [pests, setPests] = useState([]);
+  const [techniques, setTechniques] = useState([]);
   const [loadingLists, setLoadingLists] = useState(true);
 
   const [selectedIssues, setSelectedIssues] = useState([]);
   const [issuePhotos, setIssuePhotos] = useState({});
   const [selectedGoodThings, setSelectedGoodThings] = useState([]);
   const [goodThingPhotos, setGoodThingPhotos] = useState({});
+  const [selectedTechniques, setSelectedTechniques] = useState([]);
 
   const [diseaseChoice, setDiseaseChoice] = useState('');
   const [diseaseOther, setDiseaseOther] = useState('');
@@ -71,16 +75,14 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
   useEffect(() => {
     (async () => {
       try {
-        const [i, g, d, p] = await Promise.all([
-          listIssueTypes(token),
-          listGoodThings(token),
-          listDiseases(token),
-          listPests(token),
-        ]);
+        const calls = [listIssueTypes(token), listGoodThings(token), listDiseases(token), listPests(token)];
+        if (isAdoptionPlot) calls.push(listTechniques(token));
+        const [i, g, d, p, t] = await Promise.all(calls);
         setIssueTypes(i.items);
         setGoodThings(g.items);
         setDiseases(d.items);
         setPests(p.items);
+        if (t) setTechniques(t.items);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -132,6 +134,7 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
       form.append('comments', comments.trim());
       form.append('issueTypeIds', JSON.stringify(selectedIssues));
       form.append('goodThingIds', JSON.stringify(selectedGoodThings));
+      if (isAdoptionPlot) form.append('techniqueIds', JSON.stringify(selectedTechniques));
       form.append('overallPhoto', assetToFormFile(overallPhoto));
 
       if (showDiseaseSection) {
@@ -179,6 +182,16 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
         onPhotoPress={pickIssuePhoto}
         hasPhoto={(id) => !!issuePhotos[id]}
       />
+
+      {isAdoptionPlot && (
+        <MultiSelectField
+          label="Techniques Adopted"
+          placeholder="-- select techniques adopted --"
+          options={techniques}
+          selectedIds={selectedTechniques}
+          onChange={setSelectedTechniques}
+        />
+      )}
 
       {showDiseaseSection && (
         <View style={styles.section}>

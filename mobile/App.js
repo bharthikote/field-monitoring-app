@@ -41,6 +41,7 @@ export default function App() {
   const [token, setToken] = useState(null);
   const [createPhone, setCreatePhone] = useState('');
   const [lookupPhone, setLookupPhone] = useState('');
+  const [plotType, setPlotType] = useState('demo');
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
@@ -97,7 +98,8 @@ export default function App() {
         <HomeScreen
           token={token}
           user={user}
-          onFindDemoPlot={() => {
+          onFindDemoPlot={(type) => {
+            setPlotType(type);
             setLookupPhone('');
             setLookupTabBarVisible(true);
             setScreen('lookup');
@@ -107,6 +109,7 @@ export default function App() {
       {screen === 'lookup' && (
         <DemoPlotLookupScreen
           token={token}
+          plotType={plotType}
           initialPhone={lookupPhone}
           onBack={() => setScreen('home')}
           onScrollDirectionChange={setLookupTabBarVisible}
@@ -123,6 +126,7 @@ export default function App() {
       {screen === 'create' && (
         <CreateDemoPlotScreen
           token={token}
+          plotType={plotType}
           initialPhone={createPhone}
           onBack={() => setScreen('lookup')}
           onCreated={(phone) => {
