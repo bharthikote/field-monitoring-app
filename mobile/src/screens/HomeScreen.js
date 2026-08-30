@@ -93,11 +93,7 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
     <Pressable style={styles.activityCard} onPress={onPress}>
       <View style={[styles.iconBadge, { backgroundColor: tint }]}>
         <ActivityIcon name={icon} color={solid} />
-        {!!count && (
-          <View style={[styles.countBadge, { backgroundColor: solid }]}>
-            <Text style={styles.countBadgeText}>{count}</Text>
-          </View>
-        )}
+        {!!count && <Text style={[styles.countText, { color: solid }]}>{count}</Text>}
       </View>
       <Text style={styles.activityCardLabel}>{label}</Text>
     </Pressable>
@@ -209,14 +205,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#e6e4de', alignItems: 'center',
   },
   iconBadge: {
-    width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-    marginBottom: 10, position: 'relative',
+    minWidth: 44, height: 44, borderRadius: 12, paddingHorizontal: 11,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    marginBottom: 10,
   },
-  countBadge: {
-    position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
-    borderWidth: 2, borderColor: '#fff',
-  },
-  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  countText: { fontSize: 14, fontWeight: '700' },
   activityCardLabel: { fontSize: 13, fontWeight: '600', color: '#2d2a26', textAlign: 'center' },
 });
