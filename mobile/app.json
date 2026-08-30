@@ -28,6 +28,12 @@
           "photosPermission": "Allow Field Monitoring to access your photos to attach evidence for a visit.",
           "cameraPermission": "Allow Field Monitoring to access your camera to take evidence photos for a visit."
         }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow Field Monitoring to access your contacts so you can pick a phone number instead of typing it."
+        }
       ]
     ]
   }

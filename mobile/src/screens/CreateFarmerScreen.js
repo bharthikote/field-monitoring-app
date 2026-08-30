@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { createFarmer, getFarmer } from '../api';
 import LocationPicker from '../components/LocationPicker';
+import ContactPhoneField from '../components/ContactPhoneField';
 import { COLORS } from '../theme';
 
 export default function CreateFarmerScreen({ token, onBack, onCreated }) {
@@ -34,7 +35,7 @@ export default function CreateFarmerScreen({ token, onBack, onCreated }) {
   };
 
   return (
-    <View style={styles.screen}>
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={styles.header}>
         <Pressable onPress={onBack}>
           <Text style={styles.back}>{'< Back'}</Text>
@@ -45,8 +46,11 @@ export default function CreateFarmerScreen({ token, onBack, onCreated }) {
         <Text style={styles.label}>Farmer Name</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} />
 
-        <Text style={styles.label}>Phone Number</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+        <ContactPhoneField
+          value={phone}
+          onChangeText={setPhone}
+          onPickName={(pickedName) => setName((prev) => (prev.trim() ? prev : pickedName))}
+        />
 
         <LocationPicker token={token} onVillageChange={setVillageId} />
 
@@ -56,7 +60,7 @@ export default function CreateFarmerScreen({ token, onBack, onCreated }) {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Register Farmer</Text>}
         </Pressable>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

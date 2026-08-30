@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { createDemoPlot, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
 import SearchableSelect from '../components/SearchableSelect';
+import ContactPhoneField from '../components/ContactPhoneField';
 import { COLORS } from '../theme';
 
 // {id, name} - SearchableSelect's shape, replacing the native Picker which
@@ -105,6 +106,7 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
   };
 
   return (
+    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView contentContainerStyle={styles.container}>
       <Pressable onPress={onBack}>
         <Text style={styles.back}>{'< Back'}</Text>
@@ -114,8 +116,11 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
       <Text style={styles.label}>Farmer Name</Text>
       <TextInput style={styles.input} value={farmerName} onChangeText={setFarmerName} />
 
-      <Text style={styles.label}>Phone Number</Text>
-      <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <ContactPhoneField
+        value={phone}
+        onChangeText={setPhone}
+        onPickName={(pickedName) => setFarmerName((prev) => (prev.trim() ? prev : pickedName))}
+      />
 
       {existingFarmer && (
         <View style={styles.existingBanner}>
@@ -148,10 +153,12 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{BUTTON_LABELS[plotType]}</Text>}
       </Pressable>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   container: { padding: 24, paddingBottom: 60 },
   back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
