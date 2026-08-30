@@ -58,7 +58,9 @@ function VisitCard({ visit }) {
   );
 }
 
-export default function DemoPlotDetailScreen({ token, plot, onBack, onLogVisit }) {
+const CAN_RAISE_ISSUES = ['country_manager', 'team_lead', 'supervisor'];
+
+export default function DemoPlotDetailScreen({ token, user, plot, onBack, onLogVisit, onRaiseIssue }) {
   const [visits, setVisits] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -103,6 +105,12 @@ export default function DemoPlotDetailScreen({ token, plot, onBack, onLogVisit }
           <Text style={styles.logVisitButtonText}>Log a Visit</Text>
         </Pressable>
 
+        {CAN_RAISE_ISSUES.includes(user.role) && (
+          <Pressable style={styles.raiseIssueButton} onPress={() => onRaiseIssue(plot)}>
+            <Text style={styles.raiseIssueButtonText}>Raise an Issue</Text>
+          </Pressable>
+        )}
+
         <Text style={styles.sectionLabel}>Visit History</Text>
         {loading && <ActivityIndicator style={{ marginTop: 12 }} />}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -126,6 +134,11 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   logVisitButton: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
   logVisitButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
+  raiseIssueButton: {
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#dc2626', borderRadius: 8,
+    padding: 14, alignItems: 'center', marginTop: 10,
+  },
+  raiseIssueButtonText: { color: '#dc2626', fontWeight: '600', fontSize: 16 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 28, marginBottom: 8, textTransform: 'uppercase' },
   error: { color: '#dc2626', marginTop: 12 },
   empty: { color: '#888' },

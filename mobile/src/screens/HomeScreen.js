@@ -2,9 +2,15 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { clearSession } from '../session';
 import { ROLES } from '../roles';
 
-export default function HomeScreen({ user, onLoggedOut, onFindDemoPlot }) {
+// Everyone who can raise an issue or be assigned one - covers every
+// mobile-first role, including TFO, whose entire role in this system
+// (Phase 1) is logging in to view and resolve assigned issues.
+const CAN_USE_ISSUES = ['tfo', 'supervisor', 'team_lead', 'country_manager'];
+
+export default function HomeScreen({ user, onLoggedOut, onFindDemoPlot, onGoToIssues }) {
   const roleLabel = ROLES.find((r) => r.value === user.role)?.label || user.role;
   const canUseDemoPlots = user.role !== 'tfo';
+  const canUseIssues = CAN_USE_ISSUES.includes(user.role);
 
   const handleLogout = async () => {
     await clearSession();
@@ -20,6 +26,12 @@ export default function HomeScreen({ user, onLoggedOut, onFindDemoPlot }) {
       {canUseDemoPlots && (
         <Pressable style={styles.primaryButton} onPress={onFindDemoPlot}>
           <Text style={styles.primaryButtonText}>Find / Create Demo Plot</Text>
+        </Pressable>
+      )}
+
+      {canUseIssues && (
+        <Pressable style={styles.primaryButton} onPress={onGoToIssues}>
+          <Text style={styles.primaryButtonText}>Issues</Text>
         </Pressable>
       )}
 

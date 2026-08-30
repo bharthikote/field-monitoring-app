@@ -8,6 +8,9 @@ import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
 import LogVisitScreen from './src/screens/LogVisitScreen';
+import IssuesScreen from './src/screens/IssuesScreen';
+import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
+import IssueDetailScreen from './src/screens/IssueDetailScreen';
 import { loadSession } from './src/session';
 
 export default function App() {
@@ -17,6 +20,7 @@ export default function App() {
   const [createPhone, setCreatePhone] = useState('');
   const [lookupPhone, setLookupPhone] = useState('');
   const [selectedPlot, setSelectedPlot] = useState(null);
+  const [selectedIssueId, setSelectedIssueId] = useState(null);
 
   useEffect(() => {
     loadSession().then((session) => {
@@ -59,6 +63,7 @@ export default function App() {
             setLookupPhone('');
             setScreen('lookup');
           }}
+          onGoToIssues={() => setScreen('issues')}
         />
       )}
       {screen === 'lookup' && (
@@ -90,11 +95,16 @@ export default function App() {
       {screen === 'plot-detail' && selectedPlot && (
         <DemoPlotDetailScreen
           token={token}
+          user={user}
           plot={selectedPlot}
           onBack={() => setScreen('lookup')}
           onLogVisit={(plot) => {
             setSelectedPlot(plot);
             setScreen('log-visit');
+          }}
+          onRaiseIssue={(plot) => {
+            setSelectedPlot(plot);
+            setScreen('raise-issue');
           }}
         />
       )}
@@ -104,6 +114,34 @@ export default function App() {
           plot={selectedPlot}
           onBack={() => setScreen('plot-detail')}
           onSubmitted={() => setScreen('plot-detail')}
+        />
+      )}
+      {screen === 'raise-issue' && selectedPlot && (
+        <RaiseIssueScreen
+          token={token}
+          user={user}
+          plot={selectedPlot}
+          onBack={() => setScreen('plot-detail')}
+          onSubmitted={() => setScreen('plot-detail')}
+        />
+      )}
+      {screen === 'issues' && user && (
+        <IssuesScreen
+          token={token}
+          user={user}
+          onBack={() => setScreen('home')}
+          onSelectIssue={(issueId) => {
+            setSelectedIssueId(issueId);
+            setScreen('issue-detail');
+          }}
+        />
+      )}
+      {screen === 'issue-detail' && selectedIssueId && (
+        <IssueDetailScreen
+          token={token}
+          user={user}
+          issueId={selectedIssueId}
+          onBack={() => setScreen('issues')}
         />
       )}
       <StatusBar style="auto" />
