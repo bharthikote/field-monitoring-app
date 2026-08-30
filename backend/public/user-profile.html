@@ -11,7 +11,11 @@
   .field-value { font-size: 0.92rem; }
   .field-row input, .field-row select { width: 320px; max-width: 100%; }
   .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 28px 0 8px; }
-  .section-title:first-child { margin-top: 0; }
+  /* Named explicitly rather than :first-child - Danger Zone's title
+     lives inside its own wrapper div (so it can be hidden on your own
+     profile), which made it match :first-child too and lose its top
+     margin along with the real first section. */
+  .section-title.first { margin-top: 0; }
   .btn-row { display: flex; gap: 8px; margin-top: 16px; }
   .danger-zone { border: 1px solid var(--danger); border-radius: var(--radius); padding: 18px; margin-top: 12px; }
   .loc-tree-level { list-style: none; padding-left: 0; margin: 2px 0; }
@@ -38,7 +42,7 @@
   <p id="load-status" class="empty">Loading...</p>
 
   <div id="content" style="display:none">
-    <div class="section-title">Profile</div>
+    <div class="section-title first">Profile</div>
     <div id="preview-fields"></div>
     <div class="btn-row" id="edit-toggle-row">
       <button id="edit-btn" class="edit-btn small">Edit</button>
