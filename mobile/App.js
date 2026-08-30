@@ -7,6 +7,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
+import CreateTrainingScreen from './src/screens/CreateTrainingScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -33,6 +34,7 @@ const BACK_MAP = {
   'plot-detail': 'lookup',
   'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
+  'create-training': 'home',
 };
 
 export default function App() {
@@ -104,6 +106,14 @@ export default function App() {
             setLookupTabBarVisible(true);
             setScreen('lookup');
           }}
+          onCreateTraining={() => setScreen('create-training')}
+        />
+      )}
+      {screen === 'create-training' && (
+        <CreateTrainingScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreated={() => setScreen('home')}
         />
       )}
       {screen === 'lookup' && (

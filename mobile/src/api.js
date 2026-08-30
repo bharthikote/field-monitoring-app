@@ -69,6 +69,24 @@ export async function createVisit(token, formData) {
   return data;
 }
 
+export const listTrainings = (token) => request('/trainings', { token });
+export const getMyTrainingCount = (token) => request('/trainings/my-count', { token });
+
+// Trainings carry a photo, so this posts multipart/form-data directly,
+// same pattern as createVisit.
+export async function createTraining(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/trainings`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
+
 export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });

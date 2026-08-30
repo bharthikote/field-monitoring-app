@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
-import { getMyVisitCount } from '../api';
+import { getMyVisitCount, getMyTrainingCount } from '../api';
 
 // The six daily field activities - order set per feedback (Demo Plot,
 // Adoption Plot, Training, Field Day, Institutional Visit, Agro Dealer
@@ -92,15 +92,17 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
 // "Coming Soon" until built out.
 const PLOT_ACTIVITY_TYPES = { demoplot: 'demo', adoption: 'adoption' };
 
-export default function HomeScreen({ token, user, onFindDemoPlot }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining }) {
   const showActivities = user.role !== 'tfo';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
   const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
+  const [trainingCount, setTrainingCount] = useState(null);
 
   useEffect(() => {
     if (!showActivities) return;
     getMyVisitCount(token, 'demo').then((data) => setDemoPlotCount(data.count)).catch(() => {});
     getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
+    getMyTrainingCount(token).then((data) => setTrainingCount(data.count)).catch(() => {});
   }, [token, showActivities]);
 
   const handleActivity = (activity) => {
@@ -109,12 +111,17 @@ export default function HomeScreen({ token, user, onFindDemoPlot }) {
       onFindDemoPlot(plotType);
       return;
     }
+    if (activity.key === 'training') {
+      onCreateTraining();
+      return;
+    }
     Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
   };
 
   const countFor = (activityKey) => {
     if (activityKey === 'demoplot') return demoPlotCount;
     if (activityKey === 'adoption') return adoptionPlotCount;
+    if (activityKey === 'training') return trainingCount;
     return null;
   };
 
