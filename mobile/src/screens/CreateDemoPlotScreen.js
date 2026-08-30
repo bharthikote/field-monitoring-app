@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { createDemoPlot, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
+import SearchableSelect from '../components/SearchableSelect';
 import { COLORS } from '../theme';
 
+// {id, name} - SearchableSelect's shape, replacing the native Picker which
+// rendered as the plain Android dropdown instead of matching the app's UI.
 const STATUSES = [
-  { value: 'ongoing', label: 'Ongoing' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'terminated', label: 'Terminated' },
+  { id: 'ongoing', name: 'Ongoing' },
+  { id: 'completed', name: 'Completed' },
+  { id: 'terminated', name: 'Terminated' },
 ];
 
 const TITLES = { demo: 'New Demo Plot', adoption: 'New Adoption Plot' };
@@ -140,14 +142,7 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
 
       <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
-      <Text style={styles.label}>Status</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={status} onValueChange={setStatus}>
-          {STATUSES.map((s) => (
-            <Picker.Item key={s.value} label={s.label} value={s.value} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect label="Status" options={STATUSES} value={status} onChange={setStatus} />
 
       <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{BUTTON_LABELS[plotType]}</Text>}
@@ -162,7 +157,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
-  pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
   existingBanner: { backgroundColor: COLORS.primarySoft, borderRadius: 8, padding: 12, marginTop: 10 },
   existingBannerTitle: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13, marginBottom: 4 },
   existingBannerLine: { color: COLORS.primaryDark, fontSize: 13, marginTop: 2 },

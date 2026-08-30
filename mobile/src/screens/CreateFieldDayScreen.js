@@ -1,27 +1,30 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { createFieldDay, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import RatingSelect from '../components/RatingSelect';
+import SearchableSelect from '../components/SearchableSelect';
 import DatePickerField from '../components/DatePickerField';
 import { pickPhoto, assetToFormFile } from '../photo';
 import { COLORS } from '../theme';
 
+// {id, name} - SearchableSelect's shape (see CreateTrainingScreen for the
+// same swap off the native Picker, which renders as the plain Android
+// dropdown instead of matching the rest of the app).
 const FIELDDAY_TYPES = [
-  { value: 'practical', label: 'Practical (Hands-On / Field)' },
-  { value: 'theory', label: 'Theory (Classroom / Discussion)' },
-  { value: 'both', label: 'Both Practical & Theory' },
+  { id: 'practical', name: 'Practical (Hands-On / Field)' },
+  { id: 'theory', name: 'Theory (Classroom / Discussion)' },
+  { id: 'both', name: 'Both Practical & Theory' },
 ];
 const ROI_DISCUSSION_OPTIONS = [
-  { value: 'both', label: 'Both ROI & Business Plan' },
-  { value: 'roi_only', label: 'ROI Only' },
-  { value: 'biz_only', label: 'Business Plan Only' },
-  { value: 'not_discussed', label: 'Not Discussed' },
+  { id: 'both', name: 'Both ROI & Business Plan' },
+  { id: 'roi_only', name: 'ROI Only' },
+  { id: 'biz_only', name: 'Business Plan Only' },
+  { id: 'not_discussed', name: 'Not Discussed' },
 ];
 const YES_NO_OPTIONS = [
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No' },
+  { id: 'yes', name: 'Yes' },
+  { id: 'no', name: 'No' },
 ];
 
 const PHONE_LIKE = /^\d{6,}$/;
@@ -36,10 +39,10 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
   const [existingFarmer, setExistingFarmer] = useState(null);
   const [existingPlots, setExistingPlots] = useState([]);
 
-  const [fielddayType, setFielddayType] = useState(FIELDDAY_TYPES[0].value);
+  const [fielddayType, setFielddayType] = useState(FIELDDAY_TYPES[0].id);
   const [interactionQuality, setInteractionQuality] = useState(null);
-  const [roiDiscussion, setRoiDiscussion] = useState(ROI_DISCUSSION_OPTIONS[0].value);
-  const [salesTeamAttended, setSalesTeamAttended] = useState(YES_NO_OPTIONS[1].value);
+  const [roiDiscussion, setRoiDiscussion] = useState(ROI_DISCUSSION_OPTIONS[0].id);
+  const [salesTeamAttended, setSalesTeamAttended] = useState(YES_NO_OPTIONS[1].id);
   const [salesPersonName, setSalesPersonName] = useState('');
   const [expectedHarvestDate, setExpectedHarvestDate] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -155,34 +158,13 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
 
         <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
-        <Text style={styles.label}>Type of Field Day</Text>
-        <View style={styles.pickerWrap}>
-          <Picker selectedValue={fielddayType} onValueChange={setFielddayType}>
-            {FIELDDAY_TYPES.map((t) => (
-              <Picker.Item key={t.value} label={t.label} value={t.value} />
-            ))}
-          </Picker>
-        </View>
+        <SearchableSelect label="Type of Field Day" options={FIELDDAY_TYPES} value={fielddayType} onChange={setFielddayType} />
 
         <RatingSelect label="Farmer Interaction Quality" value={interactionQuality} onChange={setInteractionQuality} />
 
-        <Text style={styles.label}>ROI & Business Plan Discussed?</Text>
-        <View style={styles.pickerWrap}>
-          <Picker selectedValue={roiDiscussion} onValueChange={setRoiDiscussion}>
-            {ROI_DISCUSSION_OPTIONS.map((o) => (
-              <Picker.Item key={o.value} label={o.label} value={o.value} />
-            ))}
-          </Picker>
-        </View>
+        <SearchableSelect label="ROI & Business Plan Discussed?" options={ROI_DISCUSSION_OPTIONS} value={roiDiscussion} onChange={setRoiDiscussion} />
 
-        <Text style={styles.label}>Did Sales Team Attend?</Text>
-        <View style={styles.pickerWrap}>
-          <Picker selectedValue={salesTeamAttended} onValueChange={setSalesTeamAttended}>
-            {YES_NO_OPTIONS.map((o) => (
-              <Picker.Item key={o.value} label={o.label} value={o.value} />
-            ))}
-          </Picker>
-        </View>
+        <SearchableSelect label="Did Sales Team Attend?" options={YES_NO_OPTIONS} value={salesTeamAttended} onChange={setSalesTeamAttended} />
 
         {salesTeamDidAttend && (
           <>
@@ -230,7 +212,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
   existingBanner: { backgroundColor: COLORS.primarySoft, borderRadius: 8, padding: 12, marginTop: 10 },
   existingBannerTitle: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13, marginBottom: 4 },
   existingBannerLine: { color: COLORS.primaryDark, fontSize: 13, marginTop: 2 },
