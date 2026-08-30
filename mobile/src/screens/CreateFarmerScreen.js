@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { createFarmer } from '../api';
+import { createFarmer, getFarmer } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import { COLORS } from '../theme';
 
@@ -19,8 +19,13 @@ export default function CreateFarmerScreen({ token, onBack, onCreated }) {
     setError('');
     setLoading(true);
     try {
-      await createFarmer(token, { name: name.trim(), phone: phone.trim(), villageId });
-      Alert.alert('Farmer registered', '', [{ text: 'OK', onPress: onCreated }]);
+      const created = await createFarmer(token, { name: name.trim(), phone: phone.trim(), villageId });
+      // Re-fetch so onCreated gets the full village breadcrumb (POST
+      // /farmers only returns the bare row) - callers that log an activity
+      // right after registering need it (Training/Field Day skip picking a
+      // village again since the farmer's is now known).
+      const full = await getFarmer(token, created.farmer.id);
+      Alert.alert('Farmer registered', '', [{ text: 'OK', onPress: () => onCreated(full.farmer) }]);
     } catch (err) {
       setError(err.message);
     } finally {

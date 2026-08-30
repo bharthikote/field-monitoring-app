@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
-import { createFieldDay, getFarmerByPhone } from '../api';
-import LocationPicker from '../components/LocationPicker';
+import { createFieldDay } from '../api';
 import RatingSelect from '../components/RatingSelect';
 import SearchableSelect from '../components/SearchableSelect';
 import DatePickerField from '../components/DatePickerField';
@@ -27,18 +26,13 @@ const YES_NO_OPTIONS = [
   { id: 'no', name: 'No' },
 ];
 
-const PHONE_LIKE = /^\d{6,}$/;
 const DATE_LIKE = /^\d{4}-\d{2}-\d{2}$/;
-const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
-const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 
-export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
-  const [farmerName, setFarmerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [villageId, setVillageId] = useState(null);
-  const [existingFarmer, setExistingFarmer] = useState(null);
-  const [existingPlots, setExistingPlots] = useState([]);
-
+// `farmer` is picked (or freshly registered) before this screen is ever
+// reached - see FarmersListScreen/CreateFarmerScreen and App.js's
+// select-farmer step - so there's no more name/phone entry or lookup here,
+// just a read-only summary of who this entry is for.
+export default function CreateFieldDayScreen({ token, farmer, onBack, onCreated }) {
   const [fielddayType, setFielddayType] = useState(FIELDDAY_TYPES[0].id);
   const [interactionQuality, setInteractionQuality] = useState(null);
   const [roiDiscussion, setRoiDiscussion] = useState(ROI_DISCUSSION_OPTIONS[0].id);
@@ -51,46 +45,11 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Same "this phone already belongs to a registered farmer" lookup as
-  // Demo Plot/Training's create forms.
-  useEffect(() => {
-    const trimmed = phone.trim();
-    if (!PHONE_LIKE.test(trimmed)) {
-      setExistingFarmer(null);
-      setExistingPlots([]);
-      return undefined;
-    }
-    const timeout = setTimeout(() => {
-      getFarmerByPhone(token, trimmed)
-        .then((data) => {
-          setExistingFarmer(data.farmer);
-          setExistingPlots(data.demoPlots);
-          if (data.farmer) {
-            setFarmerName((prev) => (prev.trim() ? prev : data.farmer.name));
-          }
-        })
-        .catch(() => {
-          setExistingFarmer(null);
-          setExistingPlots([]);
-        });
-    }, 400);
-    return () => clearTimeout(timeout);
-  }, [phone, token]);
-
-  const lockedVillage = existingFarmer ? {
-    id: existingFarmer.village_id,
-    name: existingFarmer.village_name,
-    block_name: existingFarmer.block_name,
-    district_name: existingFarmer.district_name,
-    state_name: existingFarmer.state_name,
-    country_name: existingFarmer.country_name,
-  } : null;
-
   const salesTeamDidAttend = salesTeamAttended === 'yes';
 
   const handleSubmit = async () => {
-    if (!farmerName || !phone || !villageId || !interactionQuality || !expectedHarvestDate || !photo) {
-      setError('Please fill in farmer name, phone, village, interaction quality, harvest date, and add a photo.');
+    if (!interactionQuality || !expectedHarvestDate || !photo) {
+      setError('Please select interaction quality, harvest date, and add a photo.');
       return;
     }
     if (!DATE_LIKE.test(expectedHarvestDate)) {
@@ -105,9 +64,9 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
     setLoading(true);
     try {
       const form = new FormData();
-      form.append('farmerName', farmerName);
-      form.append('phone', phone);
-      form.append('villageId', villageId);
+      form.append('farmerName', farmer.name);
+      form.append('phone', farmer.phone);
+      form.append('villageId', farmer.village_id);
       form.append('fielddayType', fielddayType);
       form.append('interactionQuality', String(interactionQuality));
       form.append('roiDiscussion', roiDiscussion);
@@ -135,28 +94,11 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
         <Text style={styles.title}>Log Field Day</Text>
       </View>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Farmer Name</Text>
-        <TextInput style={styles.input} value={farmerName} onChangeText={setFarmerName} />
-
-        <Text style={styles.label}>Phone Number</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-
-        {existingFarmer && (
-          <View style={styles.existingBanner}>
-            <Text style={styles.existingBannerTitle}>
-              {existingPlots.length > 0
-                ? `This phone number belongs to ${existingFarmer.name} — existing plots:`
-                : `${existingFarmer.name} is already registered in ${existingFarmer.village_name}.`}
-            </Text>
-            {existingPlots.map((p) => (
-              <Text key={p.id} style={styles.existingBannerLine}>
-                • {p.crop_name} — {PLOT_TYPE_LABELS[p.plot_type]} ({STATUS_LABELS[p.demo_status]}), {p.village_name}
-              </Text>
-            ))}
-          </View>
-        )}
-
-        <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
+        <View style={styles.farmerBox}>
+          <Text style={styles.farmerName}>{farmer.name}</Text>
+          <Text style={styles.farmerLine}>{farmer.phone}</Text>
+          <Text style={styles.farmerLine}>{farmer.village_name}</Text>
+        </View>
 
         <SearchableSelect label="Type of Field Day" options={FIELDDAY_TYPES} value={fielddayType} onChange={setFielddayType} />
 
@@ -212,9 +154,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  existingBanner: { backgroundColor: COLORS.primarySoft, borderRadius: 8, padding: 12, marginTop: 10 },
-  existingBannerTitle: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13, marginBottom: 4 },
-  existingBannerLine: { color: COLORS.primaryDark, fontSize: 13, marginTop: 2 },
+  farmerBox: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14 },
+  farmerName: { fontSize: 18, fontWeight: '700', color: '#111' },
+  farmerLine: { color: '#555', marginTop: 2, fontSize: 13 },
   photoBtn: {
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8, borderStyle: 'dashed',
     padding: 16, alignItems: 'center',

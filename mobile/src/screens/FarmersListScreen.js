@@ -13,7 +13,11 @@ function SearchIcon({ color }) {
   );
 }
 
-export default function FarmersListScreen({ token, onCreateNew, onSelectFarmer }) {
+// `onBack`/`title` are optional - unset for the Farmers tab's own root
+// usage (no back link, full camera-cutout top padding), set when this
+// screen is reused as a "pick a farmer for this activity" step (Training/
+// Field Day), which needs a back link and a purpose-specific title.
+export default function FarmersListScreen({ token, onBack, title = 'Farmers', onCreateNew, onSelectFarmer }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
@@ -69,10 +73,15 @@ export default function FarmersListScreen({ token, onCreateNew, onSelectFarmer }
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, onBack && styles.headerWithBack]}>
+        {onBack && (
+          <Pressable onPress={onBack}>
+            <Text style={styles.back}>{'< Back'}</Text>
+          </Pressable>
+        )}
         {!searchOpen ? (
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Farmers</Text>
+            <Text style={styles.title}>{title}</Text>
             <Pressable style={styles.searchIconButton} onPress={() => setSearchOpen(true)}>
               <SearchIcon color={COLORS.primary} />
             </Pressable>
@@ -144,6 +153,8 @@ export default function FarmersListScreen({ token, onCreateNew, onSelectFarmer }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   header: { paddingHorizontal: 24, paddingTop: 56 },
+  headerWithBack: { paddingTop: 24 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '700' },
   searchIconButton: { padding: 6 },

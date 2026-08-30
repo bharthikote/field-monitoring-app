@@ -34,14 +34,17 @@ const TAB_SCREENS = ['home', 'issues', 'farmers', 'notifications', 'messaging', 
 // OS default (minimize/exit), which is the expected behavior on a root screen.
 // 'plot-detail' isn't listed - it can be reached from either the Demo Plot
 // lookup flow or a farmer's activity list, so it's handled dynamically via
-// plotDetailOrigin below instead of a fixed target.
+// plotDetailOrigin below instead of a fixed target. 'select-farmer' and
+// 'create-farmer' (when reached mid-activity) are handled dynamically too,
+// since 'create-farmer' is reused by both the Farmers tab and the
+// Training/Field Day flow - see pendingActivityType below.
 const BACK_MAP = {
   lookup: 'home',
   create: 'lookup',
   'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
-  'create-training': 'home',
-  'create-field-day': 'home',
+  'create-training': 'select-farmer',
+  'create-field-day': 'select-farmer',
   'create-farmer': 'farmers',
   'farmer-detail': 'farmers',
 };
@@ -56,6 +59,12 @@ export default function App() {
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [plotDetailOrigin, setPlotDetailOrigin] = useState('lookup');
   const [selectedFarmer, setSelectedFarmer] = useState(null);
+  // Training/Field Day now start by picking (or registering) a farmer
+  // instead of typing their name/phone inline - pendingActivityType tracks
+  // which of the two the user is logging, so the shared select-farmer/
+  // create-farmer steps know where to continue once a farmer is chosen.
+  const [pendingActivityType, setPendingActivityType] = useState(null);
+  const [selectedFarmerForActivity, setSelectedFarmerForActivity] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
@@ -83,13 +92,22 @@ export default function App() {
         setScreen(plotDetailOrigin);
         return true;
       }
+      if (screen === 'select-farmer') {
+        setPendingActivityType(null);
+        setScreen('home');
+        return true;
+      }
+      if (screen === 'create-farmer' && pendingActivityType) {
+        setScreen('select-farmer');
+        return true;
+      }
       const target = BACK_MAP[screen];
       if (!target) return false;
       setScreen(target);
       return true;
     });
     return () => subscription.remove();
-  }, [screen, plotDetailOrigin]);
+  }, [screen, plotDetailOrigin, pendingActivityType]);
 
   if (screen === 'loading') {
     return (
@@ -123,22 +141,53 @@ export default function App() {
             setLookupTabBarVisible(true);
             setScreen('lookup');
           }}
-          onCreateTraining={() => setScreen('create-training')}
-          onCreateFieldDay={() => setScreen('create-field-day')}
+          onCreateTraining={() => {
+            setPendingActivityType('training');
+            setScreen('select-farmer');
+          }}
+          onCreateFieldDay={() => {
+            setPendingActivityType('fieldday');
+            setScreen('select-farmer');
+          }}
         />
       )}
-      {screen === 'create-training' && (
+      {screen === 'select-farmer' && (
+        <FarmersListScreen
+          token={token}
+          title={pendingActivityType === 'training' ? 'Select Farmer — Training' : 'Select Farmer — Field Day'}
+          onBack={() => {
+            setPendingActivityType(null);
+            setScreen('home');
+          }}
+          onCreateNew={() => setScreen('create-farmer')}
+          onSelectFarmer={(farmer) => {
+            setSelectedFarmerForActivity(farmer);
+            setScreen(pendingActivityType === 'training' ? 'create-training' : 'create-field-day');
+          }}
+        />
+      )}
+      {screen === 'create-training' && selectedFarmerForActivity && (
         <CreateTrainingScreen
           token={token}
-          onBack={() => setScreen('home')}
-          onCreated={() => setScreen('home')}
+          farmer={selectedFarmerForActivity}
+          onBack={() => setScreen('select-farmer')}
+          onCreated={() => {
+            setPendingActivityType(null);
+            setSelectedFarmerForActivity(null);
+            setScreen('home');
+          }}
         />
       )}
-      {screen === 'create-field-day' && (
+      {screen === 'create-field-day' && selectedFarmerForActivity && (
         <CreateFieldDayScreen
           token={token}
-          onBack={() => setScreen('home')}
-          onCreated={() => setScreen('home')}
+          farmer={selectedFarmerForActivity}
+          onBack={() => setScreen('select-farmer')}
+          onCreated={() => {
+            setPendingActivityType(null);
+            setSelectedFarmerForActivity(null);
+            setScreen('home');
+          }}
         />
       )}
       {screen === 'lookup' && (
@@ -196,8 +245,15 @@ export default function App() {
       {screen === 'create-farmer' && (
         <CreateFarmerScreen
           token={token}
-          onBack={() => setScreen('farmers')}
-          onCreated={() => setScreen('farmers')}
+          onBack={() => setScreen(pendingActivityType ? 'select-farmer' : 'farmers')}
+          onCreated={(farmer) => {
+            if (pendingActivityType) {
+              setSelectedFarmerForActivity(farmer);
+              setScreen(pendingActivityType === 'training' ? 'create-training' : 'create-field-day');
+            } else {
+              setScreen('farmers');
+            }
+          }}
         />
       )}
       {screen === 'farmer-detail' && selectedFarmer && (
