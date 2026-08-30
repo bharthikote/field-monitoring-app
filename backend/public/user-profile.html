@@ -31,7 +31,10 @@
 <div class="page">
 <div class="panel">
   <p><a href="/admin/manage-users" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to All Users</a></p>
-  <h1 id="page-title">User Profile</h1>
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+    <h1 id="page-title">User Profile</h1>
+    <button id="self-logout-btn" class="edit-btn small" style="display:none">Log out</button>
+  </div>
   <p id="load-status" class="empty">Loading...</p>
 
   <div id="content" style="display:none">
@@ -60,16 +63,18 @@
     <div class="inline-form" id="status-actions"></div>
     <p class="error" id="status-error" style="display:none"></p>
 
-    <div class="section-title">Danger Zone</div>
-    <div class="danger-zone">
-      <p class="scope-note" style="margin-top:0">Permanently delete this account. This cannot be undone, and only works if nothing else references this user (approvals they've reviewed, demo plots they've created, etc.) — deactivate instead if it's blocked.</p>
-      <button id="delete-btn" class="delete-btn small">Delete User</button>
-      <div id="delete-confirm" style="display:none; margin-top:12px;">
-        <p style="color:var(--danger); font-size:0.9rem;">Are you sure? This permanently deletes the account.</p>
-        <button id="confirm-delete-btn" style="background:var(--danger);color:white">Confirm Delete</button>
-        <button id="cancel-delete-btn" class="edit-btn small">Cancel</button>
+    <div id="danger-zone-section">
+      <div class="section-title">Danger Zone</div>
+      <div class="danger-zone">
+        <p class="scope-note" style="margin-top:0">Permanently delete this account. This cannot be undone, and only works if nothing else references this user (approvals they've reviewed, demo plots they've created, etc.) — deactivate instead if it's blocked.</p>
+        <button id="delete-btn" class="delete-btn small">Delete User</button>
+        <div id="delete-confirm" style="display:none; margin-top:12px;">
+          <p style="color:var(--danger); font-size:0.9rem;">Are you sure? This permanently deletes the account.</p>
+          <button id="confirm-delete-btn" style="background:var(--danger);color:white">Confirm Delete</button>
+          <button id="cancel-delete-btn" class="edit-btn small">Cancel</button>
+        </div>
+        <p class="error" id="delete-error" style="display:none"></p>
       </div>
-      <p class="error" id="delete-error" style="display:none"></p>
     </div>
   </div>
 </div>
@@ -128,6 +133,12 @@ function renderPreview() {
 
   document.getElementById('status-badge').textContent = STATUS_LABELS[profile.status];
   renderStatusActions();
+
+  const isSelf = profile.id === currentUser.id;
+  document.getElementById('self-logout-btn').style.display = isSelf ? 'inline-flex' : 'none';
+  // Deleting your own account mid-session is never something you meant
+  // to do - just hide the option entirely rather than trust a confirm dialog.
+  document.getElementById('danger-zone-section').style.display = isSelf ? 'none' : 'block';
 }
 
 async function loadLocationAssignments() {
@@ -394,6 +405,11 @@ document.getElementById('status-actions').addEventListener('click', async (e) =>
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
   }
+});
+
+document.getElementById('self-logout-btn').addEventListener('click', () => {
+  clearToken();
+  window.location.href = '/login.html';
 });
 
 document.getElementById('delete-btn').addEventListener('click', () => {
