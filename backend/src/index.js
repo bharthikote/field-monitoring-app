@@ -16,6 +16,10 @@ import { issuesRouter } from './routes/issues.js';
 import { trainingsRouter } from './routes/trainings.js';
 import { fieldDaysRouter } from './routes/fieldDays.js';
 import { farmersRouter } from './routes/farmers.js';
+import { institutionsRouter } from './routes/institutions.js';
+import { institutionVisitsRouter } from './routes/institutionVisits.js';
+import { agroDealersRouter } from './routes/agroDealers.js';
+import { agroDealerVisitsRouter } from './routes/agroDealerVisits.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -48,6 +52,10 @@ app.use(issuesRouter);
 app.use(trainingsRouter);
 app.use(fieldDaysRouter);
 app.use(farmersRouter);
+app.use(institutionsRouter);
+app.use(institutionVisitsRouter);
+app.use(agroDealersRouter);
+app.use(agroDealerVisitsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {

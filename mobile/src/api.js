@@ -111,6 +111,50 @@ export async function createFieldDay(token, formData) {
   return data;
 }
 
+export const listInstitutions = (token) => request('/institutions', { token });
+export const searchInstitutions = (token, query) => request(`/institutions/search?q=${encodeURIComponent(query)}`, { token });
+export const createInstitution = (token, payload) =>
+  request('/institutions', { method: 'POST', body: payload, token });
+export const getInstitution = (token, institutionId) => request(`/institutions/${institutionId}`, { token });
+export const getMyInstitutionVisitCount = (token) => request('/institution-visits/my-count', { token });
+
+// Institution visits carry a photo, so this posts multipart/form-data
+// directly, same pattern as createVisit.
+export async function createInstitutionVisit(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/institution-visits`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
+
+export const listAgroDealers = (token) => request('/agro-dealers', { token });
+export const searchAgroDealers = (token, query) => request(`/agro-dealers/search?q=${encodeURIComponent(query)}`, { token });
+export const createAgroDealer = (token, payload) =>
+  request('/agro-dealers', { method: 'POST', body: payload, token });
+export const getAgroDealer = (token, dealerId) => request(`/agro-dealers/${dealerId}`, { token });
+export const getMyAgroDealerVisitCount = (token) => request('/agro-dealer-visits/my-count', { token });
+
+// Agro dealer visits carry a photo, so this posts multipart/form-data
+// directly, same pattern as createVisit.
+export async function createAgroDealerVisit(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/agro-dealer-visits`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
+
 export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });

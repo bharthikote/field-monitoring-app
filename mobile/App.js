@@ -12,6 +12,12 @@ import CreateFieldDayScreen from './src/screens/CreateFieldDayScreen';
 import FarmersListScreen from './src/screens/FarmersListScreen';
 import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
 import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
+import InstitutionsListScreen from './src/screens/InstitutionsListScreen';
+import CreateInstitutionScreen from './src/screens/CreateInstitutionScreen';
+import CreateInstitutionVisitScreen from './src/screens/CreateInstitutionVisitScreen';
+import AgroDealersListScreen from './src/screens/AgroDealersListScreen';
+import CreateAgroDealerScreen from './src/screens/CreateAgroDealerScreen';
+import CreateAgroDealerVisitScreen from './src/screens/CreateAgroDealerVisitScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -47,6 +53,12 @@ const BACK_MAP = {
   'create-field-day': 'select-farmer',
   'create-farmer': 'farmers',
   'farmer-detail': 'farmers',
+  'select-institution': 'home',
+  'create-institution': 'select-institution',
+  'create-institution-visit': 'select-institution',
+  'select-agro-dealer': 'home',
+  'create-agro-dealer': 'select-agro-dealer',
+  'create-agro-dealer-visit': 'select-agro-dealer',
 };
 
 export default function App() {
@@ -65,6 +77,12 @@ export default function App() {
   // create-farmer steps know where to continue once a farmer is chosen.
   const [pendingActivityType, setPendingActivityType] = useState(null);
   const [selectedFarmerForActivity, setSelectedFarmerForActivity] = useState(null);
+  // Institutional Visit and Agro Dealer Visit each have their own
+  // dedicated profile entity (not shared like farmers are between
+  // Training/Field Day), so each gets its own linear select-or-create flow
+  // with no pendingActivityType-style sharing needed.
+  const [selectedInstitutionForVisit, setSelectedInstitutionForVisit] = useState(null);
+  const [selectedDealerForVisit, setSelectedDealerForVisit] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
@@ -149,6 +167,8 @@ export default function App() {
             setPendingActivityType('fieldday');
             setScreen('select-farmer');
           }}
+          onCreateInstitutionVisit={() => setScreen('select-institution')}
+          onCreateAgroDealerVisit={() => setScreen('select-agro-dealer')}
         />
       )}
       {screen === 'select-farmer' && (
@@ -186,6 +206,70 @@ export default function App() {
           onCreated={() => {
             setPendingActivityType(null);
             setSelectedFarmerForActivity(null);
+            setScreen('home');
+          }}
+        />
+      )}
+      {screen === 'select-institution' && (
+        <InstitutionsListScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreateNew={() => setScreen('create-institution')}
+          onSelectInstitution={(institution) => {
+            setSelectedInstitutionForVisit(institution);
+            setScreen('create-institution-visit');
+          }}
+        />
+      )}
+      {screen === 'create-institution' && (
+        <CreateInstitutionScreen
+          token={token}
+          onBack={() => setScreen('select-institution')}
+          onCreated={(institution) => {
+            setSelectedInstitutionForVisit(institution);
+            setScreen('create-institution-visit');
+          }}
+        />
+      )}
+      {screen === 'create-institution-visit' && selectedInstitutionForVisit && (
+        <CreateInstitutionVisitScreen
+          token={token}
+          institution={selectedInstitutionForVisit}
+          onBack={() => setScreen('select-institution')}
+          onCreated={() => {
+            setSelectedInstitutionForVisit(null);
+            setScreen('home');
+          }}
+        />
+      )}
+      {screen === 'select-agro-dealer' && (
+        <AgroDealersListScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreateNew={() => setScreen('create-agro-dealer')}
+          onSelectDealer={(dealer) => {
+            setSelectedDealerForVisit(dealer);
+            setScreen('create-agro-dealer-visit');
+          }}
+        />
+      )}
+      {screen === 'create-agro-dealer' && (
+        <CreateAgroDealerScreen
+          token={token}
+          onBack={() => setScreen('select-agro-dealer')}
+          onCreated={(dealer) => {
+            setSelectedDealerForVisit(dealer);
+            setScreen('create-agro-dealer-visit');
+          }}
+        />
+      )}
+      {screen === 'create-agro-dealer-visit' && selectedDealerForVisit && (
+        <CreateAgroDealerVisitScreen
+          token={token}
+          dealer={selectedDealerForVisit}
+          onBack={() => setScreen('select-agro-dealer')}
+          onCreated={() => {
+            setSelectedDealerForVisit(null);
             setScreen('home');
           }}
         />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
-import { getMyVisitCount, getMyTrainingCount, getMyFieldDayCount } from '../api';
+import { getMyVisitCount, getMyTrainingCount, getMyFieldDayCount, getMyInstitutionVisitCount, getMyAgroDealerVisitCount } from '../api';
 
 // The six daily field activities - order set per feedback (Demo Plot,
 // Adoption Plot, Training, Field Day, Institutional Visit, Agro Dealer
@@ -92,12 +92,14 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
 // "Coming Soon" until built out.
 const PLOT_ACTIVITY_TYPES = { demoplot: 'demo', adoption: 'adoption' };
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit }) {
   const showActivities = user.role !== 'tfo';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
   const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
   const [trainingCount, setTrainingCount] = useState(null);
   const [fieldDayCount, setFieldDayCount] = useState(null);
+  const [institutionVisitCount, setInstitutionVisitCount] = useState(null);
+  const [agroDealerVisitCount, setAgroDealerVisitCount] = useState(null);
 
   useEffect(() => {
     if (!showActivities) return;
@@ -105,6 +107,8 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
     getMyTrainingCount(token).then((data) => setTrainingCount(data.count)).catch(() => {});
     getMyFieldDayCount(token).then((data) => setFieldDayCount(data.count)).catch(() => {});
+    getMyInstitutionVisitCount(token).then((data) => setInstitutionVisitCount(data.count)).catch(() => {});
+    getMyAgroDealerVisitCount(token).then((data) => setAgroDealerVisitCount(data.count)).catch(() => {});
   }, [token, showActivities]);
 
   const handleActivity = (activity) => {
@@ -121,6 +125,14 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
       onCreateFieldDay();
       return;
     }
+    if (activity.key === 'govt') {
+      onCreateInstitutionVisit();
+      return;
+    }
+    if (activity.key === 'agriinput') {
+      onCreateAgroDealerVisit();
+      return;
+    }
     Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
   };
 
@@ -129,6 +141,8 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     if (activityKey === 'adoption') return adoptionPlotCount;
     if (activityKey === 'training') return trainingCount;
     if (activityKey === 'fieldday') return fieldDayCount;
+    if (activityKey === 'govt') return institutionVisitCount;
+    if (activityKey === 'agriinput') return agroDealerVisitCount;
     return null;
   };
 
