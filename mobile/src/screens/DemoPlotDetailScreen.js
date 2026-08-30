@@ -52,12 +52,23 @@ function VisitCard({ visit }) {
         </>
       )}
 
-      {visit.disease_name || visit.disease_other ? (
-        <Text style={styles.visitLine}>Disease: {visit.disease_name || visit.disease_other}</Text>
-      ) : null}
-      {visit.pest_name || visit.pest_other ? (
-        <Text style={styles.visitLine}>Pest: {visit.pest_name || visit.pest_other}</Text>
-      ) : null}
+      {visit.diseases?.length > 0 && (
+        <>
+          <Text style={styles.visitSectionLabel}>Diseases Observed</Text>
+          <View style={styles.chipRow}>
+            {visit.diseases.map((d, i) => <Chip key={`${d.name}-${i}`} label={d.name} />)}
+          </View>
+        </>
+      )}
+
+      {visit.pests?.length > 0 && (
+        <>
+          <Text style={styles.visitSectionLabel}>Pests Observed</Text>
+          <View style={styles.chipRow}>
+            {visit.pests.map((p, i) => <Chip key={`${p.name}-${i}`} label={p.name} />)}
+          </View>
+        </>
+      )}
 
       <Text style={styles.visitSectionLabel}>Action Plan</Text>
       <Text style={styles.visitLine}>{visit.action_plan}</Text>

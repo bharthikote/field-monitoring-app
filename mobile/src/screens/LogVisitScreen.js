@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { listIssueTypes, listGoodThings, listDiseases, listPests, listTechniques, createVisit } from '../api';
 import { COLORS } from '../theme';
 import MultiSelectField from '../components/MultiSelectField';
-import SearchableSelect from '../components/SearchableSelect';
 
 const DISEASE_TRIGGER = 'Demo Plot Infested by Disease';
 const PEST_TRIGGER = 'Demo Plot Infested by Pests';
@@ -58,12 +57,12 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
   const [goodThingPhotos, setGoodThingPhotos] = useState({});
   const [selectedTechniques, setSelectedTechniques] = useState([]);
 
-  const [diseaseChoice, setDiseaseChoice] = useState('');
+  const [selectedDiseases, setSelectedDiseases] = useState([]);
+  const [diseasePhotos, setDiseasePhotos] = useState({});
   const [diseaseOther, setDiseaseOther] = useState('');
-  const [diseasePhoto, setDiseasePhoto] = useState(null);
-  const [pestChoice, setPestChoice] = useState('');
+  const [selectedPests, setSelectedPests] = useState([]);
+  const [pestPhotos, setPestPhotos] = useState({});
   const [pestOther, setPestOther] = useState('');
-  const [pestPhoto, setPestPhoto] = useState(null);
 
   const [actionPlan, setActionPlan] = useState('');
   const [comments, setComments] = useState('');
@@ -104,6 +103,14 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
     const asset = await pickPhoto();
     if (asset) setGoodThingPhotos((prev) => ({ ...prev, [id]: asset }));
   };
+  const pickDiseasePhoto = async (id) => {
+    const asset = await pickPhoto();
+    if (asset) setDiseasePhotos((prev) => ({ ...prev, [id]: asset }));
+  };
+  const pickPestPhoto = async (id) => {
+    const asset = await pickPhoto();
+    if (asset) setPestPhotos((prev) => ({ ...prev, [id]: asset }));
+  };
 
   const handleSubmit = async () => {
     setError('');
@@ -116,14 +123,14 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
       return;
     }
     if (showDiseaseSection) {
-      if (!diseaseChoice) return setError('Select the disease observed.');
-      if (diseaseChoice === OTHER_VALUE && !diseaseOther.trim()) return setError('Specify the disease name.');
-      if (!diseasePhoto) return setError('A disease photo is required.');
+      if (selectedDiseases.length === 0) return setError('Select at least one disease observed.');
+      if (selectedDiseases.includes(OTHER_VALUE) && !diseaseOther.trim()) return setError('Specify the disease name for "Other".');
+      if (selectedDiseases.some((id) => !diseasePhotos[id])) return setError('Add a photo for every disease selected.');
     }
     if (showPestSection) {
-      if (!pestChoice) return setError('Select the pest observed.');
-      if (pestChoice === OTHER_VALUE && !pestOther.trim()) return setError('Specify the pest name.');
-      if (!pestPhoto) return setError('A pest photo is required.');
+      if (selectedPests.length === 0) return setError('Select at least one pest observed.');
+      if (selectedPests.includes(OTHER_VALUE) && !pestOther.trim()) return setError('Specify the pest name for "Other".');
+      if (selectedPests.some((id) => !pestPhotos[id])) return setError('Add a photo for every pest selected.');
     }
 
     setSubmitting(true);
@@ -138,14 +145,26 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
       form.append('overallPhoto', assetToFormFile(overallPhoto));
 
       if (showDiseaseSection) {
-        if (diseaseChoice === OTHER_VALUE) form.append('diseaseOther', diseaseOther.trim());
-        else form.append('diseaseId', diseaseChoice);
-        form.append('diseasePhoto', assetToFormFile(diseasePhoto));
+        const realDiseaseIds = selectedDiseases.filter((id) => id !== OTHER_VALUE);
+        form.append('diseaseIds', JSON.stringify(realDiseaseIds));
+        for (const id of realDiseaseIds) {
+          form.append(`diseasePhoto_${id}`, assetToFormFile(diseasePhotos[id]));
+        }
+        if (selectedDiseases.includes(OTHER_VALUE)) {
+          form.append('diseaseOther', diseaseOther.trim());
+          form.append('diseasePhotoOther', assetToFormFile(diseasePhotos[OTHER_VALUE]));
+        }
       }
       if (showPestSection) {
-        if (pestChoice === OTHER_VALUE) form.append('pestOther', pestOther.trim());
-        else form.append('pestId', pestChoice);
-        form.append('pestPhoto', assetToFormFile(pestPhoto));
+        const realPestIds = selectedPests.filter((id) => id !== OTHER_VALUE);
+        form.append('pestIds', JSON.stringify(realPestIds));
+        for (const id of realPestIds) {
+          form.append(`pestPhoto_${id}`, assetToFormFile(pestPhotos[id]));
+        }
+        if (selectedPests.includes(OTHER_VALUE)) {
+          form.append('pestOther', pestOther.trim());
+          form.append('pestPhotoOther', assetToFormFile(pestPhotos[OTHER_VALUE]));
+        }
       }
       for (const [issueId, asset] of Object.entries(issuePhotos)) {
         if (selectedIssues.includes(issueId)) form.append(`issuePhoto_${issueId}`, assetToFormFile(asset));
@@ -195,14 +214,16 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
 
       {showDiseaseSection && (
         <View style={styles.section}>
-          <SearchableSelect
+          <MultiSelectField
             label="Disease Observation"
-            placeholder="-- select disease --"
+            placeholder="-- select diseases observed --"
             options={[...diseases, { id: OTHER_VALUE, name: 'Other (please specify)' }]}
-            value={diseaseChoice}
-            onChange={setDiseaseChoice}
+            selectedIds={selectedDiseases}
+            onChange={setSelectedDiseases}
+            onPhotoPress={pickDiseasePhoto}
+            hasPhoto={(id) => !!diseasePhotos[id]}
           />
-          {diseaseChoice === OTHER_VALUE && (
+          {selectedDiseases.includes(OTHER_VALUE) && (
             <TextInput
               style={styles.input}
               value={diseaseOther}
@@ -210,39 +231,27 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
               placeholder="Disease name"
             />
           )}
-          {diseasePhoto ? (
-            <Image source={{ uri: diseasePhoto.uri }} style={styles.thumbLarge} />
-          ) : (
-            <Pressable style={styles.photoBtn} onPress={async () => setDiseasePhoto(await pickPhoto())}>
-              <Text style={styles.photoBtnText}>+ Disease Photo (required)</Text>
-            </Pressable>
-          )}
         </View>
       )}
 
       {showPestSection && (
         <View style={styles.section}>
-          <SearchableSelect
+          <MultiSelectField
             label="Pest Observation"
-            placeholder="-- select pest --"
+            placeholder="-- select pests observed --"
             options={[...pests, { id: OTHER_VALUE, name: 'Other (please specify)' }]}
-            value={pestChoice}
-            onChange={setPestChoice}
+            selectedIds={selectedPests}
+            onChange={setSelectedPests}
+            onPhotoPress={pickPestPhoto}
+            hasPhoto={(id) => !!pestPhotos[id]}
           />
-          {pestChoice === OTHER_VALUE && (
+          {selectedPests.includes(OTHER_VALUE) && (
             <TextInput
               style={styles.input}
               value={pestOther}
               onChangeText={setPestOther}
               placeholder="Pest name"
             />
-          )}
-          {pestPhoto ? (
-            <Image source={{ uri: pestPhoto.uri }} style={styles.thumbLarge} />
-          ) : (
-            <Pressable style={styles.photoBtn} onPress={async () => setPestPhoto(await pickPhoto())}>
-              <Text style={styles.photoBtnText}>+ Pest Photo (required)</Text>
-            </Pressable>
           )}
         </View>
       )}
