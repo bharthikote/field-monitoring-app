@@ -11,7 +11,17 @@ import LogVisitScreen from './src/screens/LogVisitScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
+import MessagingScreen from './src/screens/MessagingScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import BottomTabBar from './src/components/BottomTabBar';
 import { loadSession } from './src/session';
+
+// The five root screens the bottom tab bar switches between. The tab bar
+// only shows on these - every drill-down screen (demo plot lookup/create/
+// detail, log visit, raise issue, issue detail) hides it, same as it hides
+// on login/signup/loading.
+const TAB_SCREENS = ['home', 'issues', 'notifications', 'messaging', 'profile'];
 
 export default function App() {
   const [screen, setScreen] = useState('loading');
@@ -44,6 +54,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.content}>
       {screen === 'signup' && <SignUpScreen onGoToLogin={() => setScreen('login')} />}
       {screen === 'login' && (
         <LoginScreen
@@ -58,12 +69,10 @@ export default function App() {
       {screen === 'home' && user && (
         <HomeScreen
           user={user}
-          onLoggedOut={() => setScreen('login')}
           onFindDemoPlot={() => {
             setLookupPhone('');
             setScreen('lookup');
           }}
-          onGoToIssues={() => setScreen('issues')}
         />
       )}
       {screen === 'lookup' && (
@@ -129,7 +138,6 @@ export default function App() {
         <IssuesScreen
           token={token}
           user={user}
-          onBack={() => setScreen('home')}
           onSelectIssue={(issueId) => {
             setSelectedIssueId(issueId);
             setScreen('issue-detail');
@@ -144,6 +152,16 @@ export default function App() {
           onBack={() => setScreen('issues')}
         />
       )}
+      {screen === 'notifications' && <NotificationsScreen />}
+      {screen === 'messaging' && <MessagingScreen />}
+      {screen === 'profile' && user && (
+        <ProfileScreen user={user} onLoggedOut={() => setScreen('login')} />
+      )}
+      </View>
+
+      {user && TAB_SCREENS.includes(screen) && (
+        <BottomTabBar active={screen} onChange={setScreen} />
+      )}
       <StatusBar style="auto" />
     </View>
   );
@@ -151,5 +169,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
+  content: { flex: 1 },
   loading: { flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
 });

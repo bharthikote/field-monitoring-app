@@ -45,7 +45,7 @@ function IssueCard({ issue, onPress }) {
   );
 }
 
-export default function IssuesScreen({ token, user, onBack, onSelectIssue }) {
+export default function IssuesScreen({ token, user, onSelectIssue }) {
   const canBeAssignee = CAN_BE_ASSIGNEE.includes(user.role);
   const canRaise = CAN_RAISE.includes(user.role);
   const [tab, setTab] = useState(canBeAssignee ? 'assigned' : 'raised');
@@ -78,9 +78,6 @@ export default function IssuesScreen({ token, user, onBack, onSelectIssue }) {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={onBack}>
-          <Text style={styles.back}>{'< Back'}</Text>
-        </Pressable>
         <Text style={styles.title}>Issues</Text>
       </View>
 
@@ -112,7 +109,6 @@ export default function IssuesScreen({ token, user, onBack, onSelectIssue }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   header: { paddingTop: 24, paddingHorizontal: 24 },
-  back: { color: '#2563eb', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
   tabRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 8, marginBottom: 8 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
