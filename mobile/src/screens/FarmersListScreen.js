@@ -125,9 +125,11 @@ export default function FarmersListScreen({ token, onCreateNew, onSelectFarmer }
         }
         renderItem={({ item: farmer }) => (
           <Pressable style={styles.card} onPress={() => onSelectFarmer(farmer)}>
-            <Text style={styles.cardTitle}>{farmer.name}</Text>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{farmer.name}</Text>
+              <Text style={styles.cardVillage}>{farmer.village_name}</Text>
+            </View>
             <Text style={styles.cardLine}>{farmer.phone}</Text>
-            <Text style={styles.cardVillage}>{farmer.village_name}</Text>
           </Pressable>
         )}
       />
@@ -158,9 +160,10 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10 },
-  cardTitle: { fontWeight: '700', fontSize: 16 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardTitle: { fontWeight: '700', fontSize: 16, flex: 1, marginRight: 8 },
   cardLine: { color: '#555', marginTop: 2 },
-  cardVillage: { color: '#555', fontSize: 14, marginTop: 2 },
+  cardVillage: { color: '#555', fontSize: 13, textAlign: 'right' },
   fab: {
     position: 'absolute',
     right: 24,

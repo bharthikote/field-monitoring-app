@@ -12,6 +12,16 @@ const STATUS_COLORS = {
 };
 const TRAINING_TYPE_LABELS = { classroom: 'Classroom / Theory', field_based: 'Field-Based / Practical', mixed: 'Mixed (Both)' };
 
+// Matches HomeScreen's six-activity structure - Field Day isn't built yet
+// (its tab always shows the empty state), same "Coming Soon" convention
+// used there for activities without a real flow behind them yet.
+const TABS = [
+  { key: 'demo', label: 'Demo Plot' },
+  { key: 'adoption', label: 'Adoption' },
+  { key: 'training', label: 'Training' },
+  { key: 'fieldday', label: 'Field Day' },
+];
+
 function ActivityCard({ activity, onSelectPlot }) {
   const isTraining = activity.activityType === 'training';
   if (isTraining) {
@@ -46,6 +56,7 @@ export default function FarmerDetailScreen({ token, farmer, onBack, onSelectPlot
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('demo');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +75,8 @@ export default function FarmerDetailScreen({ token, farmer, onBack, onSelectPlot
     load();
   }, [load]);
 
+  const filtered = (activities || []).filter((a) => a.activityType === activeTab);
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -75,15 +88,25 @@ export default function FarmerDetailScreen({ token, farmer, onBack, onSelectPlot
           <Text style={styles.subLine}>{farmer.phone}</Text>
           <Text style={styles.villageLine}>{farmer.village_name}</Text>
         </View>
+
+        <View style={styles.tabRow}>
+          {TABS.map((t) => (
+            <Pressable key={t.key} style={[styles.tab, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
+              <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {loading && <ActivityIndicator style={{ marginTop: 12 }} />}
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && activities && activities.length === 0 && (
-          <Text style={styles.empty}>No activities logged for this farmer yet.</Text>
+        {!loading && filtered.length === 0 && (
+          <Text style={styles.empty}>
+            {activeTab === 'fieldday' ? "Field Day isn't built yet." : `No ${TABS.find((t) => t.key === activeTab).label} activities logged for this farmer yet.`}
+          </Text>
         )}
-        {activities && activities.map((a) => (
+        {filtered.map((a) => (
           <ActivityCard key={`${a.activityType}-${a.id}`} activity={a} onSelectPlot={onSelectPlot} />
         ))}
       </ScrollView>
@@ -99,6 +122,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700' },
   subLine: { color: '#555', marginTop: 4, fontSize: 13 },
   villageLine: { color: '#555', marginTop: 2, fontSize: 13 },
+  tabRow: { flexDirection: 'row', gap: 6, marginTop: 16 },
+  tab: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  tabActive: { backgroundColor: COLORS.primary },
+  tabText: { color: '#334155', fontWeight: '600', fontSize: 12 },
+  tabTextActive: { color: '#fff' },
   scroll: { flex: 1 },
   scrollContent: { padding: 24, paddingTop: 8, paddingBottom: 60 },
   error: { color: COLORS.danger, marginTop: 12 },
