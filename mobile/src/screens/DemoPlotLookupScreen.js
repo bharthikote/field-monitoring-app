@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { searchDemoPlots, listDemoPlots } from '../api';
 import { COLORS } from '../theme';
@@ -24,6 +24,7 @@ const STATUS_COLORS = {
 };
 
 export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew, onSelectPlot }) {
+  const [searchOpen, setSearchOpen] = useState(!!initialPhone);
   const [query, setQuery] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
   const [searchedQuery, setSearchedQuery] = useState(''); // '' means "browsing all"
@@ -44,7 +45,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   };
 
-  const handleSearch = async (searchQuery = query) => {
+  const handleSearch = async (searchQuery) => {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
       return loadAll();
@@ -62,7 +63,8 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   };
 
-  const handleClear = () => {
+  const handleCloseSearch = () => {
+    setSearchOpen(false);
     setQuery('');
     loadAll();
   };
@@ -75,70 +77,91 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     }
   }, [initialPhone]);
 
+  // Live-filters as the user types, once the search bar is open.
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const timeout = setTimeout(() => handleSearch(query), 300);
+    return () => clearTimeout(timeout);
+  }, [query, searchOpen]);
+
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.header}>
         <Pressable onPress={onBack}>
           <Text style={styles.back}>{'< Back'}</Text>
         </Pressable>
-        <Text style={styles.title}>Demo Plots</Text>
 
-        <Text style={styles.label}>Search</Text>
-        <View style={styles.phoneRow}>
-          <View style={styles.phoneWrap}>
-            <TextInput
-              style={styles.input}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Name, phone, or village"
-              autoCapitalize="none"
-            />
-            {query.length > 0 && (
-              <Pressable style={styles.clearButton} onPress={handleClear}>
-                <Text style={styles.clearButtonText}>✕</Text>
-              </Pressable>
-            )}
+        {!searchOpen ? (
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Demo Plots</Text>
+            <Pressable style={styles.searchIconButton} onPress={() => setSearchOpen(true)}>
+              <SearchIcon color={COLORS.primary} />
+            </Pressable>
           </View>
+        ) : (
+          <View style={styles.searchRow}>
+            <View style={styles.searchInputWrap}>
+              <TextInput
+                style={styles.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Name, phone, or village"
+                autoCapitalize="none"
+                autoFocus
+              />
+              {query.length > 0 && (
+                <Pressable style={styles.clearButton} onPress={() => setQuery('')}>
+                  <Text style={styles.clearButtonText}>✕</Text>
+                </Pressable>
+              )}
+            </View>
+            <Pressable onPress={handleCloseSearch}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
 
-          <Pressable style={styles.searchButton} onPress={() => handleSearch()} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <SearchIcon color="#fff" />}
-          </Pressable>
-        </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {loading && <ActivityIndicator style={styles.loadingIndicator} />}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        {results !== null && (
-          <View style={{ marginTop: 24 }}>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={results || []}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={
+          results !== null && results.length > 0 ? (
             <Text style={styles.sectionLabel}>
               {searchedQuery ? `Results for "${searchedQuery}"` : `All Demo Plots (${results.length})`}
             </Text>
-
-            {results.length === 0 ? (
-              <Text style={styles.empty}>
-                {searchedQuery ? 'No demo plot matched your search.' : 'No demo plots created yet.'}
-              </Text>
-            ) : (
-              results.map((plot) => (
-                <Pressable key={plot.id} style={styles.card} onPress={() => onSelectPlot(plot)}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[plot.demo_status].bg }]}>
-                      <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[plot.demo_status].text }]}>
-                        {STATUS_LABELS[plot.demo_status]}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
-                  <View style={styles.cardRow}>
-                    <Text style={styles.cardCrop}>{plot.crop_name} — {plot.variety_name}</Text>
-                    <Text style={styles.cardVillage}>{plot.village_name}</Text>
-                  </View>
-                </Pressable>
-              ))
-            )}
-          </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          !loading && results !== null ? (
+            <Text style={styles.empty}>
+              {searchedQuery ? 'No demo plot matched your search.' : 'No demo plots created yet.'}
+            </Text>
+          ) : null
+        }
+        renderItem={({ item: plot }) => (
+          <Pressable style={styles.card} onPress={() => onSelectPlot(plot)}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{plot.farmer_name}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[plot.demo_status].bg }]}>
+                <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[plot.demo_status].text }]}>
+                  {STATUS_LABELS[plot.demo_status]}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
+            <View style={styles.cardRow}>
+              <Text style={styles.cardCrop}>{plot.crop_name} — {plot.variety_name}</Text>
+              <Text style={styles.cardVillage}>{plot.village_name}</Text>
+            </View>
+          </Pressable>
         )}
-      </ScrollView>
+      />
 
       <Pressable style={styles.fab} onPress={() => onCreateNew(PHONE_LIKE.test(searchedQuery) ? searchedQuery : '')}>
         <Text style={styles.fabIcon}>+</Text>
@@ -149,24 +172,21 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 24, paddingBottom: 100 },
+  header: { paddingHorizontal: 24, paddingTop: 24 },
   back: { color: COLORS.primary, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
-  label: { fontSize: 13, color: '#555', marginBottom: 4 },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  phoneWrap: { flex: 1, position: 'relative', justifyContent: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, paddingRight: 40, fontSize: 16 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  title: { fontSize: 22, fontWeight: '700' },
+  searchIconButton: { padding: 6 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  searchInputWrap: { flex: 1, position: 'relative', justifyContent: 'center' },
+  searchInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, paddingRight: 40, fontSize: 16 },
   clearButton: { position: 'absolute', right: 8, padding: 8 },
   clearButtonText: { fontSize: 16, color: '#888' },
-  searchButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  error: { color: COLORS.danger, marginTop: 12 },
+  cancelText: { color: COLORS.primary, fontSize: 15, fontWeight: '600' },
+  error: { color: COLORS.danger, marginTop: 12, marginHorizontal: 24 },
+  loadingIndicator: { marginTop: 12 },
+  list: { flex: 1 },
+  listContent: { padding: 24, paddingTop: 16, paddingBottom: 100 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10 },
