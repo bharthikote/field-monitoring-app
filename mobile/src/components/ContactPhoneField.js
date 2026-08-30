@@ -78,14 +78,14 @@ export default function ContactPhoneField({ label = 'Phone Number', value, onCha
   return (
     <View>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.row}>
+      <View style={styles.inputWrap}>
         <TextInput
-          style={[styles.input, styles.inputWithButton]}
+          style={styles.input}
           value={value}
           onChangeText={onChangeText}
           keyboardType="phone-pad"
         />
-        <Pressable style={styles.contactButton} onPress={handleOpen} disabled={loading}>
+        <Pressable style={styles.contactButton} onPress={handleOpen} disabled={loading} hitSlop={8}>
           {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <ContactIcon color={COLORS.primary} />}
         </Pressable>
       </View>
@@ -125,13 +125,9 @@ export default function ContactPhoneField({ label = 'Phone Number', value, onCha
 
 const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
-  inputWithButton: { flex: 1 },
-  contactButton: {
-    width: 44, height: 44, borderRadius: 8, borderWidth: 1, borderColor: '#ccc',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  inputWrap: { position: 'relative', justifyContent: 'center' },
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, paddingRight: 44, fontSize: 16 },
+  contactButton: { position: 'absolute', right: 10, padding: 6 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '70%', paddingBottom: 24 },
   searchRow: {
