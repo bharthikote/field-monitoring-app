@@ -53,13 +53,16 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Login failed');
-    if (!['admin', 'super_admin', 'leadership'].includes(data.user.role)) {
+    const WEB_ROLES = ['admin', 'super_admin', 'leadership', 'tfo', 'supervisor', 'team_lead', 'country_manager'];
+    if (!WEB_ROLES.includes(data.user.role)) {
       throw new Error('This account does not have web access - please use the mobile app instead.');
     }
     setToken(data.token);
-    // Leadership can't approve anything, so landing on Pending Approvals
-    // is a dead end for them - send them straight to Reports instead.
-    window.location.href = data.user.role === 'leadership' ? '/admin/reports/demos' : '/admin';
+    // Only Admin/Super Admin can approve anything, so landing on Pending
+    // Approvals is a dead end for everyone else - send them straight to
+    // Reports instead.
+    const canApprove = data.user.role === 'admin' || data.user.role === 'super_admin';
+    window.location.href = canApprove ? '/admin' : '/admin/reports/demos';
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';

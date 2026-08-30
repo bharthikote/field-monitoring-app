@@ -1,5 +1,5 @@
-// Leadership only gets Reports (PRD Section 2: "View/reporting access
-// only. Cannot approve users, modify data, or change any configuration.") -
+// Leadership, TFO, Supervisor, Team Lead, and Country Manager only get
+// Reports (scoped to whatever their location assignments cover) -
 // everything else here is Admin/Super Admin only. Omit `roles` to show an
 // entry to every role allowed into the web panel at all.
 const NAV_ICONS = {
