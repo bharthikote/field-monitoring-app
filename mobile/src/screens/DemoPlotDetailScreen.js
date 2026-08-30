@@ -106,8 +106,11 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRais
               </Text>
             </View>
           </View>
-          <Text style={styles.subLine}>{plot.farmer_phone} · {plot.crop_name} — {plot.variety_name}</Text>
-          <Text style={styles.villageLine}>{plot.village_name}</Text>
+          <Text style={styles.subLine}>{plot.farmer_phone}</Text>
+          <View style={styles.bottomRow}>
+            <Text style={styles.cropLine}>{plot.crop_name} — {plot.variety_name}</Text>
+            <Text style={styles.villageLine}>{plot.village_name}</Text>
+          </View>
         </View>
 
         {CAN_RAISE_ISSUES.includes(user.role) && (
@@ -146,13 +149,15 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRais
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 24, paddingBottom: 20 },
+  header: { padding: 24, paddingBottom: 10 },
   back: { color: COLORS.primary, marginBottom: 16 },
   infoBox: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '700', flex: 1, marginRight: 8 },
   subLine: { color: '#555', marginTop: 4, fontSize: 13 },
-  villageLine: { color: '#555', marginTop: 6, fontSize: 13, textAlign: 'right' },
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 6 },
+  cropLine: { color: '#555', fontSize: 13, flex: 1, marginRight: 8 },
+  villageLine: { color: '#555', fontSize: 13, textAlign: 'right' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   raiseIssueButton: {
