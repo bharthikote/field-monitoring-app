@@ -52,8 +52,12 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
+.nav-links > a svg, .nav-dropdown-toggle svg { flex-shrink: 0; }
 .nav-links > a:hover { background: var(--bg); color: var(--text); }
 .nav-links > a.active { color: var(--accent-hover); background: var(--accent-soft); font-weight: 600; }
 

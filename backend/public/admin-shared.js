@@ -2,10 +2,17 @@
 // only. Cannot approve users, modify data, or change any configuration.") -
 // everything else here is Admin/Super Admin only. Omit `roles` to show an
 // entry to every role allowed into the web panel at all.
+const NAV_ICONS = {
+  pendingApprovals: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
+  systemUpdate: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+  reports: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+};
+
 const NAV_STRUCTURE = [
-  { href: '/admin', label: 'Pending Approvals', roles: ['admin', 'super_admin'] },
+  { href: '/admin', label: 'Pending Approvals', icon: NAV_ICONS.pendingApprovals, roles: ['admin', 'super_admin'] },
   {
     label: 'System Update',
+    icon: NAV_ICONS.systemUpdate,
     roles: ['admin', 'super_admin'],
     children: [
       { href: '/admin/locations', label: 'Locations' },
@@ -16,6 +23,7 @@ const NAV_STRUCTURE = [
   },
   {
     label: 'Reports',
+    icon: NAV_ICONS.reports,
     children: [
       { href: '/admin/reports/farmers', label: 'Farmers' },
       { href: '/admin/reports/demos', label: 'Demos' },
@@ -103,13 +111,13 @@ function renderNav(user) {
       return `
         <div class="nav-dropdown">
           <button type="button" class="nav-dropdown-toggle ${isActiveGroup ? 'active' : ''}">
-            ${entry.label} <span class="nav-caret"></span>
+            ${entry.icon} ${entry.label} <span class="nav-caret"></span>
           </button>
           <div class="nav-dropdown-menu">${childLinks}</div>
         </div>
       `;
     }
-    return `<a href="${entry.href}" class="${location.pathname === entry.href ? 'active' : ''}">${entry.label}</a>`;
+    return `<a href="${entry.href}" class="${location.pathname === entry.href ? 'active' : ''}">${entry.icon} ${entry.label}</a>`;
   }).join('');
 
   nav.innerHTML = `
