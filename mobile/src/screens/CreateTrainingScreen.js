@@ -1,32 +1,37 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { createTraining, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import RatingSelect from '../components/RatingSelect';
+import SearchableSelect from '../components/SearchableSelect';
 import { pickPhoto, assetToFormFile } from '../photo';
 import { COLORS } from '../theme';
 
+// {id, name} rather than {value, label} - SearchableSelect (the same
+// tap-to-open dropdown used for Crop/Variety/Village elsewhere) expects
+// that shape, and it replaces the native Picker here since the OS-default
+// dropdown didn't match the rest of the app's UI (same feedback that
+// already moved Disease/Pest off the native picker).
 const TRAINING_TYPES = [
-  { value: 'classroom', label: 'Classroom / Theory' },
-  { value: 'field_based', label: 'Field-Based / Practical' },
-  { value: 'mixed', label: 'Mixed (Both)' },
+  { id: 'classroom', name: 'Classroom / Theory' },
+  { id: 'field_based', name: 'Field-Based / Practical' },
+  { id: 'mixed', name: 'Mixed (Both)' },
 ];
 const MAT_USED_OPTIONS = [
-  { value: 'ext_material_only', label: 'Extension Material Only' },
-  { value: 'training_material_only', label: 'Training Material Only' },
-  { value: 'both', label: 'Both' },
-  { value: 'none', label: 'None' },
+  { id: 'ext_material_only', name: 'Extension Material Only' },
+  { id: 'training_material_only', name: 'Training Material Only' },
+  { id: 'both', name: 'Both' },
+  { id: 'none', name: 'None' },
 ];
 const GENDER_INTERACTIONS = [
-  { value: 'both_interacted', label: 'Both Interacted' },
-  { value: 'only_male', label: 'Only Male' },
-  { value: 'only_female', label: 'Only Female' },
-  { value: 'no_interaction', label: 'No Interaction' },
+  { id: 'both_interacted', name: 'Both Interacted' },
+  { id: 'only_male', name: 'Only Male' },
+  { id: 'only_female', name: 'Only Female' },
+  { id: 'no_interaction', name: 'No Interaction' },
 ];
 const SEATING_OPTIONS = [
-  { value: 'equal', label: 'Equal / No Issues' },
-  { value: 'discriminatory', label: 'Discrimination Observed' },
+  { id: 'equal', name: 'Equal / No Issues' },
+  { id: 'discriminatory', name: 'Discrimination Observed' },
 ];
 
 const PHONE_LIKE = /^\d{6,}$/;
@@ -40,11 +45,11 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
   const [existingFarmer, setExistingFarmer] = useState(null);
   const [existingPlots, setExistingPlots] = useState([]);
 
-  const [trainingType, setTrainingType] = useState(TRAINING_TYPES[0].value);
-  const [extMaterialUsed, setExtMaterialUsed] = useState(MAT_USED_OPTIONS[0].value);
+  const [trainingType, setTrainingType] = useState(TRAINING_TYPES[0].id);
+  const [extMaterialUsed, setExtMaterialUsed] = useState(MAT_USED_OPTIONS[0].id);
   const [interactionQuality, setInteractionQuality] = useState(null);
-  const [genderInteraction, setGenderInteraction] = useState(GENDER_INTERACTIONS[0].value);
-  const [seating, setSeating] = useState(SEATING_OPTIONS[0].value);
+  const [genderInteraction, setGenderInteraction] = useState(GENDER_INTERACTIONS[0].id);
+  const [seating, setSeating] = useState(SEATING_OPTIONS[0].id);
   const [remarks, setRemarks] = useState('');
   const [photo, setPhoto] = useState(null);
 
@@ -149,43 +154,15 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
 
       <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
-      <Text style={styles.label}>Type of Training</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={trainingType} onValueChange={setTrainingType}>
-          {TRAINING_TYPES.map((t) => (
-            <Picker.Item key={t.value} label={t.label} value={t.value} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect label="Type of Training" options={TRAINING_TYPES} value={trainingType} onChange={setTrainingType} />
 
-      <Text style={styles.label}>Extension Materials Used?</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={extMaterialUsed} onValueChange={setExtMaterialUsed}>
-          {MAT_USED_OPTIONS.map((o) => (
-            <Picker.Item key={o.value} label={o.label} value={o.value} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect label="Extension Materials Used?" options={MAT_USED_OPTIONS} value={extMaterialUsed} onChange={setExtMaterialUsed} />
 
       <RatingSelect label="Farmer Interaction Quality" value={interactionQuality} onChange={setInteractionQuality} />
 
-      <Text style={styles.label}>Gender Interaction</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={genderInteraction} onValueChange={setGenderInteraction}>
-          {GENDER_INTERACTIONS.map((o) => (
-            <Picker.Item key={o.value} label={o.label} value={o.value} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect label="Gender Interaction" options={GENDER_INTERACTIONS} value={genderInteraction} onChange={setGenderInteraction} />
 
-      <Text style={styles.label}>Seating Arrangement</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={seating} onValueChange={setSeating}>
-          {SEATING_OPTIONS.map((o) => (
-            <Picker.Item key={o.value} label={o.label} value={o.value} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect label="Seating Arrangement" options={SEATING_OPTIONS} value={seating} onChange={setSeating} />
 
       <Text style={styles.label}>Observations & Remarks</Text>
       <TextInput
@@ -224,7 +201,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
-  pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
   existingBanner: { backgroundColor: COLORS.primarySoft, borderRadius: 8, padding: 12, marginTop: 10 },
   existingBannerTitle: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13, marginBottom: 4 },
   existingBannerLine: { color: COLORS.primaryDark, fontSize: 13, marginTop: 2 },
