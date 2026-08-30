@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View } from 'react-native';
 import { listCrops, listVarieties } from '../api';
+import SearchableSelect from './SearchableSelect';
 
 export default function CropVarietyPicker({ token, onChange }) {
   const [crops, setCrops] = useState([]);
@@ -25,34 +25,23 @@ export default function CropVarietyPicker({ token, onChange }) {
 
   return (
     <View>
-      <Text style={styles.label}>Crop</Text>
-      <View style={styles.pickerWrap}>
-        <Picker selectedValue={cropId} onValueChange={setCropId}>
-          <Picker.Item label="-- select crop --" value="" />
-          {crops.map((c) => (
-            <Picker.Item key={c.id} label={c.name} value={c.id} />
-          ))}
-        </Picker>
-      </View>
+      <SearchableSelect
+        label="Crop"
+        placeholder="-- select crop --"
+        options={crops}
+        value={cropId}
+        onChange={setCropId}
+      />
 
       {cropId ? (
-        <>
-          <Text style={styles.label}>Variety</Text>
-          <View style={styles.pickerWrap}>
-            <Picker selectedValue={varietyId} onValueChange={setVarietyId}>
-              <Picker.Item label="-- select variety --" value="" />
-              {varieties.map((v) => (
-                <Picker.Item key={v.id} label={v.name} value={v.id} />
-              ))}
-            </Picker>
-          </View>
-        </>
+        <SearchableSelect
+          label="Variety"
+          placeholder="-- select variety --"
+          options={varieties}
+          value={varietyId}
+          onChange={setVarietyId}
+        />
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
-  pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
-});
