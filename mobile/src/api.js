@@ -25,11 +25,6 @@ export const register = (name, identifier, password, role) =>
 export const login = (identifier, password) =>
   request('/auth/login', { method: 'POST', body: { identifier, password } });
 
-export const listCountries = (token) => request('/locations/countries', { token });
-export const listStates = (token, countryId) => request(`/locations/states?country_id=${countryId}`, { token });
-export const listDistricts = (token, stateId) => request(`/locations/districts?state_id=${stateId}`, { token });
-export const listBlocks = (token, districtId) => request(`/locations/blocks?district_id=${districtId}`, { token });
-export const listVillages = (token, blockId) => request(`/locations/villages?block_id=${blockId}`, { token });
 export const searchVillages = (token, q) => request(`/locations/villages/search?q=${encodeURIComponent(q)}`, { token });
 
 export const listCrops = (token) => request('/master/crops', { token });

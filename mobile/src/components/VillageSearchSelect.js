@@ -98,14 +98,19 @@ export default function VillageSearchSelect({ token, value, selectedLabel, onSel
               data={results}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <Pressable style={styles.optionRow} onPress={() => handleSelect(item)}>
-                  <Text style={styles.optionText}>{item.name}</Text>
-                  <Text style={styles.optionSubText}>
-                    {item.block_name}, {item.district_name}, {item.state_name}, {item.country_name}
-                  </Text>
-                </Pressable>
-              )}
+              renderItem={({ item }) => {
+                const isDuplicateName = results.filter((r) => r.name === item.name).length > 1;
+                return (
+                  <Pressable style={styles.optionRow} onPress={() => handleSelect(item)}>
+                    <Text style={styles.optionText}>{item.name}</Text>
+                    {isDuplicateName ? (
+                      <Text style={styles.optionSubText}>
+                        {item.block_name}, {item.district_name}, {item.state_name}, {item.country_name}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                );
+              }}
             />
           </Pressable>
         </Pressable>

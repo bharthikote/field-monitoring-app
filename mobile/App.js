@@ -118,7 +118,6 @@ export default function App() {
       {screen === 'create' && (
         <CreateDemoPlotScreen
           token={token}
-          user={user}
           initialPhone={createPhone}
           onBack={() => setScreen('lookup')}
           onCreated={(phone) => {
