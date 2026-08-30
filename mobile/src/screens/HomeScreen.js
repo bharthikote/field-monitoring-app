@@ -13,12 +13,6 @@ const ACTIVITIES = [
   { key: 'agriinput', label: 'Agri-Input Dealer Visit' },
 ];
 
-// Team Lead, Supervisor, and Country Manager are the field-activity roles
-// (PRD Section 1) - they get the six-activity menu. TFO's entire role in
-// this system (Phase 1) is viewing/resolving assigned issues (its own
-// bottom tab now); the other five activities stay in the vendor app for TFO.
-const ACTIVITY_ROLES = ['supervisor', 'team_lead', 'country_manager'];
-
 function ActivityCard({ label, onPress }) {
   return (
     <Pressable style={styles.activityCard} onPress={onPress}>
@@ -27,9 +21,13 @@ function ActivityCard({ label, onPress }) {
   );
 }
 
+// Every role except TFO records day-to-day field activities here - TFO's
+// entire role in this system (Phase 1) is viewing/resolving assigned
+// issues (its own bottom tab); the six activities stay in the vendor app
+// for TFO specifically.
 export default function HomeScreen({ user, onFindDemoPlot }) {
   const roleLabel = ROLES.find((r) => r.value === user.role)?.label || user.role;
-  const showActivities = ACTIVITY_ROLES.includes(user.role);
+  const showActivities = user.role !== 'tfo';
 
   const handleActivity = (activity) => {
     if (activity.key === 'demoplot') {
