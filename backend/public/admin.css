@@ -39,7 +39,10 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   top: 0;
   z-index: 50;
 }
-.nav-links a {
+/* Direct child only - a plain nav-links a would also match the links
+   nested inside .nav-dropdown-menu, giving every dropdown item its own
+   border box instead of a clean list. */
+.nav-links > a {
   margin-right: 8px;
   text-decoration: none;
   color: var(--text);
@@ -49,8 +52,8 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   border: 1px solid var(--border-strong);
   transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
-.nav-links a:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
-.nav-links a.active { color: var(--accent-hover); background: var(--accent-soft); border-color: transparent; font-weight: 600; }
+.nav-links > a:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
+.nav-links > a.active { color: var(--accent-hover); background: var(--accent-soft); border-color: transparent; font-weight: 600; }
 
 .nav-dropdown { position: relative; display: inline-block; }
 .nav-dropdown-toggle {
