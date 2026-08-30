@@ -18,9 +18,9 @@ import BottomTabBar from './src/components/BottomTabBar';
 import { loadSession } from './src/session';
 
 // The five root screens the bottom tab bar switches between. The tab bar
-// only shows on these - every drill-down screen (demo plot lookup/create/
-// detail, log visit, raise issue, issue detail) hides it, same as it hides
-// on login/signup/loading.
+// always shows on these; every other drill-down screen hides it (except
+// 'lookup', which shows/hides it based on scroll direction - see
+// lookupTabBarVisible below), same as it hides on login/signup/loading.
 const TAB_SCREENS = ['home', 'issues', 'notifications', 'messaging', 'profile'];
 
 // Mirrors every screen's own onBack prop below, so Android's hardware back
@@ -45,6 +45,11 @@ export default function App() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
+  // Demo Plots is a drill-down screen, not a tab root, but it can still
+  // show the tab bar - scroll down to hide it (more room for the list),
+  // scroll up to bring it back. Reset to visible each time the screen is
+  // entered fresh, so it doesn't start hidden from a previous visit.
+  const [lookupTabBarVisible, setLookupTabBarVisible] = useState(true);
 
   useEffect(() => {
     loadSession().then((session) => {
@@ -96,6 +101,7 @@ export default function App() {
           user={user}
           onFindDemoPlot={() => {
             setLookupPhone('');
+            setLookupTabBarVisible(true);
             setScreen('lookup');
           }}
         />
@@ -105,6 +111,7 @@ export default function App() {
           token={token}
           initialPhone={lookupPhone}
           onBack={() => setScreen('home')}
+          onScrollDirectionChange={setLookupTabBarVisible}
           onCreateNew={(phone) => {
             setCreatePhone(phone);
             setScreen('create');
@@ -184,8 +191,8 @@ export default function App() {
       )}
       </View>
 
-      {user && TAB_SCREENS.includes(screen) && (
-        <BottomTabBar active={screen} onChange={setScreen} />
+      {user && (TAB_SCREENS.includes(screen) || (screen === 'lookup' && lookupTabBarVisible)) && (
+        <BottomTabBar active={TAB_SCREENS.includes(screen) ? screen : 'home'} onChange={setScreen} />
       )}
       <StatusBar style="auto" />
     </View>

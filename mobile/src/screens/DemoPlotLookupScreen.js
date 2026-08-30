@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { searchDemoPlots, listDemoPlots } from '../api';
@@ -23,11 +23,12 @@ const STATUS_COLORS = {
   terminated: { bg: '#fee2e2', text: '#991b1b' },
 };
 
-export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCreateNew, onSelectPlot }) {
+export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onScrollDirectionChange, onCreateNew, onSelectPlot }) {
   const [searchOpen, setSearchOpen] = useState(!!initialPhone);
   const [query, setQuery] = useState(initialPhone || '');
   const [results, setResults] = useState(null);
   const [searchedQuery, setSearchedQuery] = useState(''); // '' means "browsing all"
+  const lastScrollOffset = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,6 +68,23 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
     setSearchOpen(false);
     setQuery('');
     loadAll();
+  };
+
+  // Scrolling down (away from the top) hides the bottom tab bar to give the
+  // list more room; scrolling up, or being near the top, brings it back.
+  // A small threshold avoids flicker from tiny scroll jitter.
+  const handleScroll = (e) => {
+    if (!onScrollDirectionChange) return;
+    const offset = e.nativeEvent.contentOffset.y;
+    const diff = offset - lastScrollOffset.current;
+    if (offset <= 10) {
+      onScrollDirectionChange(true);
+    } else if (diff > 10) {
+      onScrollDirectionChange(false);
+    } else if (diff < -10) {
+      onScrollDirectionChange(true);
+    }
+    lastScrollOffset.current = offset;
   };
 
   useEffect(() => {
@@ -130,6 +148,8 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
         contentContainerStyle={styles.listContent}
         data={results || []}
         keyExtractor={(item) => item.id}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         ListHeaderComponent={
           results !== null && results.length > 0 ? (
             <Text style={styles.sectionLabel}>
