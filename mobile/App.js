@@ -15,17 +15,17 @@ import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
-import NotificationsScreen from './src/screens/NotificationsScreen';
 import MessagingScreen from './src/screens/MessagingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomTabBar from './src/components/BottomTabBar';
 import { loadSession } from './src/session';
 
-// The six root screens the bottom tab bar switches between. The tab bar
+// The five root screens the bottom tab bar switches between. The tab bar
 // always shows on these; every other drill-down screen hides it (except
 // 'lookup', which shows/hides it based on scroll direction - see
 // lookupTabBarVisible below), same as it hides on login/signup/loading.
-const TAB_SCREENS = ['home', 'issues', 'farmers', 'notifications', 'messaging', 'profile'];
+// No separate "Alerts" tab - Issues already serves that purpose for this app.
+const TAB_SCREENS = ['home', 'issues', 'farmers', 'messaging', 'profile'];
 
 // Mirrors every screen's own onBack prop below, so Android's hardware back
 // button and edge-swipe gesture (which fire the same hardwareBackPress
@@ -295,7 +295,6 @@ export default function App() {
           onBack={() => setScreen('issues')}
         />
       )}
-      {screen === 'notifications' && <NotificationsScreen />}
       {screen === 'messaging' && <MessagingScreen />}
       {screen === 'profile' && user && (
         <ProfileScreen user={user} onLoggedOut={() => setScreen('login')} />

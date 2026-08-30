@@ -26,14 +26,6 @@ function Icon({ name, color }) {
       </Svg>
     );
   }
-  if (name === 'notifications') {
-    return (
-      <Svg {...common}>
-        <Path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-        <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </Svg>
-    );
-  }
   if (name === 'messaging') {
     return (
       <Svg {...common}>
@@ -63,7 +55,6 @@ const TABS = [
   { key: 'home', icon: 'home', label: 'Home' },
   { key: 'issues', icon: 'issues', label: 'Issues' },
   { key: 'farmers', icon: 'farmers', label: 'Farmers' },
-  { key: 'notifications', icon: 'notifications', label: 'Alerts' },
   { key: 'messaging', icon: 'messaging', label: 'Messages' },
   { key: 'profile', icon: 'profile', label: 'Profile' },
 ];
