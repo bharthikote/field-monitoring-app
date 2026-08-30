@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { listIssueTypes, listGoodThings, listDiseases, listPests, createVisit } from '../api';
 import { COLORS } from '../theme';
 import MultiSelectField from '../components/MultiSelectField';
+import SearchableSelect from '../components/SearchableSelect';
 
 const DISEASE_TRIGGER = 'Demo Plot Infested by Disease';
 const PEST_TRIGGER = 'Demo Plot Infested by Pests';
@@ -40,34 +40,6 @@ function assetToFormFile(asset) {
   const name = asset.fileName || asset.uri.split('/').pop() || 'photo.jpg';
   const type = asset.mimeType || 'image/jpeg';
   return { uri: asset.uri, name, type };
-}
-
-// One row per selected item: its name, and an optional evidence photo -
-// selection itself now happens in MultiSelectField above this list.
-function SelectedItemPhotos({ items, selectedIds, photos, onPickPhoto }) {
-  if (selectedIds.length === 0) return null;
-  return (
-    <View style={styles.photoList}>
-      {selectedIds.map((id) => {
-        const item = items.find((i) => i.id === id);
-        if (!item) return null;
-        return (
-          <View key={id} style={styles.checkRow}>
-            <Text style={styles.checkLabel}>{item.name}</Text>
-            <View style={styles.photoRow}>
-              {photos[id] ? (
-                <Image source={{ uri: photos[id].uri }} style={styles.thumb} />
-              ) : (
-                <Pressable style={styles.photoBtn} onPress={() => onPickPhoto(id)}>
-                  <Text style={styles.photoBtnText}>+ Evidence Photo (optional)</Text>
-                </Pressable>
-              )}
-            </View>
-          </View>
-        );
-      })}
-    </View>
-  );
 }
 
 export default function LogVisitScreen({ token, plot, onSubmitted }) {
@@ -204,24 +176,19 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
         options={issueTypes}
         selectedIds={selectedIssues}
         onChange={setSelectedIssues}
-      />
-      <SelectedItemPhotos
-        items={issueTypes}
-        selectedIds={selectedIssues}
-        photos={issuePhotos}
-        onPickPhoto={pickIssuePhoto}
+        onPhotoPress={pickIssuePhoto}
+        hasPhoto={(id) => !!issuePhotos[id]}
       />
 
       {showDiseaseSection && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Disease Observation</Text>
-          <View style={styles.pickerWrap}>
-            <Picker selectedValue={diseaseChoice} onValueChange={setDiseaseChoice}>
-              <Picker.Item label="-- select disease --" value="" />
-              {diseases.map((d) => <Picker.Item key={d.id} label={d.name} value={d.id} />)}
-              <Picker.Item label="Other (please specify)" value={OTHER_VALUE} />
-            </Picker>
-          </View>
+          <SearchableSelect
+            label="Disease Observation"
+            placeholder="-- select disease --"
+            options={[...diseases, { id: OTHER_VALUE, name: 'Other (please specify)' }]}
+            value={diseaseChoice}
+            onChange={setDiseaseChoice}
+          />
           {diseaseChoice === OTHER_VALUE && (
             <TextInput
               style={styles.input}
@@ -242,14 +209,13 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
 
       {showPestSection && (
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Pest Observation</Text>
-          <View style={styles.pickerWrap}>
-            <Picker selectedValue={pestChoice} onValueChange={setPestChoice}>
-              <Picker.Item label="-- select pest --" value="" />
-              {pests.map((p) => <Picker.Item key={p.id} label={p.name} value={p.id} />)}
-              <Picker.Item label="Other (please specify)" value={OTHER_VALUE} />
-            </Picker>
-          </View>
+          <SearchableSelect
+            label="Pest Observation"
+            placeholder="-- select pest --"
+            options={[...pests, { id: OTHER_VALUE, name: 'Other (please specify)' }]}
+            value={pestChoice}
+            onChange={setPestChoice}
+          />
           {pestChoice === OTHER_VALUE && (
             <TextInput
               style={styles.input}
@@ -274,12 +240,8 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
         options={goodThings}
         selectedIds={selectedGoodThings}
         onChange={setSelectedGoodThings}
-      />
-      <SelectedItemPhotos
-        items={goodThings}
-        selectedIds={selectedGoodThings}
-        photos={goodThingPhotos}
-        onPickPhoto={pickGoodThingPhoto}
+        onPhotoPress={pickGoodThingPhoto}
+        hasPhoto={(id) => !!goodThingPhotos[id]}
       />
 
       <View style={styles.section}>
@@ -326,18 +288,12 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   section: { marginTop: 24 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
-  photoList: { marginTop: 4 },
-  checkRow: { marginBottom: 12 },
-  checkLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 4 },
-  photoRow: { marginBottom: 8 },
   photoBtn: {
     borderWidth: 1, borderColor: COLORS.primary, borderStyle: 'dashed', borderRadius: 8,
     paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', marginTop: 6,
   },
   photoBtnText: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
-  thumb: { width: 70, height: 70, borderRadius: 8, backgroundColor: '#f1f5f9' },
   thumbLarge: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#f1f5f9', marginTop: 6 },
-  pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, marginTop: 8 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   error: { color: COLORS.danger, marginTop: 20 },

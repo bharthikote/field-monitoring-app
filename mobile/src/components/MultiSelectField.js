@@ -20,10 +20,24 @@ function ChevronIcon({ color }) {
   );
 }
 
+function CameraIcon({ color }) {
+  return (
+    <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <Circle cx="12" cy="13" r="4" />
+    </Svg>
+  );
+}
+
 // A search-filterable multi-select dropdown - selected items show as
 // removable chips above the field, and tapping the field re-opens the
 // picker so more can be added without losing the current selection.
-export default function MultiSelectField({ label, placeholder = '-- select --', options, selectedIds, onChange }) {
+// onPhotoPress/hasPhoto are optional - when given, each chip also gets a
+// camera icon (filled once a photo's attached) for capturing evidence
+// per selected item, right on the chip instead of a separate block.
+export default function MultiSelectField({
+  label, placeholder = '-- select --', options, selectedIds, onChange, onPhotoPress, hasPhoto,
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -51,6 +65,11 @@ export default function MultiSelectField({ label, placeholder = '-- select --', 
           {selectedItems.map((item) => (
             <View key={item.id} style={styles.chip}>
               <Text style={styles.chipText}>{item.name}</Text>
+              {onPhotoPress && (
+                <Pressable onPress={() => onPhotoPress(item.id)} hitSlop={8}>
+                  <CameraIcon color={hasPhoto?.(item.id) ? '#166534' : COLORS.primaryDark} />
+                </Pressable>
+              )}
               <Pressable onPress={() => remove(item.id)} hitSlop={8}>
                 <Text style={styles.chipRemove}>✕</Text>
               </Pressable>
