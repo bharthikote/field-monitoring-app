@@ -11,10 +11,9 @@ const STATUS_COLORS = {
   terminated: { bg: '#fee2e2', text: '#991b1b' },
 };
 const TRAINING_TYPE_LABELS = { classroom: 'Classroom / Theory', field_based: 'Field-Based / Practical', mixed: 'Mixed (Both)' };
+const FIELDDAY_TYPE_LABELS = { practical: 'Practical (Hands-On / Field)', theory: 'Theory (Classroom / Discussion)', both: 'Both Practical & Theory' };
 
-// Matches HomeScreen's six-activity structure - Field Day isn't built yet
-// (its tab always shows the empty state), same "Coming Soon" convention
-// used there for activities without a real flow behind them yet.
+// Matches HomeScreen's six-activity structure.
 const TABS = [
   { key: 'demo', label: 'Demo Plot' },
   { key: 'adoption', label: 'Adoption' },
@@ -23,14 +22,29 @@ const TABS = [
 ];
 
 function ActivityCard({ activity, onSelectPlot }) {
-  const isTraining = activity.activityType === 'training';
-  if (isTraining) {
+  if (activity.activityType === 'training') {
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Training — {TRAINING_TYPE_LABELS[activity.training_type]}</Text>
         </View>
         <Text style={styles.cardDate}>{new Date(activity.created_at).toLocaleDateString()}</Text>
+        {activity.remarks ? <Text style={styles.cardLine}>{activity.remarks}</Text> : null}
+        {activity.photo_url ? <Image source={{ uri: activity.photo_url }} style={styles.thumb} /> : null}
+      </View>
+    );
+  }
+  if (activity.activityType === 'fieldday') {
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Field Day — {FIELDDAY_TYPE_LABELS[activity.fieldday_type]}</Text>
+        </View>
+        <Text style={styles.cardDate}>{new Date(activity.created_at).toLocaleDateString()}</Text>
+        <Text style={styles.cardLine}>Expected harvest: {activity.expected_harvest_date}</Text>
+        {activity.sales_team_attended ? (
+          <Text style={styles.cardLine}>Sales visit: {activity.sales_person_name}</Text>
+        ) : null}
         {activity.remarks ? <Text style={styles.cardLine}>{activity.remarks}</Text> : null}
         {activity.photo_url ? <Image source={{ uri: activity.photo_url }} style={styles.thumb} /> : null}
       </View>
@@ -103,7 +117,7 @@ export default function FarmerDetailScreen({ token, farmer, onBack, onSelectPlot
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {!loading && filtered.length === 0 && (
           <Text style={styles.empty}>
-            {activeTab === 'fieldday' ? "Field Day isn't built yet." : `No ${TABS.find((t) => t.key === activeTab).label} activities logged for this farmer yet.`}
+            No {TABS.find((t) => t.key === activeTab).label} activities logged for this farmer yet.
           </Text>
         )}
         {filtered.map((a) => (

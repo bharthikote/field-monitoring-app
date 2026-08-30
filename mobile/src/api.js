@@ -93,6 +93,24 @@ export async function createTraining(token, formData) {
   return data;
 }
 
+export const listFieldDays = (token) => request('/field-days', { token });
+export const getMyFieldDayCount = (token) => request('/field-days/my-count', { token });
+
+// Field days carry a photo, so this posts multipart/form-data directly,
+// same pattern as createTraining.
+export async function createFieldDay(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/field-days`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
+
 export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });

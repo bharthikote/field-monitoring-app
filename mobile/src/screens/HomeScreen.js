@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
-import { getMyVisitCount, getMyTrainingCount } from '../api';
+import { getMyVisitCount, getMyTrainingCount, getMyFieldDayCount } from '../api';
 
 // The six daily field activities - order set per feedback (Demo Plot,
 // Adoption Plot, Training, Field Day, Institutional Visit, Agro Dealer
@@ -92,17 +92,19 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
 // "Coming Soon" until built out.
 const PLOT_ACTIVITY_TYPES = { demoplot: 'demo', adoption: 'adoption' };
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay }) {
   const showActivities = user.role !== 'tfo';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
   const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
   const [trainingCount, setTrainingCount] = useState(null);
+  const [fieldDayCount, setFieldDayCount] = useState(null);
 
   useEffect(() => {
     if (!showActivities) return;
     getMyVisitCount(token, 'demo').then((data) => setDemoPlotCount(data.count)).catch(() => {});
     getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
     getMyTrainingCount(token).then((data) => setTrainingCount(data.count)).catch(() => {});
+    getMyFieldDayCount(token).then((data) => setFieldDayCount(data.count)).catch(() => {});
   }, [token, showActivities]);
 
   const handleActivity = (activity) => {
@@ -115,6 +117,10 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
       onCreateTraining();
       return;
     }
+    if (activity.key === 'fieldday') {
+      onCreateFieldDay();
+      return;
+    }
     Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
   };
 
@@ -122,6 +128,7 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     if (activityKey === 'demoplot') return demoPlotCount;
     if (activityKey === 'adoption') return adoptionPlotCount;
     if (activityKey === 'training') return trainingCount;
+    if (activityKey === 'fieldday') return fieldDayCount;
     return null;
   };
 

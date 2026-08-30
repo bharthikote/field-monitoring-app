@@ -14,6 +14,7 @@ import { reportsRouter } from './routes/reports.js';
 import { visitsRouter } from './routes/visits.js';
 import { issuesRouter } from './routes/issues.js';
 import { trainingsRouter } from './routes/trainings.js';
+import { fieldDaysRouter } from './routes/fieldDays.js';
 import { farmersRouter } from './routes/farmers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ app.use(reportsRouter);
 app.use(visitsRouter);
 app.use(issuesRouter);
 app.use(trainingsRouter);
+app.use(fieldDaysRouter);
 app.use(farmersRouter);
 app.use(express.static(publicDir));
 

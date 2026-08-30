@@ -8,6 +8,7 @@ import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
 import CreateTrainingScreen from './src/screens/CreateTrainingScreen';
+import CreateFieldDayScreen from './src/screens/CreateFieldDayScreen';
 import FarmersListScreen from './src/screens/FarmersListScreen';
 import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
 import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
@@ -40,6 +41,7 @@ const BACK_MAP = {
   'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
   'create-training': 'home',
+  'create-field-day': 'home',
   'create-farmer': 'farmers',
   'farmer-detail': 'farmers',
 };
@@ -120,10 +122,18 @@ export default function App() {
             setScreen('lookup');
           }}
           onCreateTraining={() => setScreen('create-training')}
+          onCreateFieldDay={() => setScreen('create-field-day')}
         />
       )}
       {screen === 'create-training' && (
         <CreateTrainingScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreated={() => setScreen('home')}
+        />
+      )}
+      {screen === 'create-field-day' && (
+        <CreateFieldDayScreen
           token={token}
           onBack={() => setScreen('home')}
           onCreated={() => setScreen('home')}

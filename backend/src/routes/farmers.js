@@ -5,6 +5,7 @@ import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { SELECT_DEMO_PLOTS } from './demoPlots.js';
 import { SELECT_TRAININGS } from './trainings.js';
+import { SELECT_FIELD_DAYS } from './fieldDays.js';
 
 export const farmersRouter = Router();
 farmersRouter.param('id', validateUuidParam);
@@ -123,14 +124,16 @@ farmersRouter.get('/farmers/:id/activities', requireAuth, async (req, res) => {
   if (farmerResult.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
   if (!(await requireCoverage(req, res, farmerResult.rows[0].village_id))) return;
 
-  const [plotsResult, trainingsResult] = await Promise.all([
+  const [plotsResult, trainingsResult, fieldDaysResult] = await Promise.all([
     pool.query(`${SELECT_DEMO_PLOTS} where dp.farmer_id = $1 order by dp.created_at desc`, [req.params.id]),
     pool.query(`${SELECT_TRAININGS} where tr.farmer_id = $1 order by tr.created_at desc`, [req.params.id]),
+    pool.query(`${SELECT_FIELD_DAYS} where fd.farmer_id = $1 order by fd.created_at desc`, [req.params.id]),
   ]);
 
   const activities = [
     ...plotsResult.rows.map((row) => ({ activityType: row.plot_type, ...row })),
     ...trainingsResult.rows.map((row) => ({ activityType: 'training', ...row })),
+    ...fieldDaysResult.rows.map((row) => ({ activityType: 'fieldday', ...row })),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   res.json({ activities });
