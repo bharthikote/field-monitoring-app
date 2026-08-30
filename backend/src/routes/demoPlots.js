@@ -64,6 +64,24 @@ demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `demoStatus must be one of: ${STATUSES.join(', ')}` });
   }
 
+  // Phone number is the farmer's key identifier (PRD Section 5) - the same
+  // number can carry multiple plots (different crops), but only for the
+  // same farmer. A different name on an existing number is almost always
+  // a typo'd number or the wrong farmer, not a second real plot.
+  const existing = await pool.query(
+    'select distinct farmer_name from demo_plots where farmer_phone = $1',
+    [phone],
+  );
+  const nameMatches = existing.rows.some(
+    (row) => row.farmer_name.trim().toLowerCase() === farmerName.trim().toLowerCase(),
+  );
+  if (existing.rowCount > 0 && !nameMatches) {
+    const names = existing.rows.map((row) => row.farmer_name).join(', ');
+    return res.status(409).json({
+      error: `This phone number is already registered to ${names}. Search for it instead, or double-check the number.`,
+    });
+  }
+
   try {
     const result = await pool.query(
       `insert into demo_plots (farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, created_by)
