@@ -29,12 +29,34 @@ function CameraIcon({ color }) {
   );
 }
 
+// A photo-status badge, not just a recolored icon - a filled green circle
+// with a checkmark reads as "done" at a glance, distinctly different in
+// shape from the plain camera outline, so it's obvious which chips still
+// need a photo when there are several selected at once.
+function PhotoStatusIcon({ hasPhoto }) {
+  if (hasPhoto) {
+    return (
+      <View style={styles.photoBadgeDone}>
+        <Svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+          <Path d="M20 6L9 17l-5-5" />
+        </Svg>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.photoBadgePending}>
+      <CameraIcon color={COLORS.primaryDark} />
+    </View>
+  );
+}
+
 // A search-filterable multi-select dropdown - selected items show as
 // removable chips above the field, and tapping the field re-opens the
 // picker so more can be added without losing the current selection.
 // onPhotoPress/hasPhoto are optional - when given, each chip also gets a
-// camera icon (filled once a photo's attached) for capturing evidence
-// per selected item, right on the chip instead of a separate block.
+// photo-status badge (plain camera outline -> filled green checkmark once
+// attached) for capturing evidence per selected item, right on the chip
+// instead of a separate block.
 export default function MultiSelectField({
   label, placeholder = '-- select --', options, selectedIds, onChange, onPhotoPress, hasPhoto,
 }) {
@@ -67,7 +89,7 @@ export default function MultiSelectField({
               <Text style={styles.chipText}>{item.name}</Text>
               {onPhotoPress && (
                 <Pressable onPress={() => onPhotoPress(item.id)} hitSlop={8}>
-                  <CameraIcon color={hasPhoto?.(item.id) ? '#166534' : COLORS.primaryDark} />
+                  <PhotoStatusIcon hasPhoto={!!hasPhoto?.(item.id)} />
                 </Pressable>
               )}
               <Pressable onPress={() => remove(item.id)} hitSlop={8}>
@@ -135,6 +157,11 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, color: COLORS.primaryDark, fontWeight: '600' },
   chipRemove: { fontSize: 13, color: COLORS.primaryDark },
+  photoBadgeDone: {
+    width: 20, height: 20, borderRadius: 10, backgroundColor: '#16a34a',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  photoBadgePending: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
   field: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12,
