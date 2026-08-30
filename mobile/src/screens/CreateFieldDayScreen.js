@@ -25,6 +25,7 @@ const YES_NO_OPTIONS = [
 ];
 
 const PHONE_LIKE = /^\d{6,}$/;
+const DATE_LIKE = /^\d{4}-\d{2}-\d{2}$/;
 const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 
@@ -87,6 +88,10 @@ export default function CreateFieldDayScreen({ token, onBack, onCreated }) {
   const handleSubmit = async () => {
     if (!farmerName || !phone || !villageId || !interactionQuality || !expectedHarvestDate || !photo) {
       setError('Please fill in farmer name, phone, village, interaction quality, harvest date, and add a photo.');
+      return;
+    }
+    if (!DATE_LIKE.test(expectedHarvestDate)) {
+      setError('Please enter the harvest date as YYYY-MM-DD.');
       return;
     }
     if (salesTeamDidAttend && !salesPersonName.trim()) {

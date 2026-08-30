@@ -28,8 +28,7 @@
           "photosPermission": "Allow Field Monitoring to access your photos to attach evidence for a visit.",
           "cameraPermission": "Allow Field Monitoring to access your camera to take evidence photos for a visit."
         }
-      ],
-      "@react-native-community/datetimepicker"
+      ]
     ]
   }
 }
