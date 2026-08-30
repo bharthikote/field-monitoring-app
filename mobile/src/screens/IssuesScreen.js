@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { listIssuesAssignedToMe, listIssuesRaisedByMe } from '../api';
+import { COLORS } from '../theme';
 
 const STATUS_LABELS = {
   raised: 'Unassigned',
@@ -112,11 +113,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
   tabRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 8, marginBottom: 8 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
-  tabActive: { backgroundColor: '#2563eb' },
+  tabActive: { backgroundColor: COLORS.primary },
   tabText: { color: '#334155', fontWeight: '600', fontSize: 13 },
   tabTextActive: { color: '#fff' },
   list: { padding: 24, paddingTop: 8 },
-  error: { color: '#dc2626', marginTop: 12, marginHorizontal: 24 },
+  error: { color: COLORS.danger, marginTop: 12, marginHorizontal: 24 },
   empty: { color: '#888', marginTop: 12, marginHorizontal: 24 },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 12 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

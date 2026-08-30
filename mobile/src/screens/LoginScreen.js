@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { login } from '../api';
 import { saveSession } from '../session';
+import { COLORS } from '../theme';
 
 export default function LoginScreen({ onGoToSignUp, onLoggedIn }) {
   const [identifier, setIdentifier] = useState('');
@@ -65,8 +66,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', marginBottom: 24 },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
-  button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
+  button: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  link: { color: '#2563eb', textAlign: 'center', marginTop: 16 },
+  link: { color: COLORS.primary, textAlign: 'center', marginTop: 16 },
   forgotLink: { color: '#888', textAlign: 'center', marginTop: 20, fontSize: 13 },
 });

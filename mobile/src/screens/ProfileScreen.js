@@ -1,6 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { clearSession } from '../session';
 import { ROLES } from '../roles';
+import { COLORS } from '../theme';
 
 function Field({ label, value }) {
   return (
@@ -44,6 +45,6 @@ const styles = StyleSheet.create({
   fieldRow: { padding: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   fieldLabel: { fontSize: 12, color: '#888', textTransform: 'uppercase', marginBottom: 3 },
   fieldValue: { fontSize: 16, color: '#111' },
-  button: { backgroundColor: '#dc2626', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 28 },
+  button: { backgroundColor: COLORS.danger, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 28 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

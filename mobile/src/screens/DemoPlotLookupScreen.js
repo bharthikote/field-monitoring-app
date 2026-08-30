@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { searchDemoPlots, listDemoPlots } from '../api';
+import { COLORS } from '../theme';
 
 const PHONE_LIKE = /^\d{6,}$/;
 
@@ -138,7 +139,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 100 },
-  back: { color: '#2563eb', marginBottom: 16 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   label: { fontSize: 13, color: '#555', marginBottom: 4 },
   phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   clearButton: { position: 'absolute', right: 8, padding: 8 },
   clearButtonText: { fontSize: 16, color: '#888' },
   searchButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   searchButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
-  error: { color: '#dc2626', marginTop: 12 },
+  error: { color: COLORS.danger, marginTop: 12 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10 },
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2563eb',
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,

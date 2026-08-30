@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import { createDemoPlot } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
+import { COLORS } from '../theme';
 
 const STATUSES = [
   { value: 'ongoing', label: 'Ongoing' },
@@ -91,11 +92,11 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
 
 const styles = StyleSheet.create({
   container: { padding: 24, paddingBottom: 60 },
-  back: { color: '#2563eb', marginBottom: 16 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
-  button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
+  button: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert
 import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { listIssueTypes, listAssignableUsers, raiseIssue } from '../api';
+import { COLORS } from '../theme';
 
 async function pickPhoto() {
   return new Promise((resolve) => {
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 60 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  back: { color: '#2563eb', marginBottom: 16 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700' },
   subLine: { color: '#555', marginTop: 4, marginBottom: 8 },
   section: { marginTop: 24 },
@@ -173,16 +174,16 @@ const styles = StyleSheet.create({
     width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: '#bbb',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  checkboxChecked: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '700' },
   holdLabel: { fontSize: 15 },
   photoBtn: {
-    borderWidth: 1, borderColor: '#2563eb', borderStyle: 'dashed', borderRadius: 8,
+    borderWidth: 1, borderColor: COLORS.primary, borderStyle: 'dashed', borderRadius: 8,
     paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', marginTop: 6,
   },
-  photoBtnText: { color: '#2563eb', fontSize: 13, fontWeight: '600' },
+  photoBtnText: { color: COLORS.primary, fontSize: 13, fontWeight: '600' },
   thumbLarge: { width: '100%', height: 180, borderRadius: 8, backgroundColor: '#f1f5f9', marginTop: 6 },
-  error: { color: '#dc2626', marginTop: 20 },
-  submitButton: { backgroundColor: '#16a34a', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
+  error: { color: COLORS.danger, marginTop: 20 },
+  submitButton: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   submitButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });

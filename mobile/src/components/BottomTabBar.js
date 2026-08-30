@@ -1,9 +1,10 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
+import { COLORS } from '../theme';
 
 // Same minimal line-icon language as the web admin panel's nav icons
-// (24x24, stroke-based, no fill) - just the accent green instead of blue.
-const ACTIVE_COLOR = '#4f8b5b';
+// (24x24, stroke-based, no fill), same accent color too.
+const ACTIVE_COLOR = COLORS.primary;
 const INACTIVE_COLOR = '#9ca3af';
 
 function Icon({ name, color }) {

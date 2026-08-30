@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, Alert, ActivityIndicator 
 import { Picker } from '@react-native-picker/picker';
 import { register } from '../api';
 import { ROLES } from '../roles';
+import { COLORS } from '../theme';
 
 export default function SignUpScreen({ onGoToLogin }) {
   const [name, setName] = useState('');
@@ -76,7 +77,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
-  button: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
+  button: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  link: { color: '#2563eb', textAlign: 'center', marginTop: 16 },
+  link: { color: COLORS.primary, textAlign: 'center', marginTop: 16 },
 });

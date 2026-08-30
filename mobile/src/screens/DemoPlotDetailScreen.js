@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { listVisits } from '../api';
+import { COLORS } from '../theme';
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 const STATUS_COLORS = {
@@ -126,21 +127,21 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onLogV
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 60 },
-  back: { color: '#2563eb', marginBottom: 16 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '700', flex: 1, marginRight: 8 },
   subLine: { color: '#555', marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  logVisitButton: { backgroundColor: '#2563eb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
+  logVisitButton: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
   logVisitButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   raiseIssueButton: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#dc2626', borderRadius: 8,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: COLORS.danger, borderRadius: 8,
     padding: 14, alignItems: 'center', marginTop: 10,
   },
-  raiseIssueButtonText: { color: '#dc2626', fontWeight: '600', fontSize: 16 },
+  raiseIssueButtonText: { color: COLORS.danger, fontWeight: '600', fontSize: 16 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 28, marginBottom: 8, textTransform: 'uppercase' },
-  error: { color: '#dc2626', marginTop: 12 },
+  error: { color: COLORS.danger, marginTop: 12 },
   empty: { color: '#888' },
   visitCard: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 12 },
   visitDate: { fontWeight: '700', fontSize: 14 },

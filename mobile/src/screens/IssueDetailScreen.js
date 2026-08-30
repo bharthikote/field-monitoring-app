@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, TextInput, Image, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { getIssue, listAssignableUsers, assignIssue, startIssue, resolveIssue, verifyIssue } from '../api';
+import { COLORS } from '../theme';
 
 const STATUS_LABELS = {
   raised: 'Unassigned',
@@ -144,7 +145,7 @@ export default function IssueDetailScreen({ token, user, issueId, onBack }) {
           disabled={busy}
           onPress={() => runAction(() => startIssue(token, issue.id))}
         >
-          {busy ? <ActivityIndicator color="#2563eb" /> : <Text style={styles.secondaryButtonText}>Start Work</Text>}
+          {busy ? <ActivityIndicator color={COLORS.primary} /> : <Text style={styles.secondaryButtonText}>Start Work</Text>}
         </Pressable>
       )}
 
@@ -208,7 +209,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 60 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  back: { color: '#2563eb', marginBottom: 16 },
+  back: { color: COLORS.primary, marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 20, fontWeight: '700', flex: 1, marginRight: 8 },
   subLine: { color: '#555', marginTop: 4 },
@@ -221,11 +222,11 @@ const styles = StyleSheet.create({
   pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   multiline: { minHeight: 70, textAlignVertical: 'top' },
-  error: { color: '#dc2626', marginTop: 16 },
-  actionButton: { backgroundColor: '#16a34a', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
+  error: { color: COLORS.danger, marginTop: 16 },
+  actionButton: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 12 },
   actionButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  secondaryButton: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#2563eb', marginTop: 24 },
-  secondaryButtonText: { color: '#2563eb', fontWeight: '700', fontSize: 16 },
-  dangerButton: { backgroundColor: '#fee2e2' },
-  dangerButtonText: { color: '#991b1b', fontWeight: '700', fontSize: 16 },
+  secondaryButton: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: COLORS.primary, marginTop: 24 },
+  secondaryButtonText: { color: COLORS.primary, fontWeight: '700', fontSize: 16 },
+  dangerButton: { backgroundColor: COLORS.dangerSoft },
+  dangerButtonText: { color: COLORS.danger, fontWeight: '700', fontSize: 16 },
 });
