@@ -33,12 +33,21 @@ demoPlotsRouter.get('/demo-plots', requireAuth, async (req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
+const PHONE_LIKE = /^\d{6,}$/;
+
 demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'q is required' });
 
-  const params = [`%${q}%`];
-  let whereClause = `(dp.farmer_name ilike $1 or dp.farmer_phone ilike $1 or vi.name ilike $1 or c.name ilike $1 or v.name ilike $1)`;
+  // Phone number is the farmer's exact identifier (PRD Section 5), so a
+  // numeric query is matched exactly against farmer_phone - a substring
+  // match here would wrongly surface any other number sharing a prefix
+  // (e.g. searching "123456789" would also match "1234567891"). A
+  // non-numeric query keeps the broad free-text search across every field.
+  const params = [PHONE_LIKE.test(q) ? q : `%${q}%`];
+  let whereClause = PHONE_LIKE.test(q)
+    ? `dp.farmer_phone = $1`
+    : `(dp.farmer_name ilike $1 or dp.farmer_phone ilike $1 or vi.name ilike $1 or c.name ilike $1 or v.name ilike $1)`;
 
   if (req.user.role !== 'super_admin') {
     const villageIds = await getCoveredVillageIds(req.user.userId);
