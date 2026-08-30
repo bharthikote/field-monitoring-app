@@ -97,17 +97,18 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRais
           <Text style={styles.back}>{'< Back'}</Text>
         </Pressable>
 
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{plot.farmer_name}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[plot.demo_status].bg }]}>
-            <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[plot.demo_status].text }]}>
-              {STATUS_LABELS[plot.demo_status]}
-            </Text>
+        <View style={styles.infoBox}>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>{plot.farmer_name}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[plot.demo_status].bg }]}>
+              <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[plot.demo_status].text }]}>
+                {STATUS_LABELS[plot.demo_status]}
+              </Text>
+            </View>
           </View>
+          <Text style={styles.subLine}>{plot.farmer_phone} · {plot.crop_name} — {plot.variety_name}</Text>
+          <Text style={styles.villageLine}>{plot.village_name}</Text>
         </View>
-        <Text style={styles.subLine}>{plot.farmer_phone}</Text>
-        <Text style={styles.subLine}>{plot.crop_name} — {plot.variety_name}</Text>
-        <Text style={styles.subLine}>{plot.village_name}</Text>
 
         {CAN_RAISE_ISSUES.includes(user.role) && (
           <Pressable style={styles.raiseIssueButton} onPress={() => onRaiseIssue(plot)}>
@@ -145,11 +146,13 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRais
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 24, paddingBottom: 0 },
+  header: { padding: 24, paddingBottom: 20 },
   back: { color: COLORS.primary, marginBottom: 16 },
+  infoBox: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 22, fontWeight: '700', flex: 1, marginRight: 8 },
-  subLine: { color: '#555', marginTop: 2 },
+  title: { fontSize: 20, fontWeight: '700', flex: 1, marginRight: 8 },
+  subLine: { color: '#555', marginTop: 4, fontSize: 13 },
+  villageLine: { color: '#555', marginTop: 6, fontSize: 13, textAlign: 'right' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   raiseIssueButton: {
