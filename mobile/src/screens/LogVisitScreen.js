@@ -4,6 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import { listIssueTypes, listGoodThings, listDiseases, listPests, createVisit } from '../api';
 import { COLORS } from '../theme';
+import MultiSelectField from '../components/MultiSelectField';
 
 const DISEASE_TRIGGER = 'Demo Plot Infested by Disease';
 const PEST_TRIGGER = 'Demo Plot Infested by Pests';
@@ -41,33 +42,27 @@ function assetToFormFile(asset) {
   return { uri: asset.uri, name, type };
 }
 
-// One row per item (issue or good-thing): a checkbox, and once checked,
-// an optional evidence photo - matches the current Kobo form exactly.
-function ChecklistWithPhotos({ title, items, selectedIds, onToggle, photos, onPickPhoto }) {
+// One row per selected item: its name, and an optional evidence photo -
+// selection itself now happens in MultiSelectField above this list.
+function SelectedItemPhotos({ items, selectedIds, photos, onPickPhoto }) {
+  if (selectedIds.length === 0) return null;
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{title}</Text>
-      {items.map((item) => {
-        const checked = selectedIds.includes(item.id);
+    <View style={styles.photoList}>
+      {selectedIds.map((id) => {
+        const item = items.find((i) => i.id === id);
+        if (!item) return null;
         return (
-          <View key={item.id} style={styles.checkRow}>
-            <Pressable style={styles.checkRowMain} onPress={() => onToggle(item.id)}>
-              <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-                {checked && <Text style={styles.checkboxTick}>✓</Text>}
-              </View>
-              <Text style={styles.checkLabel}>{item.name}</Text>
-            </Pressable>
-            {checked && (
-              <View style={styles.photoRow}>
-                {photos[item.id] ? (
-                  <Image source={{ uri: photos[item.id].uri }} style={styles.thumb} />
-                ) : (
-                  <Pressable style={styles.photoBtn} onPress={() => onPickPhoto(item.id)}>
-                    <Text style={styles.photoBtnText}>+ Evidence Photo (optional)</Text>
-                  </Pressable>
-                )}
-              </View>
-            )}
+          <View key={id} style={styles.checkRow}>
+            <Text style={styles.checkLabel}>{item.name}</Text>
+            <View style={styles.photoRow}>
+              {photos[id] ? (
+                <Image source={{ uri: photos[id].uri }} style={styles.thumb} />
+              ) : (
+                <Pressable style={styles.photoBtn} onPress={() => onPickPhoto(id)}>
+                  <Text style={styles.photoBtnText}>+ Evidence Photo (optional)</Text>
+                </Pressable>
+              )}
+            </View>
           </View>
         );
       })}
@@ -75,7 +70,7 @@ function ChecklistWithPhotos({ title, items, selectedIds, onToggle, photos, onPi
   );
 }
 
-export default function LogVisitScreen({ token, plot, onBack, onSubmitted }) {
+export default function LogVisitScreen({ token, plot, onSubmitted }) {
   const [issueTypes, setIssueTypes] = useState([]);
   const [goodThings, setGoodThings] = useState([]);
   const [diseases, setDiseases] = useState([]);
@@ -126,13 +121,6 @@ export default function LogVisitScreen({ token, plot, onBack, onSubmitted }) {
   const pestIssueId = issueTypes.find((i) => i.name === PEST_TRIGGER)?.id;
   const showDiseaseSection = diseaseIssueId && selectedIssues.includes(diseaseIssueId);
   const showPestSection = pestIssueId && selectedIssues.includes(pestIssueId);
-
-  const toggleIssue = (id) => {
-    setSelectedIssues((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
-  const toggleGoodThing = (id) => {
-    setSelectedGoodThings((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  };
 
   const pickIssuePhoto = async (id) => {
     const asset = await pickPhoto();
@@ -210,17 +198,16 @@ export default function LogVisitScreen({ token, plot, onBack, onSubmitted }) {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Pressable onPress={onBack}>
-        <Text style={styles.back}>{'< Back'}</Text>
-      </Pressable>
-      <Text style={styles.title}>Log a Visit</Text>
-      <Text style={styles.subLine}>{plot.farmer_name} — {plot.crop_name}</Text>
-
-      <ChecklistWithPhotos
-        title="Issues Observed Today"
+      <MultiSelectField
+        label="Issues Observed Today"
+        placeholder="-- select issues observed --"
+        options={issueTypes}
+        selectedIds={selectedIssues}
+        onChange={setSelectedIssues}
+      />
+      <SelectedItemPhotos
         items={issueTypes}
         selectedIds={selectedIssues}
-        onToggle={toggleIssue}
         photos={issuePhotos}
         onPickPhoto={pickIssuePhoto}
       />
@@ -281,11 +268,16 @@ export default function LogVisitScreen({ token, plot, onBack, onSubmitted }) {
         </View>
       )}
 
-      <ChecklistWithPhotos
-        title="Good Things Observed Today"
+      <MultiSelectField
+        label="Good Things Observed Today"
+        placeholder="-- select good things observed --"
+        options={goodThings}
+        selectedIds={selectedGoodThings}
+        onChange={setSelectedGoodThings}
+      />
+      <SelectedItemPhotos
         items={goodThings}
         selectedIds={selectedGoodThings}
-        onToggle={toggleGoodThing}
         photos={goodThingPhotos}
         onPickPhoto={pickGoodThingPhoto}
       />
@@ -332,21 +324,12 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 60 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  back: { color: COLORS.primary, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700' },
-  subLine: { color: '#555', marginTop: 4, marginBottom: 8 },
   section: { marginTop: 24 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
-  checkRow: { marginBottom: 4 },
-  checkRowMain: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: '#bbb',
-    alignItems: 'center', justifyContent: 'center', marginRight: 10,
-  },
-  checkboxChecked: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  checkboxTick: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  checkLabel: { fontSize: 15, flex: 1 },
-  photoRow: { marginLeft: 32, marginBottom: 8 },
+  photoList: { marginTop: 4 },
+  checkRow: { marginBottom: 12 },
+  checkLabel: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 4 },
+  photoRow: { marginBottom: 8 },
   photoBtn: {
     borderWidth: 1, borderColor: COLORS.primary, borderStyle: 'dashed', borderRadius: 8,
     paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', marginTop: 6,

@@ -7,7 +7,6 @@ import HomeScreen from './src/screens/HomeScreen';
 import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
-import LogVisitScreen from './src/screens/LogVisitScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -32,7 +31,6 @@ const BACK_MAP = {
   lookup: 'home',
   create: 'lookup',
   'plot-detail': 'lookup',
-  'log-visit': 'plot-detail',
   'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
 };
@@ -139,22 +137,10 @@ export default function App() {
           user={user}
           plot={selectedPlot}
           onBack={() => setScreen('lookup')}
-          onLogVisit={(plot) => {
-            setSelectedPlot(plot);
-            setScreen('log-visit');
-          }}
           onRaiseIssue={(plot) => {
             setSelectedPlot(plot);
             setScreen('raise-issue');
           }}
-        />
-      )}
-      {screen === 'log-visit' && selectedPlot && (
-        <LogVisitScreen
-          token={token}
-          plot={selectedPlot}
-          onBack={() => setScreen('plot-detail')}
-          onSubmitted={() => setScreen('plot-detail')}
         />
       )}
       {screen === 'raise-issue' && selectedPlot && (

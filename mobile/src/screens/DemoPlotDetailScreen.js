@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { listVisits } from '../api';
 import { COLORS } from '../theme';
+import LogVisitScreen from './LogVisitScreen';
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 const STATUS_COLORS = {
@@ -61,7 +62,8 @@ function VisitCard({ visit }) {
 
 const CAN_RAISE_ISSUES = ['country_manager', 'team_lead', 'supervisor'];
 
-export default function DemoPlotDetailScreen({ token, user, plot, onBack, onLogVisit, onRaiseIssue }) {
+export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRaiseIssue }) {
+  const [tab, setTab] = useState('log-visit');
   const [visits, setVisits] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,9 +85,14 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onLogV
     load();
   }, [load]);
 
+  const handleVisitLogged = () => {
+    setTab('history');
+    load();
+  };
+
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.header}>
         <Pressable onPress={onBack}>
           <Text style={styles.back}>{'< Back'}</Text>
         </Pressable>
@@ -102,45 +109,61 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onLogV
         <Text style={styles.subLine}>{plot.crop_name} — {plot.variety_name}</Text>
         <Text style={styles.subLine}>{plot.village_name}</Text>
 
-        <Pressable style={styles.logVisitButton} onPress={() => onLogVisit(plot)}>
-          <Text style={styles.logVisitButtonText}>Log a Visit</Text>
-        </Pressable>
-
         {CAN_RAISE_ISSUES.includes(user.role) && (
           <Pressable style={styles.raiseIssueButton} onPress={() => onRaiseIssue(plot)}>
             <Text style={styles.raiseIssueButtonText}>Raise an Issue</Text>
           </Pressable>
         )}
 
-        <Text style={styles.sectionLabel}>Visit History</Text>
-        {loading && <ActivityIndicator style={{ marginTop: 12 }} />}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {!loading && visits && visits.length === 0 && (
-          <Text style={styles.empty}>No visits logged yet.</Text>
-        )}
-        {visits && visits.map((v) => <VisitCard key={v.id} visit={v} />)}
-      </ScrollView>
+        <View style={styles.tabRow}>
+          <Pressable style={[styles.tab, tab === 'log-visit' && styles.tabActive]} onPress={() => setTab('log-visit')}>
+            <Text style={[styles.tabText, tab === 'log-visit' && styles.tabTextActive]}>Log Visit</Text>
+          </Pressable>
+          <Pressable style={[styles.tab, tab === 'history' && styles.tabActive]} onPress={() => setTab('history')}>
+            <Text style={[styles.tabText, tab === 'history' && styles.tabTextActive]}>Visit History</Text>
+          </Pressable>
+        </View>
+      </View>
+
+      {tab === 'log-visit' && (
+        <LogVisitScreen token={token} plot={plot} onSubmitted={handleVisitLogged} />
+      )}
+
+      {tab === 'history' && (
+        <ScrollView style={styles.historyScroll} contentContainerStyle={styles.historyContainer}>
+          {loading && <ActivityIndicator style={{ marginTop: 12 }} />}
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {!loading && visits && visits.length === 0 && (
+            <Text style={styles.empty}>No visits logged yet.</Text>
+          )}
+          {visits && visits.map((v) => <VisitCard key={v.id} visit={v} />)}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 24, paddingBottom: 60 },
+  header: { padding: 24, paddingBottom: 0 },
   back: { color: COLORS.primary, marginBottom: 16 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '700', flex: 1, marginRight: 8 },
   subLine: { color: '#555', marginTop: 2 },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  logVisitButton: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
-  logVisitButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   raiseIssueButton: {
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: COLORS.danger, borderRadius: 8,
-    padding: 14, alignItems: 'center', marginTop: 10,
+    padding: 14, alignItems: 'center', marginTop: 16,
   },
   raiseIssueButtonText: { color: COLORS.danger, fontWeight: '600', fontSize: 16 },
-  sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 28, marginBottom: 8, textTransform: 'uppercase' },
+  tabRow: { flexDirection: 'row', gap: 8, marginTop: 20 },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  tabActive: { backgroundColor: COLORS.primary },
+  tabText: { color: '#334155', fontWeight: '600', fontSize: 13 },
+  tabTextActive: { color: '#fff' },
+  historyScroll: { flex: 1 },
+  historyContainer: { padding: 24, paddingTop: 16, paddingBottom: 60 },
   error: { color: COLORS.danger, marginTop: 12 },
   empty: { color: '#888' },
   visitCard: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 12 },
