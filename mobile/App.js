@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, BackHandler } from 'react-native';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -23,6 +23,20 @@ import { loadSession } from './src/session';
 // on login/signup/loading.
 const TAB_SCREENS = ['home', 'issues', 'notifications', 'messaging', 'profile'];
 
+// Mirrors every screen's own onBack prop below, so Android's hardware back
+// button and edge-swipe gesture (which fire the same hardwareBackPress
+// event) land on the same screen the on-screen "< Back" link would. Root
+// tabs, login, and signup aren't listed - back there falls through to the
+// OS default (minimize/exit), which is the expected behavior on a root screen.
+const BACK_MAP = {
+  lookup: 'home',
+  create: 'lookup',
+  'plot-detail': 'lookup',
+  'log-visit': 'plot-detail',
+  'raise-issue': 'plot-detail',
+  'issue-detail': 'issues',
+};
+
 export default function App() {
   const [screen, setScreen] = useState('loading');
   const [user, setUser] = useState(null);
@@ -43,6 +57,16 @@ export default function App() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      const target = BACK_MAP[screen];
+      if (!target) return false;
+      setScreen(target);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [screen]);
 
   if (screen === 'loading') {
     return (
