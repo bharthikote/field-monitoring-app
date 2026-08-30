@@ -20,20 +20,34 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
   const [status, setStatus] = useState('ongoing');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
+  const submit = async (nameOverride) => {
+    const finalName = nameOverride ?? farmerName;
+    setLoading(true);
+    try {
+      await createDemoPlot(token, { farmerName: finalName, phone, cropId, varietyId, villageId, demoStatus: status });
+      Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: () => onCreated(phone) }]);
+    } catch (err) {
+      if (err.code === 'duplicate_plot') {
+        Alert.alert('Already Exists', err.message, [{ text: 'OK', onPress: () => onCreated(phone) }]);
+      } else if (err.code === 'name_mismatch') {
+        Alert.alert('Already Registered', err.message, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: `Add to ${err.existingFarmerName}`, onPress: () => submit(err.existingFarmerName) },
+        ]);
+      } else {
+        Alert.alert('Failed', err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = () => {
     if (!farmerName || !phone || !cropId || !varietyId || !villageId) {
       Alert.alert('Missing info', 'Please fill in farmer name, phone, crop, variety, and village.');
       return;
     }
-    setLoading(true);
-    try {
-      await createDemoPlot(token, { farmerName, phone, cropId, varietyId, villageId, demoStatus: status });
-      Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: () => onCreated(phone) }]);
-    } catch (err) {
-      Alert.alert('Failed', err.message);
-    } finally {
-      setLoading(false);
-    }
+    submit();
   };
 
   return (

@@ -11,7 +11,10 @@ async function request(path, { method = 'GET', body, token } = {}) {
   });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Something went wrong');
+    const err = new Error(data.error || 'Something went wrong');
+    err.code = data.code;
+    err.existingFarmerName = data.existingFarmerName;
+    throw err;
   }
   return data;
 }
