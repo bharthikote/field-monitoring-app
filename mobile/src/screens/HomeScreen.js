@@ -3,16 +3,16 @@ import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-nati
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
 import { getMyVisitCount } from '../api';
 
-// The six daily field activities, exactly as the Kobo form presents them
-// (same keys/order as its `topic` choice list) - this is the menu every
-// field-activity role sees immediately after login. `solid`/`tint` follow
-// the same paired-color convention already used for status pills
-// elsewhere in the app (e.g. DemoPlotDetailScreen's STATUS_COLORS).
+// The six daily field activities - order set per feedback (Demo Plot,
+// Adoption Plot, Training, Field Day, Institutional Visit, Agro Dealer
+// Visit). `solid`/`tint` follow the same paired-color convention already
+// used for status pills elsewhere in the app (e.g. DemoPlotDetailScreen's
+// STATUS_COLORS).
 const ACTIVITIES = [
-  { key: 'training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
-  { key: 'fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
   { key: 'demoplot', label: 'Demo Plot', icon: 'demoplot', solid: '#16a34a', tint: '#dcfce7' },
   { key: 'adoption', label: 'Adoption Plot', icon: 'adoption', solid: '#d97706', tint: '#fef3c7' },
+  { key: 'training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
+  { key: 'fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
   { key: 'govt', label: 'Institutional Visit', icon: 'govt', solid: '#7c3aed', tint: '#ede9fe' },
   { key: 'agriinput', label: 'Agro Dealer Visit', icon: 'agriinput', solid: '#db2777', tint: '#fce7f3' },
 ];
