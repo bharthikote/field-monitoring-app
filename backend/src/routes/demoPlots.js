@@ -11,11 +11,17 @@ const PLOT_TYPES = ['demo', 'adoption'];
 
 const SELECT_DEMO_PLOTS = `
   select dp.id, dp.farmer_name, dp.farmer_phone, dp.demo_status, dp.plot_type, dp.created_at,
-    c.name as crop_name, v.name as variety_name, vi.name as village_name
+    c.name as crop_name, v.name as variety_name,
+    dp.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
+    s.name as state_name, co.name as country_name
   from demo_plots dp
   join crops c on c.id = dp.crop_id
   join varieties v on v.id = dp.variety_id
   join villages vi on vi.id = dp.village_id
+  join blocks b on b.id = vi.block_id
+  join districts di on di.id = b.district_id
+  join states s on s.id = di.state_id
+  join countries co on co.id = s.country_id
 `;
 
 function plotTypeFromQuery(req) {
@@ -105,7 +111,7 @@ demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
   // same plot type (a demo plot and an adoption plot for the same crop are
   // legitimately different records, not a duplicate).
   const existing = await pool.query(
-    'select farmer_name, crop_id, variety_id, plot_type from demo_plots where farmer_phone = $1',
+    'select farmer_name, crop_id, variety_id, plot_type, village_id from demo_plots where farmer_phone = $1 order by created_at asc',
     [phone],
   );
   const exactDuplicate = existing.rows.find(
@@ -126,6 +132,18 @@ demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
       error: `This phone number is already registered to ${existingFarmerName}.`,
       code: 'name_mismatch',
       existingFarmerName,
+    });
+  }
+
+  // A farmer lives in one village - every plot for the same phone number
+  // must share the village of their earliest plot (existing.rows[0], since
+  // the query above is ordered by created_at). Crop/variety are expected
+  // to vary across a farmer's plots; village isn't.
+  if (existing.rowCount > 0 && existing.rows[0].village_id !== villageId) {
+    return res.status(409).json({
+      error: `${existing.rows[0].farmer_name} is already registered in a different village. A farmer's plots must all be in the same village.`,
+      code: 'village_mismatch',
+      villageId: existing.rows[0].village_id,
     });
   }
 

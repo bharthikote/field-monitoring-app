@@ -25,7 +25,7 @@ function ChevronIcon({ color }) {
 // Country > State > District > Block first. Each result carries its full
 // path (two villages can share a name in different states/countries), so
 // the caller can show it back as a confirmation once picked.
-export default function VillageSearchSelect({ token, value, selectedLabel, onSelect }) {
+export default function VillageSearchSelect({ token, value, selectedLabel, onSelect, disabled }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -51,6 +51,7 @@ export default function VillageSearchSelect({ token, value, selectedLabel, onSel
   }, [query, open, token]);
 
   const handleOpen = () => {
+    if (disabled) return;
     setQuery('');
     setResults([]);
     setOpen(true);
@@ -64,11 +65,11 @@ export default function VillageSearchSelect({ token, value, selectedLabel, onSel
   return (
     <View>
       <Text style={styles.label}>Village</Text>
-      <Pressable style={styles.field} onPress={handleOpen}>
+      <Pressable style={[styles.field, disabled && styles.fieldDisabled]} onPress={handleOpen}>
         <Text style={value ? styles.fieldText : styles.placeholderText} numberOfLines={1}>
           {value ? selectedLabel : '-- search village --'}
         </Text>
-        <ChevronIcon color={COLORS.textMuted} />
+        {!disabled && <ChevronIcon color={COLORS.textMuted} />}
       </Pressable>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
@@ -125,6 +126,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12,
   },
+  fieldDisabled: { backgroundColor: '#f5f5f5' },
   fieldText: { fontSize: 16, color: '#111', flex: 1, marginRight: 8 },
   placeholderText: { fontSize: 16, color: '#999', flex: 1, marginRight: 8 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

@@ -65,6 +65,8 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
           { text: 'Cancel', style: 'cancel' },
           { text: `Add to ${err.existingFarmerName}`, onPress: () => submit(err.existingFarmerName) },
         ]);
+      } else if (err.code === 'village_mismatch') {
+        Alert.alert('Wrong Village', err.message);
       } else {
         Alert.alert('Failed', err.message);
       }
@@ -72,6 +74,18 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
       setLoading(false);
     }
   };
+
+  // A farmer lives in one village - once we know who this is (from an
+  // earlier plot), lock the village field to theirs rather than let a
+  // different one be picked for a new plot by mistake.
+  const lockedVillage = existingPlots?.length > 0 ? {
+    id: existingPlots[0].village_id,
+    name: existingPlots[0].village_name,
+    block_name: existingPlots[0].block_name,
+    district_name: existingPlots[0].district_name,
+    state_name: existingPlots[0].state_name,
+    country_name: existingPlots[0].country_name,
+  } : null;
 
   const handleSubmit = () => {
     if (!farmerName || !phone || !cropId || !varietyId || !villageId) {
@@ -115,7 +129,7 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
         }}
       />
 
-      <LocationPicker token={token} onVillageChange={setVillageId} />
+      <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
       <Text style={styles.label}>Status</Text>
       <View style={styles.pickerWrap}>
