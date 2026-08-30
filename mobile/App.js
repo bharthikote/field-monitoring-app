@@ -64,15 +64,17 @@ export default function App() {
   const [lookupTabBarVisible, setLookupTabBarVisible] = useState(true);
 
   useEffect(() => {
-    loadSession().then((session) => {
-      if (session) {
-        setUser(session.user);
-        setToken(session.token);
-        setScreen('home');
-      } else {
-        setScreen('login');
-      }
-    });
+    loadSession()
+      .then((session) => {
+        if (session) {
+          setUser(session.user);
+          setToken(session.token);
+          setScreen('home');
+        } else {
+          setScreen('login');
+        }
+      })
+      .catch(() => setScreen('login'));
   }, []);
 
   useEffect(() => {
