@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import Svg, { Circle, Line } from 'react-native-svg';
 import { searchDemoPlots, listDemoPlots } from '../api';
 import { COLORS } from '../theme';
+
+// Same lens icon used in the web admin panel's search bars.
+function SearchIcon({ color }) {
+  return (
+    <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="11" cy="11" r="8" />
+      <Line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </Svg>
+  );
+}
 
 const PHONE_LIKE = /^\d{6,}$/;
 
@@ -90,7 +101,7 @@ export default function DemoPlotLookupScreen({ token, initialPhone, onBack, onCr
           </View>
 
           <Pressable style={styles.searchButton} onPress={() => handleSearch()} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.searchButtonText}>Search</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <SearchIcon color="#fff" />}
           </Pressable>
         </View>
 
@@ -150,12 +161,11 @@ const styles = StyleSheet.create({
   searchButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  searchButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
   error: { color: COLORS.danger, marginTop: 12 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
