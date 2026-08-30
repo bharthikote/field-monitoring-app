@@ -1,22 +1,23 @@
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
-import { ROLES } from '../roles';
 
 // The six daily field activities, exactly as the Kobo form presents them
 // (same keys/order as its `topic` choice list) - this is the menu every
-// field-activity role sees immediately after login.
+// field-activity role sees immediately after login. Names for govt/
+// agriinput are shortened per feedback; each gets its own color so the
+// grid is easy to scan at a glance.
 const ACTIVITIES = [
-  { key: 'training', label: 'Training' },
-  { key: 'fieldday', label: 'Field Day' },
-  { key: 'demoplot', label: 'Demo Plot' },
-  { key: 'adoption', label: 'Adoption Plot' },
-  { key: 'govt', label: 'Govt. / Institutional Visit' },
-  { key: 'agriinput', label: 'Agri-Input Dealer Visit' },
+  { key: 'training', label: 'Training', color: '#2563eb' },
+  { key: 'fieldday', label: 'Field Day', color: '#0d9488' },
+  { key: 'demoplot', label: 'Demo Plot', color: '#16a34a' },
+  { key: 'adoption', label: 'Adoption Plot', color: '#d97706' },
+  { key: 'govt', label: 'Institutional Visit', color: '#7c3aed' },
+  { key: 'agriinput', label: 'Agro Dealer Visit', color: '#db2777' },
 ];
 
-function ActivityCard({ label, onPress }) {
+function ActivityCard({ label, color, onPress }) {
   return (
-    <Pressable style={styles.activityCard} onPress={onPress}>
-      <Text style={styles.activityCardText}>{label}</Text>
+    <Pressable style={[styles.activityCard, { borderColor: color }]} onPress={onPress}>
+      <Text style={[styles.activityCardText, { color }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -26,7 +27,6 @@ function ActivityCard({ label, onPress }) {
 // issues (its own bottom tab); the six activities stay in the vendor app
 // for TFO specifically.
 export default function HomeScreen({ user, onFindDemoPlot }) {
-  const roleLabel = ROLES.find((r) => r.value === user.role)?.label || user.role;
   const showActivities = user.role !== 'tfo';
 
   const handleActivity = (activity) => {
@@ -41,8 +41,6 @@ export default function HomeScreen({ user, onFindDemoPlot }) {
     return (
       <View style={styles.centeredContainer}>
         <Text style={styles.title}>Welcome, {user.name}</Text>
-        <Text style={styles.subtitle}>{roleLabel}</Text>
-        <Text style={styles.userCode}>ID: {user.userCode}</Text>
       </View>
     );
   }
@@ -50,13 +48,16 @@ export default function HomeScreen({ user, onFindDemoPlot }) {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Text style={styles.title}>Welcome, {user.name}</Text>
-      <Text style={styles.subtitle}>{roleLabel}</Text>
-      <Text style={styles.userCode}>ID: {user.userCode}</Text>
 
       <Text style={styles.sectionLabel}>What are you monitoring today?</Text>
       <View style={styles.grid}>
         {ACTIVITIES.map((activity) => (
-          <ActivityCard key={activity.key} label={activity.label} onPress={() => handleActivity(activity)} />
+          <ActivityCard
+            key={activity.key}
+            label={activity.label}
+            color={activity.color}
+            onPress={() => handleActivity(activity)}
+          />
         ))}
       </View>
     </ScrollView>
@@ -65,16 +66,14 @@ export default function HomeScreen({ user, onFindDemoPlot }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 24, paddingBottom: 60 },
+  container: { padding: 24, paddingTop: 56, paddingBottom: 60 },
   centeredContainer: { flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center' },
   title: { fontSize: 22, fontWeight: '700' },
-  subtitle: { fontSize: 15, color: '#555', marginTop: 4 },
-  userCode: { fontSize: 13, color: '#888', marginTop: 4, fontFamily: 'monospace' },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   activityCard: {
-    width: '47%', minHeight: 90, borderRadius: 10, borderWidth: 1.5, borderColor: '#2563eb',
+    width: '47%', minHeight: 90, borderRadius: 10, borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center', padding: 12,
   },
-  activityCardText: { color: '#2563eb', fontWeight: '700', fontSize: 15, textAlign: 'center' },
+  activityCardText: { fontWeight: '700', fontSize: 15, textAlign: 'center' },
 });
