@@ -47,6 +47,8 @@ export const listPests = (token) => request('/master/pests', { token });
 export const listVisits = (token, demoPlotId) =>
   request(`/visits?demo_plot_id=${demoPlotId}`, { token });
 
+export const getMyVisitCount = (token) => request('/visits/my-count', { token });
+
 // Visits carry photos, so this posts multipart/form-data directly rather
 // than going through the JSON-only `request` helper above.
 export async function createVisit(token, formData) {

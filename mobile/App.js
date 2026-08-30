@@ -92,6 +92,7 @@ export default function App() {
       )}
       {screen === 'home' && user && (
         <HomeScreen
+          token={token}
           user={user}
           onFindDemoPlot={() => {
             setLookupPhone('');

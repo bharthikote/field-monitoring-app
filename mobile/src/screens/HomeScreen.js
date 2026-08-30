@@ -1,23 +1,84 @@
+import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
+import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
+import { getMyVisitCount } from '../api';
 
 // The six daily field activities, exactly as the Kobo form presents them
 // (same keys/order as its `topic` choice list) - this is the menu every
-// field-activity role sees immediately after login. Names for govt/
-// agriinput are shortened per feedback; each gets its own color so the
-// grid is easy to scan at a glance.
+// field-activity role sees immediately after login. `solid`/`tint` follow
+// the same paired-color convention already used for status pills
+// elsewhere in the app (e.g. DemoPlotDetailScreen's STATUS_COLORS).
 const ACTIVITIES = [
-  { key: 'training', label: 'Training', color: '#2563eb' },
-  { key: 'fieldday', label: 'Field Day', color: '#0d9488' },
-  { key: 'demoplot', label: 'Demo Plot', color: '#16a34a' },
-  { key: 'adoption', label: 'Adoption Plot', color: '#d97706' },
-  { key: 'govt', label: 'Institutional Visit', color: '#7c3aed' },
-  { key: 'agriinput', label: 'Agro Dealer Visit', color: '#db2777' },
+  { key: 'training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
+  { key: 'fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
+  { key: 'demoplot', label: 'Demo Plot', icon: 'demoplot', solid: '#16a34a', tint: '#dcfce7' },
+  { key: 'adoption', label: 'Adoption Plot', icon: 'adoption', solid: '#d97706', tint: '#fef3c7' },
+  { key: 'govt', label: 'Institutional Visit', icon: 'govt', solid: '#7c3aed', tint: '#ede9fe' },
+  { key: 'agriinput', label: 'Agro Dealer Visit', icon: 'agriinput', solid: '#db2777', tint: '#fce7f3' },
 ];
 
-function ActivityCard({ label, color, onPress }) {
+function ActivityIcon({ name, color }) {
+  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  if (name === 'training') {
+    return (
+      <Svg {...common}>
+        <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+        <Path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      </Svg>
+    );
+  }
+  if (name === 'fieldday') {
+    return (
+      <Svg {...common}>
+        <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <Line x1="16" y1="2" x2="16" y2="6" />
+        <Line x1="8" y1="2" x2="8" y2="6" />
+        <Line x1="3" y1="10" x2="21" y2="10" />
+      </Svg>
+    );
+  }
+  if (name === 'demoplot') {
+    return (
+      <Svg {...common}>
+        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <Circle cx="12" cy="10" r="3" />
+      </Svg>
+    );
+  }
+  if (name === 'adoption') {
+    return (
+      <Svg {...common}>
+        <Path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+      </Svg>
+    );
+  }
+  if (name === 'govt') {
+    return (
+      <Svg {...common}>
+        <Rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+        <Path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      </Svg>
+    );
+  }
   return (
-    <Pressable style={[styles.activityCard, { borderColor: color }]} onPress={onPress}>
-      <Text style={[styles.activityCardText, { color }]}>{label}</Text>
+    <Svg {...common}>
+      <Path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <Line x1="3" y1="6" x2="21" y2="6" />
+      <Path d="M16 10a4 4 0 0 1-8 0" />
+    </Svg>
+  );
+}
+
+function ActivityCard({ label, icon, solid, tint, count, onPress }) {
+  return (
+    <Pressable style={[styles.activityCard, { backgroundColor: tint }]} onPress={onPress}>
+      <Text style={[styles.activityCardLabel, { color: solid }]}>{label}</Text>
+      <View style={styles.activityCardFooter}>
+        <ActivityIcon name={icon} color={solid} />
+        {count !== null && count !== undefined && (
+          <Text style={[styles.activityCardCount, { color: solid }]}>{count}</Text>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -26,8 +87,14 @@ function ActivityCard({ label, color, onPress }) {
 // entire role in this system (Phase 1) is viewing/resolving assigned
 // issues (its own bottom tab); the six activities stay in the vendor app
 // for TFO specifically.
-export default function HomeScreen({ user, onFindDemoPlot }) {
+export default function HomeScreen({ token, user, onFindDemoPlot }) {
   const showActivities = user.role !== 'tfo';
+  const [demoPlotCount, setDemoPlotCount] = useState(null);
+
+  useEffect(() => {
+    if (!showActivities) return;
+    getMyVisitCount(token).then((data) => setDemoPlotCount(data.count)).catch(() => {});
+  }, [token, showActivities]);
 
   const handleActivity = (activity) => {
     if (activity.key === 'demoplot') {
@@ -55,7 +122,10 @@ export default function HomeScreen({ user, onFindDemoPlot }) {
           <ActivityCard
             key={activity.key}
             label={activity.label}
-            color={activity.color}
+            icon={activity.icon}
+            solid={activity.solid}
+            tint={activity.tint}
+            count={activity.key === 'demoplot' ? demoPlotCount : null}
             onPress={() => handleActivity(activity)}
           />
         ))}
@@ -72,8 +142,9 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   activityCard: {
-    width: '47%', minHeight: 90, borderRadius: 10, borderWidth: 1.5,
-    alignItems: 'center', justifyContent: 'center', padding: 12,
+    width: '47%', minHeight: 90, borderRadius: 10, padding: 14, justifyContent: 'space-between',
   },
-  activityCardText: { fontWeight: '700', fontSize: 15, textAlign: 'center' },
+  activityCardLabel: { fontWeight: '700', fontSize: 14, textAlign: 'right' },
+  activityCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  activityCardCount: { fontWeight: '700', fontSize: 16 },
 });

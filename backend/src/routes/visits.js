@@ -79,6 +79,13 @@ async function attachIssuesAndGoodThings(visits) {
   }));
 }
 
+// Powers the count badge on the Home screen's Demo Plot activity card -
+// how many visits this user has personally logged, all-time.
+visitsRouter.get('/visits/my-count', requireAuth, async (req, res) => {
+  const result = await pool.query('select count(*)::int as count from visits where visited_by = $1', [req.user.userId]);
+  res.json({ count: result.rows[0].count });
+});
+
 // Same visibility rule as demo plots themselves: Super Admin sees
 // everything, everyone else is scoped to the villages their location
 // assignments cover.
