@@ -36,11 +36,17 @@ export const listDemoPlots = (token, plotType = 'demo') =>
 export const searchDemoPlots = (token, query, plotType = 'demo') =>
   request(`/demo-plots/search?q=${encodeURIComponent(query)}&plot_type=${plotType}`, { token });
 
-export const getPlotsByPhone = (token, phone) =>
-  request(`/demo-plots/by-phone?phone=${encodeURIComponent(phone)}`, { token });
-
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
+
+export const listFarmers = (token) => request('/farmers', { token });
+export const searchFarmers = (token, query) => request(`/farmers/search?q=${encodeURIComponent(query)}`, { token });
+export const getFarmerByPhone = (token, phone) =>
+  request(`/farmers/by-phone?phone=${encodeURIComponent(phone)}`, { token });
+export const createFarmer = (token, payload) =>
+  request('/farmers', { method: 'POST', body: payload, token });
+export const getFarmer = (token, farmerId) => request(`/farmers/${farmerId}`, { token });
+export const getFarmerActivities = (token, farmerId) => request(`/farmers/${farmerId}/activities`, { token });
 
 export const listIssueTypes = (token) => request('/master/issue-types', { token });
 export const listGoodThings = (token) => request('/master/good-things-observed', { token });

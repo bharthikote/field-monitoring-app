@@ -14,6 +14,7 @@ import { reportsRouter } from './routes/reports.js';
 import { visitsRouter } from './routes/visits.js';
 import { issuesRouter } from './routes/issues.js';
 import { trainingsRouter } from './routes/trainings.js';
+import { farmersRouter } from './routes/farmers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -44,6 +45,7 @@ app.use(reportsRouter);
 app.use(visitsRouter);
 app.use(issuesRouter);
 app.use(trainingsRouter);
+app.use(farmersRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {

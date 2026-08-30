@@ -4,6 +4,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { findFarmerByPhone } from '../db/farmers.js';
 
 export const trainingsRouter = Router();
 
@@ -26,8 +27,8 @@ const MAT_USED_OPTIONS = ['ext_material_only', 'training_material_only', 'both',
 const GENDER_INTERACTIONS = ['both_interacted', 'only_male', 'only_female', 'no_interaction'];
 const SEATING_OPTIONS = ['equal', 'discriminatory'];
 
-const SELECT_TRAININGS = `
-  select tr.id, tr.farmer_name, tr.farmer_phone, tr.training_type, tr.ext_material_used,
+export const SELECT_TRAININGS = `
+  select tr.id, tr.farmer_id, tr.farmer_name, tr.farmer_phone, tr.training_type, tr.ext_material_used,
     tr.interaction_quality, tr.gender_interaction, tr.seating, tr.remarks, tr.photo_url, tr.created_at,
     tr.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
     s.name as state_name, co.name as country_name, u.name as created_by_name
@@ -94,14 +95,43 @@ trainingsRouter.post('/trainings', requireAuth, handleFileUpload, async (req, re
   const photo = fileFor(files, 'photo');
   if (!photo) return res.status(400).json({ error: 'A photo of the training is required' });
 
+  // Phone number is the farmer's key identifier (PRD Section 5) - resolved
+  // against the farmers master table (backend/src/db/farmers.js), same as
+  // demoPlots.js's POST /demo-plots.
+  let farmerId;
+  const existingFarmer = await findFarmerByPhone(phone);
+  if (existingFarmer) {
+    if (existingFarmer.name.trim().toLowerCase() !== farmerName.trim().toLowerCase()) {
+      return res.status(409).json({
+        error: `This phone number is already registered to ${existingFarmer.name}.`,
+        code: 'name_mismatch',
+        existingFarmerName: existingFarmer.name,
+      });
+    }
+    if (existingFarmer.village_id !== villageId) {
+      return res.status(409).json({
+        error: `${existingFarmer.name} is already registered in a different village. A farmer's plots must all be in the same village.`,
+        code: 'village_mismatch',
+        villageId: existingFarmer.village_id,
+      });
+    }
+    farmerId = existingFarmer.id;
+  } else {
+    const created = await pool.query(
+      'insert into farmers (name, phone, village_id, created_by) values ($1, $2, $3, $4) returning id',
+      [farmerName, phone, villageId, req.user.userId],
+    );
+    farmerId = created.rows[0].id;
+  }
+
   try {
     const photoUrl = await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype);
     const result = await pool.query(
-      `insert into trainings (farmer_name, farmer_phone, village_id, training_type, ext_material_used,
+      `insert into trainings (farmer_id, farmer_name, farmer_phone, village_id, training_type, ext_material_used,
          interaction_quality, gender_interaction, seating, remarks, photo_url, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        returning id, farmer_name, farmer_phone, created_at`,
-      [farmerName, phone, villageId, trainingType, extMaterialUsed, quality, genderInteraction, seating, remarks?.trim() || null, photoUrl, req.user.userId],
+      [farmerId, farmerName, phone, villageId, trainingType, extMaterialUsed, quality, genderInteraction, seating, remarks?.trim() || null, photoUrl, req.user.userId],
     );
     res.status(201).json({ training: result.rows[0] });
   } catch (err) {

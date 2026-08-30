@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { createDemoPlot, getPlotsByPhone } from '../api';
+import { createDemoPlot, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
 import { COLORS } from '../theme';
@@ -26,27 +26,34 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
   const [villageId, setVillageId] = useState(null);
   const [status, setStatus] = useState('ongoing');
   const [loading, setLoading] = useState(false);
-  const [existingPlots, setExistingPlots] = useState(null);
+  const [existingFarmer, setExistingFarmer] = useState(null);
+  const [existingPlots, setExistingPlots] = useState([]);
 
   // Phone number is the farmer's key identifier (PRD Section 5) - as soon
-  // as a full number is typed, look up whether it already belongs to
-  // someone, across every plot type, so the person creating this one knows
-  // it's the same farmer before they even submit.
+  // as a full number is typed, look up whether it belongs to a registered
+  // farmer (the farmers master list, so this catches a farmer met only
+  // through Training too, not just an existing plot), so the person
+  // creating this one knows it's the same farmer before they even submit.
   useEffect(() => {
     const trimmed = phone.trim();
     if (!PHONE_LIKE.test(trimmed)) {
-      setExistingPlots(null);
+      setExistingFarmer(null);
+      setExistingPlots([]);
       return undefined;
     }
     const timeout = setTimeout(() => {
-      getPlotsByPhone(token, trimmed)
+      getFarmerByPhone(token, trimmed)
         .then((data) => {
+          setExistingFarmer(data.farmer);
           setExistingPlots(data.demoPlots);
-          if (data.demoPlots.length > 0) {
-            setFarmerName((prev) => (prev.trim() ? prev : data.demoPlots[0].farmer_name));
+          if (data.farmer) {
+            setFarmerName((prev) => (prev.trim() ? prev : data.farmer.name));
           }
         })
-        .catch(() => setExistingPlots(null));
+        .catch(() => {
+          setExistingFarmer(null);
+          setExistingPlots([]);
+        });
     }, 400);
     return () => clearTimeout(timeout);
   }, [phone, token]);
@@ -75,16 +82,16 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
     }
   };
 
-  // A farmer lives in one village - once we know who this is (from an
-  // earlier plot), lock the village field to theirs rather than let a
-  // different one be picked for a new plot by mistake.
-  const lockedVillage = existingPlots?.length > 0 ? {
-    id: existingPlots[0].village_id,
-    name: existingPlots[0].village_name,
-    block_name: existingPlots[0].block_name,
-    district_name: existingPlots[0].district_name,
-    state_name: existingPlots[0].state_name,
-    country_name: existingPlots[0].country_name,
+  // A farmer lives in one village - once we know who this is (a registered
+  // farmer, whether or not they already have a plot), lock the village
+  // field to theirs rather than let a different one be picked by mistake.
+  const lockedVillage = existingFarmer ? {
+    id: existingFarmer.village_id,
+    name: existingFarmer.village_name,
+    block_name: existingFarmer.block_name,
+    district_name: existingFarmer.district_name,
+    state_name: existingFarmer.state_name,
+    country_name: existingFarmer.country_name,
   } : null;
 
   const handleSubmit = () => {
@@ -108,10 +115,12 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
       <Text style={styles.label}>Phone Number</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
 
-      {existingPlots?.length > 0 && (
+      {existingFarmer && (
         <View style={styles.existingBanner}>
           <Text style={styles.existingBannerTitle}>
-            This phone number belongs to {existingPlots[0].farmer_name} — existing plots:
+            {existingPlots.length > 0
+              ? `This phone number belongs to ${existingFarmer.name} — existing plots:`
+              : `${existingFarmer.name} is already registered in ${existingFarmer.village_name}.`}
           </Text>
           {existingPlots.map((p) => (
             <Text key={p.id} style={styles.existingBannerLine}>

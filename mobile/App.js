@@ -8,6 +8,9 @@ import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
 import DemoPlotDetailScreen from './src/screens/DemoPlotDetailScreen';
 import CreateTrainingScreen from './src/screens/CreateTrainingScreen';
+import FarmersListScreen from './src/screens/FarmersListScreen';
+import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
+import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -17,24 +20,28 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import BottomTabBar from './src/components/BottomTabBar';
 import { loadSession } from './src/session';
 
-// The five root screens the bottom tab bar switches between. The tab bar
+// The six root screens the bottom tab bar switches between. The tab bar
 // always shows on these; every other drill-down screen hides it (except
 // 'lookup', which shows/hides it based on scroll direction - see
 // lookupTabBarVisible below), same as it hides on login/signup/loading.
-const TAB_SCREENS = ['home', 'issues', 'notifications', 'messaging', 'profile'];
+const TAB_SCREENS = ['home', 'issues', 'farmers', 'notifications', 'messaging', 'profile'];
 
 // Mirrors every screen's own onBack prop below, so Android's hardware back
 // button and edge-swipe gesture (which fire the same hardwareBackPress
 // event) land on the same screen the on-screen "< Back" link would. Root
 // tabs, login, and signup aren't listed - back there falls through to the
 // OS default (minimize/exit), which is the expected behavior on a root screen.
+// 'plot-detail' isn't listed - it can be reached from either the Demo Plot
+// lookup flow or a farmer's activity list, so it's handled dynamically via
+// plotDetailOrigin below instead of a fixed target.
 const BACK_MAP = {
   lookup: 'home',
   create: 'lookup',
-  'plot-detail': 'lookup',
   'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
   'create-training': 'home',
+  'create-farmer': 'farmers',
+  'farmer-detail': 'farmers',
 };
 
 export default function App() {
@@ -45,6 +52,8 @@ export default function App() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [plotType, setPlotType] = useState('demo');
   const [selectedPlot, setSelectedPlot] = useState(null);
+  const [plotDetailOrigin, setPlotDetailOrigin] = useState('lookup');
+  const [selectedFarmer, setSelectedFarmer] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
@@ -66,13 +75,17 @@ export default function App() {
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (screen === 'plot-detail') {
+        setScreen(plotDetailOrigin);
+        return true;
+      }
       const target = BACK_MAP[screen];
       if (!target) return false;
       setScreen(target);
       return true;
     });
     return () => subscription.remove();
-  }, [screen]);
+  }, [screen, plotDetailOrigin]);
 
   if (screen === 'loading') {
     return (
@@ -129,6 +142,7 @@ export default function App() {
           }}
           onSelectPlot={(plot) => {
             setSelectedPlot(plot);
+            setPlotDetailOrigin('lookup');
             setScreen('plot-detail');
           }}
         />
@@ -150,10 +164,39 @@ export default function App() {
           token={token}
           user={user}
           plot={selectedPlot}
-          onBack={() => setScreen('lookup')}
+          onBack={() => setScreen(plotDetailOrigin)}
           onRaiseIssue={(plot) => {
             setSelectedPlot(plot);
             setScreen('raise-issue');
+          }}
+        />
+      )}
+      {screen === 'farmers' && (
+        <FarmersListScreen
+          token={token}
+          onCreateNew={() => setScreen('create-farmer')}
+          onSelectFarmer={(farmer) => {
+            setSelectedFarmer(farmer);
+            setScreen('farmer-detail');
+          }}
+        />
+      )}
+      {screen === 'create-farmer' && (
+        <CreateFarmerScreen
+          token={token}
+          onBack={() => setScreen('farmers')}
+          onCreated={() => setScreen('farmers')}
+        />
+      )}
+      {screen === 'farmer-detail' && selectedFarmer && (
+        <FarmerDetailScreen
+          token={token}
+          farmer={selectedFarmer}
+          onBack={() => setScreen('farmers')}
+          onSelectPlot={(plot) => {
+            setSelectedPlot(plot);
+            setPlotDetailOrigin('farmer-detail');
+            setScreen('plot-detail');
           }}
         />
       )}

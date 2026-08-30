@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { createTraining, getPlotsByPhone } from '../api';
+import { createTraining, getFarmerByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import RatingSelect from '../components/RatingSelect';
 import { pickPhoto, assetToFormFile } from '../photo';
@@ -37,7 +37,8 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
   const [farmerName, setFarmerName] = useState('');
   const [phone, setPhone] = useState('');
   const [villageId, setVillageId] = useState(null);
-  const [existingPlots, setExistingPlots] = useState(null);
+  const [existingFarmer, setExistingFarmer] = useState(null);
+  const [existingPlots, setExistingPlots] = useState([]);
 
   const [trainingType, setTrainingType] = useState(TRAINING_TYPES[0].value);
   const [extMaterialUsed, setExtMaterialUsed] = useState(MAT_USED_OPTIONS[0].value);
@@ -50,35 +51,41 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Same "this phone already belongs to a known farmer" lookup as Demo
-  // Plot's create form - Training doesn't require an existing plot, but if
-  // one exists, reuse the farmer's name and lock their village.
+  // Same "this phone already belongs to a registered farmer" lookup as
+  // Demo Plot's create form - Training doesn't require an existing plot,
+  // but if the farmer is registered (via a plot or the Farmers tab), reuse
+  // their name and lock their village.
   useEffect(() => {
     const trimmed = phone.trim();
     if (!PHONE_LIKE.test(trimmed)) {
-      setExistingPlots(null);
+      setExistingFarmer(null);
+      setExistingPlots([]);
       return undefined;
     }
     const timeout = setTimeout(() => {
-      getPlotsByPhone(token, trimmed)
+      getFarmerByPhone(token, trimmed)
         .then((data) => {
+          setExistingFarmer(data.farmer);
           setExistingPlots(data.demoPlots);
-          if (data.demoPlots.length > 0) {
-            setFarmerName((prev) => (prev.trim() ? prev : data.demoPlots[0].farmer_name));
+          if (data.farmer) {
+            setFarmerName((prev) => (prev.trim() ? prev : data.farmer.name));
           }
         })
-        .catch(() => setExistingPlots(null));
+        .catch(() => {
+          setExistingFarmer(null);
+          setExistingPlots([]);
+        });
     }, 400);
     return () => clearTimeout(timeout);
   }, [phone, token]);
 
-  const lockedVillage = existingPlots?.length > 0 ? {
-    id: existingPlots[0].village_id,
-    name: existingPlots[0].village_name,
-    block_name: existingPlots[0].block_name,
-    district_name: existingPlots[0].district_name,
-    state_name: existingPlots[0].state_name,
-    country_name: existingPlots[0].country_name,
+  const lockedVillage = existingFarmer ? {
+    id: existingFarmer.village_id,
+    name: existingFarmer.village_name,
+    block_name: existingFarmer.block_name,
+    district_name: existingFarmer.district_name,
+    state_name: existingFarmer.state_name,
+    country_name: existingFarmer.country_name,
   } : null;
 
   const handleSubmit = async () => {
@@ -111,22 +118,26 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Pressable onPress={onBack}>
-        <Text style={styles.back}>{'< Back'}</Text>
-      </Pressable>
-      <Text style={styles.title}>Log Training</Text>
-
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable onPress={onBack}>
+          <Text style={styles.back}>{'< Back'}</Text>
+        </Pressable>
+        <Text style={styles.title}>Log Training</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.label}>Farmer Name</Text>
       <TextInput style={styles.input} value={farmerName} onChangeText={setFarmerName} />
 
       <Text style={styles.label}>Phone Number</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
 
-      {existingPlots?.length > 0 && (
+      {existingFarmer && (
         <View style={styles.existingBanner}>
           <Text style={styles.existingBannerTitle}>
-            This phone number belongs to {existingPlots[0].farmer_name} — existing plots:
+            {existingPlots.length > 0
+              ? `This phone number belongs to ${existingFarmer.name} — existing plots:`
+              : `${existingFarmer.name} is already registered in ${existingFarmer.village_name}.`}
           </Text>
           {existingPlots.map((p) => (
             <Text key={p.id} style={styles.existingBannerLine}>
@@ -199,14 +210,17 @@ export default function CreateTrainingScreen({ token, onBack, onCreated }) {
       <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Save Training</Text>}
       </Pressable>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#fff' },
+  header: { paddingHorizontal: 24, paddingTop: 24 },
   container: { padding: 24, paddingBottom: 60 },
   back: { color: COLORS.primary, marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: '700', marginBottom: 20 },
+  title: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   multiline: { minHeight: 80, textAlignVertical: 'top' },

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { findFarmerByPhone } from '../db/farmers.js';
 
 export const demoPlotsRouter = Router();
 
@@ -9,8 +10,8 @@ const STATUSES = ['ongoing', 'completed', 'terminated'];
 
 const PLOT_TYPES = ['demo', 'adoption'];
 
-const SELECT_DEMO_PLOTS = `
-  select dp.id, dp.farmer_name, dp.farmer_phone, dp.demo_status, dp.plot_type, dp.created_at,
+export const SELECT_DEMO_PLOTS = `
+  select dp.id, dp.farmer_id, dp.farmer_name, dp.farmer_phone, dp.demo_status, dp.plot_type, dp.created_at,
     c.name as crop_name, v.name as variety_name,
     dp.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
     s.name as state_name, co.name as country_name
@@ -81,18 +82,6 @@ demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
-// Every plot (demo AND adoption) already on file for an exact phone number -
-// powers the "this farmer already exists" notice on the create form, so a
-// name/crop/village entered for a known farmer is informed, not a guess.
-// Deliberately unscoped by village coverage, matching creation itself
-// (POST /demo-plots isn't coverage-restricted either).
-demoPlotsRouter.get('/demo-plots/by-phone', requireAuth, async (req, res) => {
-  const { phone } = req.query;
-  if (!phone) return res.status(400).json({ error: 'phone is required' });
-  const result = await pool.query(`${SELECT_DEMO_PLOTS} where dp.farmer_phone = $1 order by dp.created_at`, [phone]);
-  res.json({ demoPlots: result.rows });
-});
-
 demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
   const { farmerName, phone, cropId, varietyId, villageId, demoStatus, plotType } = req.body;
 
@@ -105,54 +94,58 @@ demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
   }
   const type = PLOT_TYPES.includes(plotType) ? plotType : 'demo';
 
-  // Phone number is the farmer's key identifier (PRD Section 5) - the same
-  // number can carry multiple plots (different crops), but only for the
-  // same farmer, and never the exact same crop+variety twice within the
-  // same plot type (a demo plot and an adoption plot for the same crop are
+  // Phone number is the farmer's key identifier (PRD Section 5) - resolved
+  // against the farmers master table (backend/src/db/farmers.js) rather than
+  // scanning demo_plots itself, so a farmer who only has a Training on file
+  // is still recognized here.
+  let farmerId;
+  const existingFarmer = await findFarmerByPhone(phone);
+  if (existingFarmer) {
+    if (existingFarmer.name.trim().toLowerCase() !== farmerName.trim().toLowerCase()) {
+      return res.status(409).json({
+        error: `This phone number is already registered to ${existingFarmer.name}.`,
+        code: 'name_mismatch',
+        existingFarmerName: existingFarmer.name,
+      });
+    }
+    // A farmer lives in one village - every activity for the same phone
+    // number must share their registered village.
+    if (existingFarmer.village_id !== villageId) {
+      return res.status(409).json({
+        error: `${existingFarmer.name} is already registered in a different village. A farmer's plots must all be in the same village.`,
+        code: 'village_mismatch',
+        villageId: existingFarmer.village_id,
+      });
+    }
+    farmerId = existingFarmer.id;
+  } else {
+    const created = await pool.query(
+      'insert into farmers (name, phone, village_id, created_by) values ($1, $2, $3, $4) returning id',
+      [farmerName, phone, villageId, req.user.userId],
+    );
+    farmerId = created.rows[0].id;
+  }
+
+  // Never the exact same crop+variety twice within the same plot type for
+  // the same farmer (a demo plot and an adoption plot for the same crop are
   // legitimately different records, not a duplicate).
-  const existing = await pool.query(
-    'select farmer_name, crop_id, variety_id, plot_type, village_id from demo_plots where farmer_phone = $1 order by created_at asc',
-    [phone],
+  const exactDuplicate = await pool.query(
+    'select id from demo_plots where farmer_id = $1 and crop_id = $2 and variety_id = $3 and plot_type = $4',
+    [farmerId, cropId, varietyId, type],
   );
-  const exactDuplicate = existing.rows.find(
-    (row) => row.crop_id === cropId && row.variety_id === varietyId && row.plot_type === type,
-  );
-  if (exactDuplicate) {
+  if (exactDuplicate.rowCount > 0) {
     return res.status(409).json({
       error: 'This demo plot already exists - same farmer, crop, and variety.',
       code: 'duplicate_plot',
     });
   }
-  const nameMatches = existing.rows.some(
-    (row) => row.farmer_name.trim().toLowerCase() === farmerName.trim().toLowerCase(),
-  );
-  if (existing.rowCount > 0 && !nameMatches) {
-    const existingFarmerName = existing.rows[0].farmer_name;
-    return res.status(409).json({
-      error: `This phone number is already registered to ${existingFarmerName}.`,
-      code: 'name_mismatch',
-      existingFarmerName,
-    });
-  }
-
-  // A farmer lives in one village - every plot for the same phone number
-  // must share the village of their earliest plot (existing.rows[0], since
-  // the query above is ordered by created_at). Crop/variety are expected
-  // to vary across a farmer's plots; village isn't.
-  if (existing.rowCount > 0 && existing.rows[0].village_id !== villageId) {
-    return res.status(409).json({
-      error: `${existing.rows[0].farmer_name} is already registered in a different village. A farmer's plots must all be in the same village.`,
-      code: 'village_mismatch',
-      villageId: existing.rows[0].village_id,
-    });
-  }
 
   try {
     const result = await pool.query(
-      `insert into demo_plots (farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, plot_type, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+      `insert into demo_plots (farmer_id, farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, plot_type, created_by)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        returning id, farmer_name, farmer_phone, demo_status, plot_type, created_at`,
-      [farmerName, phone, cropId, varietyId, villageId, status, type, req.user.userId],
+      [farmerId, farmerName, phone, cropId, varietyId, villageId, status, type, req.user.userId],
     );
     res.status(201).json({ demoPlot: result.rows[0] });
   } catch (err) {
