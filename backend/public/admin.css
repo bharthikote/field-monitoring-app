@@ -41,27 +41,29 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
 }
 /* Direct child only - a plain nav-links a would also match the links
    nested inside .nav-dropdown-menu, giving every dropdown item its own
-   border box instead of a clean list. */
+   border box instead of a clean list. Borderless at rest - the hover
+   tint, active pill, and open state carry enough affordance without a
+   static outline sitting on every item all the time. */
 .nav-links > a {
   margin-right: 8px;
   text-decoration: none;
-  color: var(--text);
+  color: var(--text-muted);
   font-size: 0.88rem;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.nav-links > a:hover { background: var(--bg); color: var(--text); border-color: var(--text-muted); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
-.nav-links > a.active { color: var(--accent-hover); background: var(--accent-soft); border-color: transparent; font-weight: 600; }
+.nav-links > a:hover { background: var(--bg); color: var(--text); }
+.nav-links > a.active { color: var(--accent-hover); background: var(--accent-soft); font-weight: 600; }
 
 .nav-dropdown { position: relative; display: inline-block; }
 .nav-dropdown-toggle {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
+  background: none;
+  border: 1px solid transparent;
   cursor: pointer;
   font-family: inherit;
-  color: var(--text);
+  color: var(--text-muted);
   font-size: 0.88rem;
   padding: 8px 14px;
   border-radius: var(--radius-sm);
@@ -69,11 +71,11 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   align-items: center;
   gap: 8px;
   margin-right: 8px;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.nav-dropdown-toggle:hover { background: var(--bg); border-color: var(--text-muted); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
-.nav-dropdown-toggle.active { color: var(--accent-hover); background: var(--accent-soft); border-color: transparent; font-weight: 600; }
-.nav-dropdown.open .nav-dropdown-toggle { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.nav-dropdown-toggle:hover { background: var(--bg); color: var(--text); }
+.nav-dropdown-toggle.active { color: var(--accent-hover); background: var(--accent-soft); font-weight: 600; }
+.nav-dropdown.open .nav-dropdown-toggle { background: var(--bg); color: var(--text); }
 .nav-caret {
   width: 6px;
   height: 6px;
