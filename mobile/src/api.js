@@ -26,6 +26,7 @@ export const login = (identifier, password) =>
   request('/auth/login', { method: 'POST', body: { identifier, password } });
 
 export const searchVillages = (token, q) => request(`/locations/villages/search?q=${encodeURIComponent(q)}`, { token });
+export const searchLocations = (token, q) => request(`/locations/search?q=${encodeURIComponent(q)}`, { token });
 
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });

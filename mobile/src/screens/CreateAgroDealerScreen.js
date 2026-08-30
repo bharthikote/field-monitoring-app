@@ -1,25 +1,25 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { createAgroDealer, getAgroDealer } from '../api';
-import LocationPicker from '../components/LocationPicker';
+import LocationSearchSelect from '../components/LocationSearchSelect';
 import { COLORS } from '../theme';
 
 export default function CreateAgroDealerScreen({ token, onBack, onCreated }) {
   const [name, setName] = useState('');
-  const [villageId, setVillageId] = useState(null);
+  const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!name.trim() || !villageId) {
-      setError('Please fill in name and village.');
+    if (!name.trim() || !location) {
+      setError('Please fill in name and location.');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      const created = await createAgroDealer(token, { name: name.trim(), villageId });
-      // Re-fetch so onCreated gets the full village breadcrumb, same
+      const created = await createAgroDealer(token, { name: name.trim(), locationLevel: location.level, locationId: location.id });
+      // Re-fetch so onCreated gets the full location breadcrumb, same
       // reasoning as CreateInstitutionScreen/CreateFarmerScreen.
       const full = await getAgroDealer(token, created.agroDealer.id);
       Alert.alert('Agro dealer registered', '', [{ text: 'OK', onPress: () => onCreated(full.agroDealer) }]);
@@ -42,7 +42,7 @@ export default function CreateAgroDealerScreen({ token, onBack, onCreated }) {
         <Text style={styles.label}>Shop / Dealer Name</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} />
 
-        <LocationPicker token={token} onVillageChange={setVillageId} />
+        <LocationSearchSelect token={token} onLocationChange={setLocation} />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

@@ -75,7 +75,7 @@ export default function CreateInstitutionVisitScreen({ token, institution, onBac
         <View style={styles.entityBox}>
           <Text style={styles.entityName}>{institution.name}</Text>
           <Text style={styles.entityLine}>{orgTypeLabel}</Text>
-          <Text style={styles.entityLine}>{institution.village_name}</Text>
+          <Text style={styles.entityLine}>{institution.location_name}</Text>
         </View>
 
         <MultiSelectField

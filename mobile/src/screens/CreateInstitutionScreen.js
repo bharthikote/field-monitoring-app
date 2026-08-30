@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { createInstitution, getInstitution } from '../api';
-import LocationPicker from '../components/LocationPicker';
+import LocationSearchSelect from '../components/LocationSearchSelect';
 import SearchableSelect from '../components/SearchableSelect';
 import { COLORS } from '../theme';
 
@@ -17,13 +17,13 @@ export default function CreateInstitutionScreen({ token, onBack, onCreated }) {
   const [name, setName] = useState('');
   const [orgType, setOrgType] = useState(null);
   const [orgTypeOther, setOrgTypeOther] = useState('');
-  const [villageId, setVillageId] = useState(null);
+  const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!name.trim() || !orgType || !villageId) {
-      setError('Please fill in name, organisation type, and village.');
+    if (!name.trim() || !orgType || !location) {
+      setError('Please fill in name, organisation type, and location.');
       return;
     }
     if (orgType === 'others' && !orgTypeOther.trim()) {
@@ -37,11 +37,12 @@ export default function CreateInstitutionScreen({ token, onBack, onCreated }) {
         name: name.trim(),
         orgType,
         orgTypeOther: orgType === 'others' ? orgTypeOther.trim() : undefined,
-        villageId,
+        locationLevel: location.level,
+        locationId: location.id,
       });
-      // Re-fetch so onCreated gets the full village breadcrumb (POST
+      // Re-fetch so onCreated gets the full location breadcrumb (POST
       // /institutions only returns the bare row) - the caller logs the
-      // visit right after registering, skipping a village pick since the
+      // visit right after registering, skipping a location pick since the
       // institution's is now known.
       const full = await getInstitution(token, created.institution.id);
       Alert.alert('Institution registered', '', [{ text: 'OK', onPress: () => onCreated(full.institution) }]);
@@ -73,7 +74,7 @@ export default function CreateInstitutionScreen({ token, onBack, onCreated }) {
           </>
         )}
 
-        <LocationPicker token={token} onVillageChange={setVillageId} />
+        <LocationSearchSelect token={token} onLocationChange={setLocation} />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

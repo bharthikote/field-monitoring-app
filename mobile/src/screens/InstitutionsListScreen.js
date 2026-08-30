@@ -90,7 +90,7 @@ export default function InstitutionsListScreen({ token, onBack, onCreateNew, onS
                 style={styles.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Name or village"
+                placeholder="Search by name"
                 autoCapitalize="none"
                 autoFocus
               />
@@ -133,7 +133,7 @@ export default function InstitutionsListScreen({ token, onBack, onCreateNew, onS
           <Pressable style={styles.card} onPress={() => onSelectInstitution(institution)}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{institution.name}</Text>
-              <Text style={styles.cardVillage}>{institution.village_name}</Text>
+              <Text style={styles.cardVillage}>{institution.location_name}</Text>
             </View>
           </Pressable>
         )}

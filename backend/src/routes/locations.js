@@ -88,6 +88,51 @@ locationsRouter.get('/locations/villages/search', requireAuth, async (req, res) 
   res.json({ villages: result.rows });
 });
 
+// Search villages, blocks, AND districts by name in one go - used for
+// Institution/Agro Dealer profiles, where the actual place (a KVK,
+// government office, dealer shop) is often a block or district
+// headquarters rather than a village. State/country are deliberately
+// excluded - too broad to be "a place" someone visits.
+locationsRouter.get('/locations/search', requireAuth, async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) return res.json({ locations: [] });
+  const like = `%${q.trim()}%`;
+  const [villages, blocks, districts] = await Promise.all([
+    pool.query(
+      `select v.id, v.name, 'village' as level,
+         b.name as block_name, d.name as district_name, s.name as state_name, c.name as country_name
+       from villages v
+       join blocks b on b.id = v.block_id
+       join districts d on d.id = b.district_id
+       join states s on s.id = d.state_id
+       join countries c on c.id = s.country_id
+       where v.name ilike $1 order by v.name limit 20`,
+      [like],
+    ),
+    pool.query(
+      `select b.id, b.name, 'block' as level,
+         null as block_name, d.name as district_name, s.name as state_name, c.name as country_name
+       from blocks b
+       join districts d on d.id = b.district_id
+       join states s on s.id = d.state_id
+       join countries c on c.id = s.country_id
+       where b.name ilike $1 order by b.name limit 20`,
+      [like],
+    ),
+    pool.query(
+      `select d.id, d.name, 'district' as level,
+         null as block_name, null as district_name, s.name as state_name, c.name as country_name
+       from districts d
+       join states s on s.id = d.state_id
+       join countries c on c.id = s.country_id
+       where d.name ilike $1 order by d.name limit 20`,
+      [like],
+    ),
+  ]);
+  const locations = [...villages.rows, ...blocks.rows, ...districts.rows].slice(0, 50);
+  res.json({ locations });
+});
+
 // --- Authorization helpers ---
 
 function requireSuperAdmin(req, res, next) {

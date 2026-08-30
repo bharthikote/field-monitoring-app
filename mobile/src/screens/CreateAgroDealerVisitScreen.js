@@ -61,7 +61,7 @@ export default function CreateAgroDealerVisitScreen({ token, dealer, onBack, onC
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.entityBox}>
           <Text style={styles.entityName}>{dealer.name}</Text>
-          <Text style={styles.entityLine}>{dealer.village_name}</Text>
+          <Text style={styles.entityLine}>{dealer.location_name}</Text>
         </View>
 
         <MultiSelectField

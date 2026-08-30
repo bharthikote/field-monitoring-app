@@ -106,6 +106,33 @@ export async function resolveVillageIds(level, id) {
   return r.rows.map((row) => row.id);
 }
 
+// Resolves location_level/location_id into display names for a list of
+// rows (Institutions, Agro Dealers) whose "place" can be a village, block,
+// or district - location_name is whichever of village_name/block_name/
+// district_name applies to that row's own level.
+export async function attachLocationNames(rows) {
+  return Promise.all(rows.map(async (row) => {
+    const path = await resolveLocationPath(row.location_level, row.location_id);
+    return {
+      ...row,
+      location_name: path?.village_name ?? path?.block_name ?? path?.district_name ?? null,
+      block_name: path?.block_name ?? null,
+      district_name: path?.district_name ?? null,
+      state_name: path?.state_name ?? null,
+      country_name: path?.country_name ?? null,
+    };
+  }));
+}
+
+// Whether a location (at any level) falls within a user's covered
+// villages - generalizes the plain village_id = any($1) check used
+// elsewhere (demo plots, farmers) to a location that can itself be a
+// village, block, or district.
+export async function isLocationCovered(level, id, coveredVillageIds) {
+  const villageIds = await resolveVillageIds(level, id);
+  return villageIds.some((vid) => coveredVillageIds.includes(vid));
+}
+
 // A user's effective village coverage: union of everything under every
 // 'include' assignment, minus everything under every 'exclude' assignment
 // (an exclude nested inside a broader include carves those villages back

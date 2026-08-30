@@ -89,7 +89,7 @@ export default function AgroDealersListScreen({ token, onBack, onCreateNew, onSe
                 style={styles.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Name or village"
+                placeholder="Search by name"
                 autoCapitalize="none"
                 autoFocus
               />
@@ -132,7 +132,7 @@ export default function AgroDealersListScreen({ token, onBack, onCreateNew, onSe
           <Pressable style={styles.card} onPress={() => onSelectDealer(dealer)}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{dealer.name}</Text>
-              <Text style={styles.cardVillage}>{dealer.village_name}</Text>
+              <Text style={styles.cardVillage}>{dealer.location_name}</Text>
             </View>
           </Pressable>
         )}
