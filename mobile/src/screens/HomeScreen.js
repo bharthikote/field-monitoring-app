@@ -17,68 +17,89 @@ const ACTIVITIES = [
   { key: 'agriinput', label: 'Agro Dealer Visit', icon: 'agriinput', solid: '#db2777', tint: '#fce7f3' },
 ];
 
+// A more deliberate icon set per activity - a graduation cap, a group of
+// people, a plant, a smaller sprout (distinct from the plant, since
+// "adopted" implies newly taken up), a bank building, and a storefront -
+// replacing the earlier ad-hoc shapes (a location pin stood in for "Demo
+// Plot", a heart for "Adoption Plot") that didn't actually depict their
+// activity and read as placeholder art rather than a real icon set.
 function ActivityIcon({ name, color }) {
-  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
+  const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round' };
   if (name === 'training') {
     return (
       <Svg {...common}>
-        <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-        <Path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+        <Path d="M22 10L12 5 2 10l10 5 10-5z" />
+        <Path d="M6 12.5V17c0 1.5 2.5 3 6 3s6-1.5 6-3v-4.5" />
       </Svg>
     );
   }
   if (name === 'fieldday') {
     return (
       <Svg {...common}>
-        <Rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <Line x1="16" y1="2" x2="16" y2="6" />
-        <Line x1="8" y1="2" x2="8" y2="6" />
-        <Line x1="3" y1="10" x2="21" y2="10" />
+        <Circle cx="8.5" cy="8" r="3" />
+        <Path d="M2 20v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1" />
+        <Path d="M16 4.6a3 3 0 0 1 0 5.8" />
+        <Path d="M17 20v-1a5 5 0 0 0-3-4.6" />
       </Svg>
     );
   }
   if (name === 'demoplot') {
     return (
       <Svg {...common}>
-        <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-        <Circle cx="12" cy="10" r="3" />
+        <Path d="M12 21v-8" />
+        <Path d="M12 13C12 9 9 6 5 6c0 4 3 7 7 7z" />
+        <Path d="M12 13c0-4 3-7 7-7 0 4-3 7-7 7z" />
       </Svg>
     );
   }
   if (name === 'adoption') {
     return (
       <Svg {...common}>
-        <Path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+        <Line x1="7" y1="21" x2="17" y2="21" />
+        <Path d="M12 21v-6" />
+        <Path d="M12 15c0-2.5-2-4.5-4.5-4.5 0 2.5 2 4.5 4.5 4.5z" />
+        <Path d="M12 15c0-2.5 2-4.5 4.5-4.5 0 2.5-2 4.5-4.5 4.5z" />
       </Svg>
     );
   }
   if (name === 'govt') {
     return (
       <Svg {...common}>
-        <Rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
-        <Path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        <Line x1="3" y1="21" x2="21" y2="21" />
+        <Line x1="3" y1="10" x2="21" y2="10" />
+        <Path d="M5 6l7-3 7 3" />
+        <Line x1="4" y1="10" x2="4" y2="21" />
+        <Line x1="20" y1="10" x2="20" y2="21" />
+        <Line x1="8" y1="14" x2="8" y2="17" />
+        <Line x1="12" y1="14" x2="12" y2="17" />
+        <Line x1="16" y1="14" x2="16" y2="17" />
       </Svg>
     );
   }
   return (
     <Svg {...common}>
-      <Path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <Line x1="3" y1="6" x2="21" y2="6" />
-      <Path d="M16 10a4 4 0 0 1-8 0" />
+      <Line x1="3" y1="21" x2="21" y2="21" />
+      <Path d="M5 21V10.5" />
+      <Path d="M19 21V10.5" />
+      <Path d="M3 7l1.5-4h15L21 7" />
+      <Path d="M3 7a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0" />
+      <Rect x="9.5" y="14" width="5" height="7" />
     </Svg>
   );
 }
 
 function ActivityCard({ label, icon, solid, tint, count, onPress }) {
   return (
-    <Pressable style={[styles.activityCard, { backgroundColor: tint }]} onPress={onPress}>
-      <Text style={[styles.activityCardLabel, { color: solid }]}>{label}</Text>
-      <View style={styles.activityCardFooter}>
+    <Pressable style={styles.activityCard} onPress={onPress}>
+      <View style={[styles.iconBadge, { backgroundColor: tint }]}>
         <ActivityIcon name={icon} color={solid} />
-        {count !== null && count !== undefined && (
-          <Text style={[styles.activityCardCount, { color: solid }]}>{count}</Text>
+        {!!count && (
+          <View style={[styles.countBadge, { backgroundColor: solid }]}>
+            <Text style={styles.countBadgeText}>{count}</Text>
+          </View>
         )}
       </View>
+      <Text style={styles.activityCardLabel}>{label}</Text>
     </Pressable>
   );
 }
@@ -184,9 +205,18 @@ const styles = StyleSheet.create({
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   activityCard: {
-    width: '47%', minHeight: 90, borderRadius: 10, padding: 14, justifyContent: 'space-between',
+    width: '47%', minHeight: 104, borderRadius: 14, padding: 16,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e6e4de', alignItems: 'center',
   },
-  activityCardLabel: { fontWeight: '700', fontSize: 14, textAlign: 'right' },
-  activityCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  activityCardCount: { fontWeight: '700', fontSize: 16 },
+  iconBadge: {
+    width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10, position: 'relative',
+  },
+  countBadge: {
+    position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4,
+    borderWidth: 2, borderColor: '#fff',
+  },
+  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  activityCardLabel: { fontSize: 13, fontWeight: '600', color: '#2d2a26', textAlign: 'center' },
 });
