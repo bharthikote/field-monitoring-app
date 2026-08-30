@@ -118,10 +118,19 @@ function updateSaveBar() {
 }
 
 async function loadUsers() {
-  const res = await authedFetch('/admin/users');
-  const data = await res.json();
-  allUsers = data.users;
-  render();
+  const statusEl = document.getElementById('status');
+  try {
+    const res = await authedFetch('/admin/users');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load users');
+    allUsers = data.users;
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = 'Failed to load users: ' + err.message;
+    statusEl.className = 'error';
+    statusEl.style.display = 'block';
+  }
 }
 
 function render() {

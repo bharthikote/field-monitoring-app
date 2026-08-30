@@ -19,6 +19,17 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
+// Admin/Super Admin can view anyone; anyone else who's allowed into the
+// web panel at all (currently just Leadership) can only view themselves -
+// User Management is a distinct, admin-only function from Reports, but
+// viewing your own profile (and logging out from it) has to work for
+// every role the panel lets in the door.
+function requireAdminOrSelf(req, res, next) {
+  if (req.user.role === 'admin' || req.user.role === 'super_admin') return next();
+  if (req.params.id === req.user.userId) return next();
+  return res.status(403).json({ error: 'Admin access required' });
+}
+
 // A user can't be Approved without at least one location assignment - an
 // approved account with no coverage would see nothing and be pointless.
 // An exclude-only set doesn't count; there has to be at least one include.
@@ -243,7 +254,7 @@ adminRouter.post('/admin/users/:id/status', requireAdmin, async (req, res) => {
   res.json({ user: result.rows[0] });
 });
 
-adminRouter.get('/admin/users/:id/profile', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/users/:id/profile', requireWebAccess, requireAdminOrSelf, async (req, res) => {
   const result = await pool.query(
     `select u.id, u.user_code, u.name, u.mobile_number, u.email, u.role, u.status,
        u.created_at, u.updated_at, u.reviewed_at, r.name as reviewed_by_name
@@ -305,7 +316,7 @@ adminRouter.delete('/admin/users/:id', requireAdmin, async (req, res) => {
 
 const LOCATION_LEVELS = ['country', 'state', 'district', 'block', 'village'];
 
-adminRouter.get('/admin/users/:id/locations', requireAdmin, async (req, res) => {
+adminRouter.get('/admin/users/:id/locations', requireWebAccess, requireAdminOrSelf, async (req, res) => {
   const result = await pool.query(
     'select id, level, location_id, mode from user_locations where user_id = $1 order by created_at asc',
     [req.params.id],

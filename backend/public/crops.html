@@ -327,6 +327,10 @@ document.getElementById('top-add-btn').addEventListener('click', async () => {
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
+  if (currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Admin and Super Admin can access Crops & Varieties.</p>';
+    return;
+  }
 
   const countriesRes = await authedFetch('/locations/countries');
   const countriesData = await countriesRes.json();

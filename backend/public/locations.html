@@ -358,6 +358,10 @@ document.getElementById('bulk-upload-btn').addEventListener('click', async () =>
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
+  if (currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Admin and Super Admin can access Location Hierarchy.</p>';
+    return;
+  }
 
   const scopeNote = document.getElementById('scope-note');
   if (currentUser.role === 'admin') {

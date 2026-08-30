@@ -34,7 +34,7 @@
 
 <div class="page">
 <div class="panel">
-  <p><a href="/admin/manage-users" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to All Users</a></p>
+  <p><a href="/admin/manage-users" id="back-link" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to All Users</a></p>
   <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
     <h1 id="page-title">User Profile</h1>
     <button id="self-logout-btn" class="edit-btn small" style="display:none">Log out</button>
@@ -143,6 +143,10 @@ function renderPreview() {
   // Deleting your own account mid-session is never something you meant
   // to do - just hide the option entirely rather than trust a confirm dialog.
   document.getElementById('danger-zone-section').style.display = isSelf ? 'none' : 'block';
+  // Edit/status/location writes are still Admin/Super Admin only on the
+  // backend - a role that's merely viewing itself (Leadership) shouldn't
+  // see controls that would just 403 on click.
+  document.getElementById('edit-toggle-row').style.display = canWrite() ? 'flex' : 'none';
 }
 
 async function loadLocationAssignments() {
@@ -153,7 +157,12 @@ async function loadLocationAssignments() {
   assignmentIdByKey = new Map(data.assignments.map((a) => [`${a.level}:${a.locationId}`, a.id]));
 }
 
+function canWrite() {
+  return currentUser.role === 'admin' || currentUser.role === 'super_admin';
+}
+
 function canCheckLevel(level) {
+  if (!canWrite()) return false;
   return level.superAdminOnly ? currentUser.role === 'super_admin' : true;
 }
 
@@ -441,6 +450,16 @@ document.getElementById('confirm-delete-btn').addEventListener('click', async ()
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
+
+  // All Users is Admin/Super Admin only - anyone else here only ever
+  // arrived via their own avatar, so send them back to the one section
+  // their nav actually has (Reports) instead of a page they can't use.
+  if (!canWrite()) {
+    const backLink = document.getElementById('back-link');
+    backLink.href = '/admin/reports/demos';
+    backLink.textContent = '← Back to Reports';
+  }
+
   await loadProfile();
   await loadLocationAssignments();
   await renderTree();
