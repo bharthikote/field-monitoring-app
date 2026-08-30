@@ -22,8 +22,10 @@ function Chip({ label }) {
 function VisitCard({ visit }) {
   return (
     <View style={styles.visitCard}>
-      <Text style={styles.visitDate}>{new Date(visit.created_at).toLocaleString()}</Text>
-      <Text style={styles.visitBy}>Logged by {visit.visited_by_name}</Text>
+      <View style={styles.visitHeaderRow}>
+        <Text style={styles.visitDate}>{new Date(visit.created_at).toLocaleString()}</Text>
+        <Text style={styles.visitBy}>{visit.visited_by_name}</Text>
+      </View>
 
       {visit.issues.length > 0 && (
         <>
@@ -195,8 +197,9 @@ const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginTop: 12 },
   empty: { color: '#888' },
   visitCard: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 12 },
-  visitDate: { fontWeight: '700', fontSize: 14 },
-  visitBy: { color: '#888', fontSize: 12, marginTop: 2, marginBottom: 8 },
+  visitHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
+  visitDate: { fontWeight: '700', fontSize: 14, flex: 1, marginRight: 8 },
+  visitBy: { color: '#888', fontSize: 12, textAlign: 'right' },
   visitSectionLabel: { fontSize: 11, color: '#888', fontWeight: '700', textTransform: 'uppercase', marginTop: 8 },
   visitLine: { color: '#333', marginTop: 2 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
