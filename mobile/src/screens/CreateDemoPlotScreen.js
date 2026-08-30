@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { createDemoPlot } from '../api';
+import { createDemoPlot, getPlotsByPhone } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
 import { COLORS } from '../theme';
@@ -14,6 +14,9 @@ const STATUSES = [
 
 const TITLES = { demo: 'New Demo Plot', adoption: 'New Adoption Plot' };
 const BUTTON_LABELS = { demo: 'Create Demo Plot', adoption: 'Create Adoption Plot' };
+const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
+const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
+const PHONE_LIKE = /^\d{6,}$/;
 
 export default function CreateDemoPlotScreen({ token, plotType = 'demo', initialPhone, onBack, onCreated }) {
   const [farmerName, setFarmerName] = useState('');
@@ -23,6 +26,30 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
   const [villageId, setVillageId] = useState(null);
   const [status, setStatus] = useState('ongoing');
   const [loading, setLoading] = useState(false);
+  const [existingPlots, setExistingPlots] = useState(null);
+
+  // Phone number is the farmer's key identifier (PRD Section 5) - as soon
+  // as a full number is typed, look up whether it already belongs to
+  // someone, across every plot type, so the person creating this one knows
+  // it's the same farmer before they even submit.
+  useEffect(() => {
+    const trimmed = phone.trim();
+    if (!PHONE_LIKE.test(trimmed)) {
+      setExistingPlots(null);
+      return undefined;
+    }
+    const timeout = setTimeout(() => {
+      getPlotsByPhone(token, trimmed)
+        .then((data) => {
+          setExistingPlots(data.demoPlots);
+          if (data.demoPlots.length > 0) {
+            setFarmerName((prev) => (prev.trim() ? prev : data.demoPlots[0].farmer_name));
+          }
+        })
+        .catch(() => setExistingPlots(null));
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [phone, token]);
 
   const submit = async (nameOverride) => {
     const finalName = nameOverride ?? farmerName;
@@ -67,6 +94,19 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
       <Text style={styles.label}>Phone Number</Text>
       <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
 
+      {existingPlots?.length > 0 && (
+        <View style={styles.existingBanner}>
+          <Text style={styles.existingBannerTitle}>
+            This phone number belongs to {existingPlots[0].farmer_name} — existing plots:
+          </Text>
+          {existingPlots.map((p) => (
+            <Text key={p.id} style={styles.existingBannerLine}>
+              • {p.crop_name} — {PLOT_TYPE_LABELS[p.plot_type]} ({STATUS_LABELS[p.demo_status]}), {p.village_name}
+            </Text>
+          ))}
+        </View>
+      )}
+
       <CropVarietyPicker
         token={token}
         onChange={({ cropId, varietyId }) => {
@@ -100,6 +140,9 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
+  existingBanner: { backgroundColor: COLORS.primarySoft, borderRadius: 8, padding: 12, marginTop: 10 },
+  existingBannerTitle: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13, marginBottom: 4 },
+  existingBannerLine: { color: COLORS.primaryDark, fontSize: 13, marginTop: 2 },
   button: { backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });

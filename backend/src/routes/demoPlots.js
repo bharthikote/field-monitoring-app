@@ -75,6 +75,18 @@ demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
+// Every plot (demo AND adoption) already on file for an exact phone number -
+// powers the "this farmer already exists" notice on the create form, so a
+// name/crop/village entered for a known farmer is informed, not a guess.
+// Deliberately unscoped by village coverage, matching creation itself
+// (POST /demo-plots isn't coverage-restricted either).
+demoPlotsRouter.get('/demo-plots/by-phone', requireAuth, async (req, res) => {
+  const { phone } = req.query;
+  if (!phone) return res.status(400).json({ error: 'phone is required' });
+  const result = await pool.query(`${SELECT_DEMO_PLOTS} where dp.farmer_phone = $1 order by dp.created_at`, [phone]);
+  res.json({ demoPlots: result.rows });
+});
+
 demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
   const { farmerName, phone, cropId, varietyId, villageId, demoStatus, plotType } = req.body;
 

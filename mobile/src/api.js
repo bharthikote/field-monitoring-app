@@ -36,6 +36,9 @@ export const listDemoPlots = (token, plotType = 'demo') =>
 export const searchDemoPlots = (token, query, plotType = 'demo') =>
   request(`/demo-plots/search?q=${encodeURIComponent(query)}&plot_type=${plotType}`, { token });
 
+export const getPlotsByPhone = (token, phone) =>
+  request(`/demo-plots/by-phone?phone=${encodeURIComponent(phone)}`, { token });
+
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
 
