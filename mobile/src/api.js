@@ -30,6 +30,7 @@ export const listStates = (token, countryId) => request(`/locations/states?count
 export const listDistricts = (token, stateId) => request(`/locations/districts?state_id=${stateId}`, { token });
 export const listBlocks = (token, districtId) => request(`/locations/blocks?district_id=${districtId}`, { token });
 export const listVillages = (token, blockId) => request(`/locations/villages?block_id=${blockId}`, { token });
+export const searchVillages = (token, q) => request(`/locations/villages/search?q=${encodeURIComponent(q)}`, { token });
 
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });

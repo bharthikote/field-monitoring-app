@@ -64,6 +64,30 @@ locationsRouter.get('/locations/villages', requireAuth, async (req, res) => {
   res.json({ villages: result.rows });
 });
 
+// Search villages by name directly, anywhere in the hierarchy - lets most
+// roles skip the five-level Country > State > District > Block > Village
+// cascade and just search-and-pick a village, with the full path returned
+// alongside so the picker can show it back as a confirmation. Not scoped to
+// the user's own coverage: demo plot creation itself isn't village-scoped
+// either (PRD Section 5 - any authorized role can create a plot anywhere).
+locationsRouter.get('/locations/villages/search', requireAuth, async (req, res) => {
+  const { q } = req.query;
+  if (!q || q.trim().length < 2) return res.json({ villages: [] });
+  const result = await pool.query(
+    `select v.id, v.name, b.name as block_name, d.name as district_name, s.name as state_name, c.name as country_name
+     from villages v
+     join blocks b on b.id = v.block_id
+     join districts d on d.id = b.district_id
+     join states s on s.id = d.state_id
+     join countries c on c.id = s.country_id
+     where v.name ilike $1
+     order by v.name
+     limit 50`,
+    [`%${q.trim()}%`],
+  );
+  res.json({ villages: result.rows });
+});
+
 // --- Authorization helpers ---
 
 function requireSuperAdmin(req, res, next) {

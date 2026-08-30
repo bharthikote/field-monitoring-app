@@ -2,8 +2,42 @@ import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { listCountries, listStates, listDistricts, listBlocks, listVillages } from '../api';
+import VillageSearchSelect from './VillageSearchSelect';
+import { COLORS } from '../theme';
 
-export default function LocationPicker({ token, onVillageChange }) {
+// Everyone except Super Admin skips the five-level cascade and just
+// searches a village by name directly (VillageSearchSelect) - Super Admin
+// is the one who actually builds out the hierarchy (creates Country/State,
+// per PRD Section 4), so keeps the full cascading view.
+export default function LocationPicker({ token, user, onVillageChange }) {
+  const [village, setVillage] = useState(null);
+
+  useEffect(() => {
+    onVillageChange(village ? village.id : null);
+  }, [village]);
+
+  if (user?.role !== 'super_admin') {
+    return (
+      <View>
+        <VillageSearchSelect
+          token={token}
+          value={village?.id}
+          selectedLabel={village?.name}
+          onSelect={setVillage}
+        />
+        {village ? (
+          <Text style={styles.breadcrumb}>
+            {village.block_name} → {village.district_name} → {village.state_name} → {village.country_name}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return <CascadingLocationPicker token={token} onVillageChange={onVillageChange} />;
+}
+
+function CascadingLocationPicker({ token, onVillageChange }) {
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
@@ -122,4 +156,5 @@ export default function LocationPicker({ token, onVillageChange }) {
 const styles = StyleSheet.create({
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
   pickerWrap: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8 },
+  breadcrumb: { fontSize: 12, color: COLORS.textMuted, marginTop: 6 },
 });

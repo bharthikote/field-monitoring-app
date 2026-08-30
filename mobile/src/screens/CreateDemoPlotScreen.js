@@ -12,7 +12,7 @@ const STATUSES = [
   { value: 'terminated', label: 'Terminated' },
 ];
 
-export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCreated }) {
+export default function CreateDemoPlotScreen({ token, user, initialPhone, onBack, onCreated }) {
   const [farmerName, setFarmerName] = useState('');
   const [phone, setPhone] = useState(initialPhone || '');
   const [cropId, setCropId] = useState(null);
@@ -72,7 +72,7 @@ export default function CreateDemoPlotScreen({ token, initialPhone, onBack, onCr
         }}
       />
 
-      <LocationPicker token={token} onVillageChange={setVillageId} />
+      <LocationPicker token={token} user={user} onVillageChange={setVillageId} />
 
       <Text style={styles.label}>Demo Status</Text>
       <View style={styles.pickerWrap}>
