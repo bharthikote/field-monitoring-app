@@ -205,8 +205,10 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
           autoCapitalize="none"
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
 
+      <View style={styles.footer}>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.buttonRow}>
           <Pressable style={styles.saveButton} onPress={handleSubmit} disabled={loading}>
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
@@ -215,9 +217,8 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
             <Text style={styles.cancelButtonText}>Cancel</Text>
           </Pressable>
         </View>
-
         <Text style={styles.footnote}>* Required Fields</Text>
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -225,7 +226,7 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   header: { paddingHorizontal: 24, paddingTop: 24 },
-  container: { padding: 24, paddingBottom: 60 },
+  container: { padding: 24, paddingBottom: 24 },
   back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
@@ -236,8 +237,12 @@ const styles = StyleSheet.create({
   },
   photoBtnText: { color: COLORS.textMuted, fontSize: 14 },
   photoPreview: { width: 96, height: 96, borderRadius: 12 },
-  error: { color: COLORS.danger, marginTop: 12 },
-  buttonRow: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  error: { color: COLORS.danger, marginBottom: 12 },
+  footer: {
+    paddingHorizontal: 24, paddingTop: 14, paddingBottom: 24,
+    borderTopWidth: 1, borderTopColor: '#e6e4de', backgroundColor: '#fff',
+  },
+  buttonRow: { flexDirection: 'row', gap: 12 },
   saveButton: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 8, padding: 14, alignItems: 'center' },
   saveButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   cancelButton: {
