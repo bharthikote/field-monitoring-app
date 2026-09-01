@@ -62,6 +62,23 @@ export async function createFarmer(token, formData) {
   return data;
 }
 export const getFarmer = (token, farmerId) => request(`/farmers/${farmerId}`, { token });
+
+// Same shape as createFarmer (multipart - the optional photo needs it), a
+// PATCH instead of a POST.
+export async function updateFarmer(token, farmerId, formData) {
+  const res = await fetch(`${API_BASE_URL}/farmers/${farmerId}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Something went wrong');
+    err.code = data.code;
+    throw err;
+  }
+  return data;
+}
 export const getFarmerActivities = (token, farmerId) => request(`/farmers/${farmerId}/activities`, { token });
 
 export const listIssueTypes = (token) => request('/master/issue-types', { token });

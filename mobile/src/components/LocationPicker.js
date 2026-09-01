@@ -13,8 +13,11 @@ import { COLORS } from '../theme';
 // a farmer lives in one village, so once we know an existing farmer's
 // village (from their earlier plots), every new plot for them reuses it
 // rather than letting a different village be picked by mistake.
-export default function LocationPicker({ token, onVillageChange, lockedVillage }) {
-  const [village, setVillage] = useState(null);
+// `initialVillage` (optional, same shape) just pre-fills the field without
+// disabling it - for editing a record that already has a village, where
+// the user should still be able to change it.
+export default function LocationPicker({ token, onVillageChange, lockedVillage, initialVillage }) {
+  const [village, setVillage] = useState(initialVillage || null);
   const effectiveVillage = lockedVillage || village;
 
   useEffect(() => {

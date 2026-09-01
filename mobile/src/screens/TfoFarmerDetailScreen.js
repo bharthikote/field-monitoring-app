@@ -101,7 +101,7 @@ function ActivityCard({ activity }) {
   );
 }
 
-export default function TfoFarmerDetailScreen({ token, farmer, onBack }) {
+export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit }) {
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -165,7 +165,7 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack }) {
           </View>
 
           <View style={styles.pillRow}>
-            <Pressable style={styles.pill} onPress={() => comingSoon('Edit Farmer')}>
+            <Pressable style={styles.pill} onPress={onEdit}>
               <Text style={styles.pillText}>Edit</Text>
             </Pressable>
             <Pressable style={styles.pillDanger} onPress={() => comingSoon('Deactivate Farmer')}>

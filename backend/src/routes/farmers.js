@@ -30,6 +30,42 @@ function parseStringList(raw) {
   }
 }
 
+// Shared between create and edit - both accept the same optional detail
+// fields with the same rules, just an insert vs. an update underneath.
+// Returns an error message string, or null if everything checks out.
+function validateFarmerDetailFields({ farmerType, gender, age, educationLevel, literacy, phoneType, socialMedia, email }) {
+  if (farmerType && !FARMER_TYPES.includes(farmerType)) {
+    return `farmerType must be one of: ${FARMER_TYPES.join(', ')}`;
+  }
+  if (gender && !GENDERS.includes(gender)) {
+    return `gender must be one of: ${GENDERS.join(', ')}`;
+  }
+  if (age !== undefined && age !== '') {
+    const ageNum = Number(age);
+    if (!Number.isInteger(ageNum) || ageNum <= 14) {
+      return 'age must be a whole number above 14';
+    }
+  }
+  if (educationLevel && !EDUCATION_LEVELS.includes(educationLevel)) {
+    return `educationLevel must be one of: ${EDUCATION_LEVELS.join(', ')}`;
+  }
+  if (literacy && !['yes', 'no'].includes(literacy)) {
+    return "literacy must be 'yes' or 'no'";
+  }
+  if (phoneType && !PHONE_TYPES.includes(phoneType)) {
+    return `phoneType must be one of: ${PHONE_TYPES.join(', ')}`;
+  }
+  for (const platform of socialMedia) {
+    if (!SOCIAL_MEDIA_PLATFORMS.includes(platform)) {
+      return `socialMedia entries must be one of: ${SOCIAL_MEDIA_PLATFORMS.join(', ')}`;
+    }
+  }
+  if (email && !EMAIL_LIKE.test(email.trim())) {
+    return 'That email address looks invalid';
+  }
+  return null;
+}
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 function handleFileUpload(req, res, next) {
@@ -132,36 +168,9 @@ farmersRouter.post('/farmers', requireAuth, handleFileUpload, async (req, res) =
   if (!name || !phone || !villageId) {
     return res.status(400).json({ error: 'name, phone, and villageId are all required' });
   }
-  if (farmerType && !FARMER_TYPES.includes(farmerType)) {
-    return res.status(400).json({ error: `farmerType must be one of: ${FARMER_TYPES.join(', ')}` });
-  }
-  if (gender && !GENDERS.includes(gender)) {
-    return res.status(400).json({ error: `gender must be one of: ${GENDERS.join(', ')}` });
-  }
-  let ageNum = null;
-  if (age !== undefined && age !== '') {
-    ageNum = Number(age);
-    if (!Number.isInteger(ageNum) || ageNum <= 14) {
-      return res.status(400).json({ error: 'age must be a whole number above 14' });
-    }
-  }
-  if (educationLevel && !EDUCATION_LEVELS.includes(educationLevel)) {
-    return res.status(400).json({ error: `educationLevel must be one of: ${EDUCATION_LEVELS.join(', ')}` });
-  }
-  if (literacy && !['yes', 'no'].includes(literacy)) {
-    return res.status(400).json({ error: "literacy must be 'yes' or 'no'" });
-  }
-  if (phoneType && !PHONE_TYPES.includes(phoneType)) {
-    return res.status(400).json({ error: `phoneType must be one of: ${PHONE_TYPES.join(', ')}` });
-  }
-  for (const platform of socialMedia) {
-    if (!SOCIAL_MEDIA_PLATFORMS.includes(platform)) {
-      return res.status(400).json({ error: `socialMedia entries must be one of: ${SOCIAL_MEDIA_PLATFORMS.join(', ')}` });
-    }
-  }
-  if (email && !EMAIL_LIKE.test(email.trim())) {
-    return res.status(400).json({ error: 'That email address looks invalid' });
-  }
+  const validationError = validateFarmerDetailFields({ farmerType, gender, age, educationLevel, literacy, phoneType, socialMedia, email });
+  if (validationError) return res.status(400).json({ error: validationError });
+  const ageNum = age !== undefined && age !== '' ? Number(age) : null;
 
   const photo = files.find((f) => f.fieldname === 'photo');
 
@@ -201,6 +210,54 @@ farmersRouter.get('/farmers/:id', requireAuth, async (req, res) => {
   const farmer = result.rows[0];
   if (!(await requireCoverage(req, res, farmer.village_id))) return;
   res.json({ farmer });
+});
+
+// Edits an existing farmer - same fields/validation as registration, just
+// an update instead of an insert. A new photo replaces the old one;
+// omitting one keeps whatever was already there (coalesce below), so
+// re-saving the form without touching the photo field doesn't clear it.
+farmersRouter.patch('/farmers/:id', requireAuth, handleFileUpload, async (req, res) => {
+  const files = req.files || [];
+  const existing = await pool.query('select village_id from farmers where id = $1', [req.params.id]);
+  if (existing.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
+  if (!(await requireCoverage(req, res, existing.rows[0].village_id))) return;
+
+  const {
+    name, phone, villageId, farmerType, gender, age, birthDate,
+    address, educationLevel, literacy, phoneType, email,
+  } = req.body;
+  const socialMedia = parseStringList(req.body.socialMedia);
+
+  if (!name || !phone || !villageId) {
+    return res.status(400).json({ error: 'name, phone, and villageId are all required' });
+  }
+  const validationError = validateFarmerDetailFields({ farmerType, gender, age, educationLevel, literacy, phoneType, socialMedia, email });
+  if (validationError) return res.status(400).json({ error: validationError });
+  const ageNum = age !== undefined && age !== '' ? Number(age) : null;
+
+  const photo = files.find((f) => f.fieldname === 'photo');
+
+  try {
+    const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
+    await pool.query(
+      `update farmers set
+         name = $1, phone = $2, village_id = $3, farmer_type = $4, gender = $5, age = $6,
+         birth_date = $7, address = $8, education_level = $9, literacy = $10, phone_type = $11,
+         social_media = $12, email = $13, photo_url = coalesce($14, photo_url)
+       where id = $15`,
+      [
+        name, phone, villageId, farmerType || null, gender || null, ageNum, birthDate || null,
+        address?.trim() || null, educationLevel || null, literacy || null, phoneType || null,
+        socialMedia.length > 0 ? socialMedia : null, email?.trim() || null, photoUrl, req.params.id,
+      ],
+    );
+    const full = await pool.query(`${SELECT_FARMERS} where f.id = $1`, [req.params.id]);
+    res.json({ farmer: full.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A farmer with this phone number is already registered' });
+    if (err.code === '23503') return res.status(400).json({ error: 'No such village' });
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // All activities (Demo/Adoption Plot, Training) logged for this farmer,

@@ -12,6 +12,7 @@ import CreateFieldDayScreen from './src/screens/CreateFieldDayScreen';
 import FarmersListScreen from './src/screens/FarmersListScreen';
 import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
 import CreateFarmerDetailedScreen from './src/screens/CreateFarmerDetailedScreen';
+import EditFarmerDetailedScreen from './src/screens/EditFarmerDetailedScreen';
 import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
 import TfoFarmerDetailScreen from './src/screens/TfoFarmerDetailScreen';
 import InstitutionsListScreen from './src/screens/InstitutionsListScreen';
@@ -55,6 +56,7 @@ const BACK_MAP = {
   'create-field-day': 'select-farmer',
   'create-farmer': 'farmers',
   'farmer-detail': 'farmers',
+  'edit-farmer': 'farmer-detail',
   'select-institution': 'home',
   'create-institution': 'select-institution',
   'create-institution-visit': 'select-institution',
@@ -354,6 +356,18 @@ export default function App() {
           token={token}
           farmer={selectedFarmer}
           onBack={() => setScreen('farmers')}
+          onEdit={() => setScreen('edit-farmer')}
+        />
+      )}
+      {screen === 'edit-farmer' && selectedFarmer && user.role === 'tfo' && (
+        <EditFarmerDetailedScreen
+          token={token}
+          farmer={selectedFarmer}
+          onBack={() => setScreen('farmer-detail')}
+          onSaved={(updated) => {
+            setSelectedFarmer(updated);
+            setScreen('farmer-detail');
+          }}
         />
       )}
       {screen === 'farmer-detail' && selectedFarmer && user.role !== 'tfo' && (
