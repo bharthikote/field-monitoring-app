@@ -141,6 +141,13 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
         <Text style={styles.label}>Name *</Text>
         <TextInput style={styles.input} value={name} onChangeText={setName} />
 
+        <ContactPhoneField
+          label="Phone Number *"
+          value={phone}
+          onChangeText={setPhone}
+          onPickName={(pickedName) => setName((prev) => (prev.trim() ? prev : pickedName))}
+        />
+
         <SearchableSelect label="Type *" options={FARMER_TYPES} value={farmerType} onChange={setFarmerType} />
 
         <SearchableSelect label="Gender *" options={GENDERS} value={gender} onChange={setGender} />
@@ -149,13 +156,6 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
         <TextInput style={styles.input} value={age} onChangeText={handleAgeChange} keyboardType="number-pad" maxLength={3} />
 
         <DatePickerField label="Birth Date *" value={birthDate} onChange={setBirthDate} />
-
-        <ContactPhoneField
-          label="Phone Number *"
-          value={phone}
-          onChangeText={setPhone}
-          onPickName={(pickedName) => setName((prev) => (prev.trim() ? prev : pickedName))}
-        />
 
         <LocationPicker token={token} onVillageChange={setVillageId} />
 

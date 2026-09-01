@@ -14,7 +14,7 @@
 <div class="report-header">
   <div>
     <h1>Farmers</h1>
-    <p class="scope-note" style="margin-top:0">Every farmer with a demo plot you can see, grouped from the Demo Plots they've created.</p>
+    <p class="scope-note" style="margin-top:0">Every farmer registered in your coverage, however they were registered (Demo Plot, Training, Field Day, or directly).</p>
   </div>
   <button id="export-btn" class="primary"></button>
 </div>
@@ -31,8 +31,8 @@
     <tr>
       <th>Farmer Name</th>
       <th>Phone</th>
-      <th>Village(s)</th>
-      <th>Demo Plots</th>
+      <th>Village</th>
+      <th>Activities</th>
       <th>First Registered</th>
     </tr>
   </thead>
@@ -92,7 +92,7 @@ function render() {
       <td>${escapeHtml(r.farmer_name)}</td>
       <td>${escapeHtml(r.farmer_phone)}</td>
       <td>${escapeHtml(r.villages)}</td>
-      <td>${r.demo_plot_count}</td>
+      <td>${r.activity_count}</td>
       <td>${new Date(r.first_created_at).toLocaleDateString()}</td>
     </tr>
   `).join('');
@@ -105,9 +105,9 @@ document.getElementById('search-input').addEventListener('input', (e) => {
 
 document.getElementById('export-btn').addEventListener('click', () => {
   const visible = getVisibleRows();
-  const headers = ['Farmer Name', 'Phone', 'Village(s)', 'Demo Plots', 'First Registered'];
+  const headers = ['Farmer Name', 'Phone', 'Village', 'Activities', 'First Registered'];
   const csvRows = visible.map((r) => [
-    r.farmer_name, r.farmer_phone, r.villages, r.demo_plot_count, new Date(r.first_created_at).toLocaleDateString(),
+    r.farmer_name, r.farmer_phone, r.villages, r.activity_count, new Date(r.first_created_at).toLocaleDateString(),
   ]);
   exportToCsv('farmers.csv', headers, csvRows);
 });

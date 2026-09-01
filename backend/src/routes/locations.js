@@ -10,6 +10,7 @@ import {
   countryIdForDistrict,
   countryIdForBlock,
   countryIdForVillage,
+  getCoveredVillageIds,
 } from '../db/locationHelpers.js';
 
 export const locationsRouter = Router();
@@ -70,9 +71,23 @@ locationsRouter.get('/locations/villages', requireAuth, async (req, res) => {
 // alongside so the picker can show it back as a confirmation. Not scoped to
 // the user's own coverage: demo plot creation itself isn't village-scoped
 // either (PRD Section 5 - any authorized role can create a plot anywhere).
+// Not scoped to the user's own coverage for most roles: demo plot creation
+// itself isn't village-scoped either (PRD Section 5 - any authorized role
+// can create a plot anywhere). TFOs are the deliberate exception - a field
+// agent should only ever register a farmer within their own assigned
+// villages, so their results are filtered to getCoveredVillageIds().
 locationsRouter.get('/locations/villages/search', requireAuth, async (req, res) => {
   const { q } = req.query;
   if (!q || q.trim().length < 2) return res.json({ villages: [] });
+
+  const params = [`%${q.trim()}%`];
+  let whereClause = `v.name ilike $1`;
+  if (req.user.role === 'tfo') {
+    const villageIds = await getCoveredVillageIds(req.user.userId);
+    params.push(villageIds);
+    whereClause += ` and v.id = any($${params.length})`;
+  }
+
   const result = await pool.query(
     `select v.id, v.name, b.name as block_name, d.name as district_name, s.name as state_name, c.name as country_name
      from villages v
@@ -80,10 +95,10 @@ locationsRouter.get('/locations/villages/search', requireAuth, async (req, res) 
      join districts d on d.id = b.district_id
      join states s on s.id = d.state_id
      join countries c on c.id = s.country_id
-     where v.name ilike $1
+     where ${whereClause}
      order by v.name
      limit 50`,
-    [`%${q.trim()}%`],
+    params,
   );
   res.json({ villages: result.rows });
 });

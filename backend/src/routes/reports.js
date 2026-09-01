@@ -34,21 +34,29 @@ reportsRouter.get('/reports/demos', requireAuth, async (req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
-// Farmers aren't their own entity yet - this is every distinct farmer that
-// shows up across demo plots, aggregated.
+// Sources the real farmers master table directly (not derived from demo
+// plots) - a farmer registered via Training/Field Day/the TFO detailed
+// form with zero demo plots still needs to show up here. `villages` stays
+// a single value now (a farmer has exactly one canonical village), kept as
+// a column name for report-farmers.html's existing render/CSV code.
 reportsRouter.get('/reports/farmers', requireAuth, async (req, res) => {
   const params = [];
-  const whereClause = await villageScopeClause(req, params);
+  let whereClause = '';
+  if (req.user.role !== 'super_admin' && req.user.role !== 'leadership') {
+    const villageIds = await getCoveredVillageIds(req.user.userId);
+    params.push(villageIds);
+    whereClause = ` where f.village_id = any($${params.length})`;
+  }
   const result = await pool.query(
-    `select dp.farmer_name, dp.farmer_phone,
-       string_agg(distinct vi.name, ', ' order by vi.name) as villages,
-       count(*)::int as demo_plot_count,
-       min(dp.created_at) as first_created_at
-     from demo_plots dp
-     join villages vi on vi.id = dp.village_id
+    `select f.name as farmer_name, f.phone as farmer_phone, vi.name as villages,
+       (select count(*)::int from demo_plots dp where dp.farmer_id = f.id)
+         + (select count(*)::int from trainings tr where tr.farmer_id = f.id)
+         + (select count(*)::int from field_days fd where fd.farmer_id = f.id) as activity_count,
+       f.created_at as first_created_at
+     from farmers f
+     join villages vi on vi.id = f.village_id
      ${whereClause}
-     group by dp.farmer_name, dp.farmer_phone
-     order by dp.farmer_name`,
+     order by f.name`,
     params,
   );
   res.json({ farmers: result.rows });
