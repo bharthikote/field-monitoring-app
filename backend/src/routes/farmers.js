@@ -13,10 +13,22 @@ export const farmersRouter = Router();
 farmersRouter.param('id', validateUuidParam);
 
 const PHONE_LIKE = /^\d{6,}$/;
+const EMAIL_LIKE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const FARMER_TYPES = ['key_farmer', 'core_farmer', 'farmer', 'community_trainer_farmer'];
 const GENDERS = ['male', 'female', 'others'];
 const EDUCATION_LEVELS = ['primary', 'secondary', 'higher', 'adult', 'no_school'];
 const PHONE_TYPES = ['smartphone', 'cellphone', 'no_phone'];
+const SOCIAL_MEDIA_PLATFORMS = ['facebook', 'instagram', 'snapchat', 'telegram', 'tiktok', 'twitter'];
+
+function parseStringList(raw) {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string' && v.trim()) : [];
+  } catch {
+    return [];
+  }
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
@@ -40,7 +52,7 @@ function handleFileUpload(req, res, next) {
 const SELECT_FARMERS = `
   select f.id, f.name, f.phone, f.created_at,
     f.photo_url, f.farmer_type, f.gender, f.age, f.birth_date::text as birth_date, f.address,
-    f.education_level, f.literacy, f.phone_type,
+    f.education_level, f.literacy, f.phone_type, f.social_media, f.email,
     f.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
     s.name as state_name, co.name as country_name
   from farmers f
@@ -113,8 +125,9 @@ farmersRouter.post('/farmers', requireAuth, handleFileUpload, async (req, res) =
   const files = req.files || [];
   const {
     name, phone, villageId, farmerType, gender, age, birthDate,
-    address, educationLevel, literacy, phoneType,
+    address, educationLevel, literacy, phoneType, email,
   } = req.body;
+  const socialMedia = parseStringList(req.body.socialMedia);
 
   if (!name || !phone || !villageId) {
     return res.status(400).json({ error: 'name, phone, and villageId are all required' });
@@ -141,18 +154,27 @@ farmersRouter.post('/farmers', requireAuth, handleFileUpload, async (req, res) =
   if (phoneType && !PHONE_TYPES.includes(phoneType)) {
     return res.status(400).json({ error: `phoneType must be one of: ${PHONE_TYPES.join(', ')}` });
   }
+  for (const platform of socialMedia) {
+    if (!SOCIAL_MEDIA_PLATFORMS.includes(platform)) {
+      return res.status(400).json({ error: `socialMedia entries must be one of: ${SOCIAL_MEDIA_PLATFORMS.join(', ')}` });
+    }
+  }
+  if (email && !EMAIL_LIKE.test(email.trim())) {
+    return res.status(400).json({ error: 'That email address looks invalid' });
+  }
 
   const photo = files.find((f) => f.fieldname === 'photo');
 
   try {
     const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
     const result = await pool.query(
-      `insert into farmers (name, phone, village_id, created_by, photo_url, farmer_type, gender, age, birth_date, address, education_level, literacy, phone_type)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `insert into farmers (name, phone, village_id, created_by, photo_url, farmer_type, gender, age, birth_date, address, education_level, literacy, phone_type, social_media, email)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        returning id, name, phone, village_id, created_at`,
       [
         name, phone, villageId, req.user.userId, photoUrl, farmerType || null, gender || null, ageNum,
         birthDate || null, address?.trim() || null, educationLevel || null, literacy || null, phoneType || null,
+        socialMedia.length > 0 ? socialMedia : null, email?.trim() || null,
       ],
     );
     res.status(201).json({ farmer: result.rows[0] });

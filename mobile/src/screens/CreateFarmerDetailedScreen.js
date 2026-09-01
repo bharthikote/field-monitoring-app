@@ -4,6 +4,7 @@ import { createFarmer, getFarmer } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import ContactPhoneField from '../components/ContactPhoneField';
 import SearchableSelect from '../components/SearchableSelect';
+import MultiSelectField from '../components/MultiSelectField';
 import DatePickerField from '../components/DatePickerField';
 import { pickPhoto, assetToFormFile } from '../photo';
 import { COLORS } from '../theme';
@@ -40,7 +41,17 @@ const PHONE_TYPES = [
   { id: 'no_phone', name: 'No Phone' },
 ];
 
+const SOCIAL_MEDIA_PLATFORMS = [
+  { id: 'facebook', name: 'Facebook' },
+  { id: 'instagram', name: 'Instagram' },
+  { id: 'snapchat', name: 'Snapchat' },
+  { id: 'telegram', name: 'Telegram' },
+  { id: 'tiktok', name: 'TikTok' },
+  { id: 'twitter', name: 'Twitter' },
+];
+
 const MIN_AGE = 15;
+const EMAIL_LIKE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -59,6 +70,8 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
   const [educationLevel, setEducationLevel] = useState(null);
   const [literacy, setLiteracy] = useState(null);
   const [phoneType, setPhoneType] = useState(null);
+  const [socialMedia, setSocialMedia] = useState([]);
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -91,6 +104,10 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
       setError(`Age must be a whole number of ${MIN_AGE} or above.`);
       return;
     }
+    if (email.trim() && !EMAIL_LIKE.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
@@ -106,6 +123,8 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
       form.append('educationLevel', educationLevel);
       form.append('literacy', literacy);
       form.append('phoneType', phoneType);
+      if (socialMedia.length > 0) form.append('socialMedia', JSON.stringify(socialMedia));
+      if (email.trim()) form.append('email', email.trim());
       if (photo) form.append('photo', assetToFormFile(photo));
 
       const created = await createFarmer(token, form);
@@ -167,6 +186,24 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
         <SearchableSelect label="Literacy *" options={LITERACY_OPTIONS} value={literacy} onChange={setLiteracy} />
 
         <SearchableSelect label="Phone Type *" options={PHONE_TYPES} value={phoneType} onChange={setPhoneType} />
+
+        <MultiSelectField
+          label="Social Media"
+          placeholder="-- select platforms --"
+          options={SOCIAL_MEDIA_PLATFORMS}
+          selectedIds={socialMedia}
+          onChange={setSocialMedia}
+        />
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Optional"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
