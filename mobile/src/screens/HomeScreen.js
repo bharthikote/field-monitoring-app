@@ -18,19 +18,19 @@ const ACTIVITIES = [
 ];
 
 // TFO's own activity set (confirmed scope: Demo Plot, Home Garden,
-// Training, Field Day, Attendance, Market Survey - no Institutional/Agro
-// Dealer Visit). Layout only for now - every tile is a placeholder until
-// each is built out one by one, same as how the six activities above
-// started. Distinct 'tfo_' keys throughout, deliberately not reusing the
-// higher-role Demo Plot/Training/Field Day flows yet - TFOs are expected
-// to collect more farmer detail than those forms do today, to be worked
-// out in a later pass.
+// Training, Field Day, Market Survey - no Institutional/Agro Dealer Visit).
+// Attendance isn't its own tile - it's folded into Training/Field Day
+// instead, to be designed later. Layout only for now - every tile is a
+// placeholder until each is built out one by one, same as how the six
+// activities above started. Distinct 'tfo_' keys throughout, deliberately
+// not reusing the higher-role Demo Plot/Training/Field Day flows yet -
+// TFOs are expected to collect more farmer detail than those forms do
+// today, to be worked out in a later pass.
 const TFO_ACTIVITIES = [
   { key: 'tfo_demoplot', label: 'Demo Plot', icon: 'demoplot', solid: '#16a34a', tint: '#dcfce7' },
   { key: 'tfo_homegarden', label: 'Home Garden', icon: 'homegarden', solid: '#c2410c', tint: '#ffedd5' },
   { key: 'tfo_training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
   { key: 'tfo_fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
-  { key: 'tfo_attendance', label: 'Attendance', icon: 'attendance', solid: '#4f46e5', tint: '#e0e7ff' },
   { key: 'tfo_marketsurvey', label: 'Market Survey', icon: 'marketsurvey', solid: '#0891b2', tint: '#cffafe' },
 ];
 

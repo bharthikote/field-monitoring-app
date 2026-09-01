@@ -20,7 +20,11 @@ export default function CreateFarmerScreen({ token, onBack, onCreated }) {
     setError('');
     setLoading(true);
     try {
-      const created = await createFarmer(token, { name: name.trim(), phone: phone.trim(), villageId });
+      const form = new FormData();
+      form.append('name', name.trim());
+      form.append('phone', phone.trim());
+      form.append('villageId', villageId);
+      const created = await createFarmer(token, form);
       // Re-fetch so onCreated gets the full village breadcrumb (POST
       // /farmers only returns the bare row) - callers that log an activity
       // right after registering need it (Training/Field Day skip picking a

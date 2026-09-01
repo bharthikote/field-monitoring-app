@@ -44,8 +44,23 @@ export const listFarmers = (token) => request('/farmers', { token });
 export const searchFarmers = (token, query) => request(`/farmers/search?q=${encodeURIComponent(query)}`, { token });
 export const getFarmerByPhone = (token, phone) =>
   request(`/farmers/by-phone?phone=${encodeURIComponent(phone)}`, { token });
-export const createFarmer = (token, payload) =>
-  request('/farmers', { method: 'POST', body: payload, token });
+// A farmer can optionally carry a photo (the detailed TFO create form), so
+// this always posts multipart/form-data - the simple higher-role form just
+// omits every field beyond name/phone/villageId.
+export async function createFarmer(token, formData) {
+  const res = await fetch(`${API_BASE_URL}/farmers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Something went wrong');
+    err.code = data.code;
+    throw err;
+  }
+  return data;
+}
 export const getFarmer = (token, farmerId) => request(`/farmers/${farmerId}`, { token });
 export const getFarmerActivities = (token, farmerId) => request(`/farmers/${farmerId}/activities`, { token });
 

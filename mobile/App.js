@@ -11,6 +11,7 @@ import CreateTrainingScreen from './src/screens/CreateTrainingScreen';
 import CreateFieldDayScreen from './src/screens/CreateFieldDayScreen';
 import FarmersListScreen from './src/screens/FarmersListScreen';
 import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
+import CreateFarmerDetailedScreen from './src/screens/CreateFarmerDetailedScreen';
 import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
 import InstitutionsListScreen from './src/screens/InstitutionsListScreen';
 import CreateInstitutionScreen from './src/screens/CreateInstitutionScreen';
@@ -326,7 +327,14 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'create-farmer' && (
+      {screen === 'create-farmer' && user.role === 'tfo' && (
+        <CreateFarmerDetailedScreen
+          token={token}
+          onBack={() => setScreen('farmers')}
+          onCreated={() => setScreen('farmers')}
+        />
+      )}
+      {screen === 'create-farmer' && user.role !== 'tfo' && (
         <CreateFarmerScreen
           token={token}
           onBack={() => setScreen(pendingActivityType ? 'select-farmer' : 'farmers')}
