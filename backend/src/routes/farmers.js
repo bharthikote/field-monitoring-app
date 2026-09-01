@@ -86,7 +86,7 @@ function handleFileUpload(req, res, next) {
 // server). Casting to text in SQL returns the plain YYYY-MM-DD string with
 // no timezone involved at all.
 const SELECT_FARMERS = `
-  select f.id, f.name, f.phone, f.created_at,
+  select f.id, f.name, f.phone, f.created_at, f.status,
     f.photo_url, f.farmer_type, f.gender, f.age, f.birth_date::text as birth_date, f.address,
     f.education_level, f.literacy, f.phone_type, f.social_media, f.email,
     f.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
@@ -103,12 +103,12 @@ const SELECT_FARMERS = `
 // everyone else is scoped to the villages their location assignments cover.
 farmersRouter.get('/farmers', requireAuth, async (req, res) => {
   if (req.user.role === 'super_admin') {
-    const result = await pool.query(`${SELECT_FARMERS} order by f.created_at desc limit 200`);
+    const result = await pool.query(`${SELECT_FARMERS} where f.status = 'active' order by f.created_at desc limit 200`);
     return res.json({ farmers: result.rows });
   }
   const villageIds = await getCoveredVillageIds(req.user.userId);
   const result = await pool.query(
-    `${SELECT_FARMERS} where f.village_id = any($1) order by f.created_at desc limit 200`,
+    `${SELECT_FARMERS} where f.status = 'active' and f.village_id = any($1) order by f.created_at desc limit 200`,
     [villageIds],
   );
   res.json({ farmers: result.rows });
@@ -122,6 +122,7 @@ farmersRouter.get('/farmers/search', requireAuth, async (req, res) => {
   let whereClause = PHONE_LIKE.test(q)
     ? `f.phone = $1`
     : `(f.name ilike $1 or f.phone ilike $1 or vi.name ilike $1)`;
+  whereClause = `f.status = 'active' and (${whereClause})`;
 
   if (req.user.role !== 'super_admin') {
     const villageIds = await getCoveredVillageIds(req.user.userId);
@@ -144,7 +145,7 @@ farmersRouter.get('/farmers/search', requireAuth, async (req, res) => {
 farmersRouter.get('/farmers/by-phone', requireAuth, async (req, res) => {
   const { phone } = req.query;
   if (!phone) return res.status(400).json({ error: 'phone is required' });
-  const farmerResult = await pool.query(`${SELECT_FARMERS} where f.phone = $1`, [phone]);
+  const farmerResult = await pool.query(`${SELECT_FARMERS} where f.phone = $1 and f.status = 'active'`, [phone]);
   const farmer = farmerResult.rows[0] || null;
   if (!farmer) return res.json({ farmer: null, demoPlots: [] });
 
@@ -258,6 +259,18 @@ farmersRouter.patch('/farmers/:id', requireAuth, handleFileUpload, async (req, r
     if (err.code === '23503') return res.status(400).json({ error: 'No such village' });
     res.status(500).json({ error: err.message });
   }
+});
+
+// Soft-delete: wrongly created profiles get hidden from every farmer list/
+// search rather than actually removed, so activity history tied to the
+// farmer_id FK on demo_plots/trainings/field_days stays intact.
+farmersRouter.post('/farmers/:id/deactivate', requireAuth, async (req, res) => {
+  const existing = await pool.query('select village_id from farmers where id = $1', [req.params.id]);
+  if (existing.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
+  if (!(await requireCoverage(req, res, existing.rows[0].village_id))) return;
+
+  await pool.query("update farmers set status = 'deactivated' where id = $1", [req.params.id]);
+  res.json({ ok: true });
 });
 
 // All activities (Demo/Adoption Plot, Training) logged for this farmer,

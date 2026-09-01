@@ -80,6 +80,8 @@ export async function updateFarmer(token, farmerId, formData) {
   return data;
 }
 export const getFarmerActivities = (token, farmerId) => request(`/farmers/${farmerId}/activities`, { token });
+export const deactivateFarmer = (token, farmerId) =>
+  request(`/farmers/${farmerId}/deactivate`, { method: 'POST', body: {}, token });
 
 export const listIssueTypes = (token) => request('/master/issue-types', { token });
 export const listGoodThings = (token) => request('/master/good-things-observed', { token });

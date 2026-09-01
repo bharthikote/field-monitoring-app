@@ -357,6 +357,10 @@ export default function App() {
           farmer={selectedFarmer}
           onBack={() => setScreen('farmers')}
           onEdit={() => setScreen('edit-farmer')}
+          onDeactivated={() => {
+            setSelectedFarmer(null);
+            setScreen('farmers');
+          }}
         />
       )}
       {screen === 'edit-farmer' && selectedFarmer && user.role === 'tfo' && (

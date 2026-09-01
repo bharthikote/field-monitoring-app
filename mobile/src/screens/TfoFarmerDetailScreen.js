@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { getFarmerActivities } from '../api';
+import { getFarmerActivities, deactivateFarmer } from '../api';
 import { COLORS } from '../theme';
 
 const FARMER_TYPE_LABELS = {
@@ -101,12 +101,13 @@ function ActivityCard({ activity }) {
   );
 }
 
-export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit }) {
+export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated }) {
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('demo');
   const [expanded, setExpanded] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -132,6 +133,30 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit })
   const activeTabLabel = TABS.find((t) => t.key === activeTab).label;
 
   const comingSoon = (label) => Alert.alert('Coming Soon', `${label} isn't built yet.`);
+
+  const handleDeactivate = () => {
+    Alert.alert(
+      'Deactivate Farmer',
+      `This will remove ${farmer.name} from the farmers list. Their existing activity history is kept, but no new activities can be logged for them.\n\nAre you sure you want to continue?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Deactivate',
+          style: 'destructive',
+          onPress: async () => {
+            setDeactivating(true);
+            try {
+              await deactivateFarmer(token, farmer.id);
+              onDeactivated();
+            } catch (err) {
+              Alert.alert('Something went wrong', err.message);
+              setDeactivating(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.screen}>
@@ -168,8 +193,12 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit })
             <Pressable style={styles.pill} onPress={onEdit}>
               <Text style={styles.pillText}>Edit</Text>
             </Pressable>
-            <Pressable style={styles.pillDanger} onPress={() => comingSoon('Deactivate Farmer')}>
-              <Text style={styles.pillDangerText}>Deactivate</Text>
+            <Pressable style={styles.pillDanger} onPress={handleDeactivate} disabled={deactivating}>
+              {deactivating ? (
+                <ActivityIndicator size="small" color={COLORS.danger} />
+              ) : (
+                <Text style={styles.pillDangerText}>Deactivate</Text>
+              )}
             </Pressable>
             <Pressable style={styles.pill} onPress={() => setExpanded((v) => !v)}>
               <Text style={styles.pillText}>{expanded ? 'Show less' : 'Show more'}</Text>
