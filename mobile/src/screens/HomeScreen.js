@@ -17,6 +17,23 @@ const ACTIVITIES = [
   { key: 'agriinput', label: 'Agro Dealer Visit', icon: 'agriinput', solid: '#db2777', tint: '#fce7f3' },
 ];
 
+// TFO's own activity set (confirmed scope: Demo Plot, Home Garden,
+// Training, Field Day, Attendance, Market Survey - no Institutional/Agro
+// Dealer Visit). Layout only for now - every tile is a placeholder until
+// each is built out one by one, same as how the six activities above
+// started. Distinct 'tfo_' keys throughout, deliberately not reusing the
+// higher-role Demo Plot/Training/Field Day flows yet - TFOs are expected
+// to collect more farmer detail than those forms do today, to be worked
+// out in a later pass.
+const TFO_ACTIVITIES = [
+  { key: 'tfo_demoplot', label: 'Demo Plot', icon: 'demoplot', solid: '#16a34a', tint: '#dcfce7' },
+  { key: 'tfo_homegarden', label: 'Home Garden', icon: 'homegarden', solid: '#c2410c', tint: '#ffedd5' },
+  { key: 'tfo_training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
+  { key: 'tfo_fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
+  { key: 'tfo_attendance', label: 'Attendance', icon: 'attendance', solid: '#4f46e5', tint: '#e0e7ff' },
+  { key: 'tfo_marketsurvey', label: 'Market Survey', icon: 'marketsurvey', solid: '#0891b2', tint: '#cffafe' },
+];
+
 // A more deliberate icon set per activity - a graduation cap, a group of
 // people, a plant, a smaller sprout (distinct from the plant, since
 // "adopted" implies newly taken up), a bank building, and a storefront -
@@ -76,16 +93,49 @@ function ActivityIcon({ name, color }) {
       </Svg>
     );
   }
-  return (
-    <Svg {...common}>
-      <Line x1="3" y1="21" x2="21" y2="21" />
-      <Path d="M5 21V10.5" />
-      <Path d="M19 21V10.5" />
-      <Path d="M3 7l1.5-4h15L21 7" />
-      <Path d="M3 7a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0" />
-      <Rect x="9.5" y="14" width="5" height="7" />
-    </Svg>
-  );
+  if (name === 'agriinput') {
+    return (
+      <Svg {...common}>
+        <Line x1="3" y1="21" x2="21" y2="21" />
+        <Path d="M5 21V10.5" />
+        <Path d="M19 21V10.5" />
+        <Path d="M3 7l1.5-4h15L21 7" />
+        <Path d="M3 7a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0" />
+        <Rect x="9.5" y="14" width="5" height="7" />
+      </Svg>
+    );
+  }
+  if (name === 'homegarden') {
+    return (
+      <Svg {...common}>
+        <Path d="M3 11L12 4l9 7" />
+        <Path d="M5 10v10h14V10" />
+        <Path d="M12 20v-3" />
+        <Path d="M12 17c-1.3 0-2-1-2-2s.7-2 2-2 2 1 2 2-.7 2-2 2z" />
+      </Svg>
+    );
+  }
+  if (name === 'attendance') {
+    return (
+      <Svg {...common}>
+        <Rect x="5" y="4" width="14" height="17" rx="2" />
+        <Path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+        <Path d="M9 12l2 2 4-4" />
+        <Line x1="8" y1="17" x2="16" y2="17" />
+      </Svg>
+    );
+  }
+  if (name === 'marketsurvey') {
+    return (
+      <Svg {...common}>
+        <Path d="M4 9h16l-1.5 10a2 2 0 0 1-2 1.8H7.5a2 2 0 0 1-2-1.8L4 9z" />
+        <Path d="M8 9V7a4 4 0 0 1 8 0v2" />
+        <Line x1="9" y1="13" x2="9" y2="17" />
+        <Line x1="15" y1="13" x2="15" y2="17" />
+      </Svg>
+    );
+  }
+  return null;
 }
 
 function ActivityCard({ label, icon, solid, tint, count, onPress }) {
@@ -100,10 +150,8 @@ function ActivityCard({ label, icon, solid, tint, count, onPress }) {
   );
 }
 
-// Every role except TFO records day-to-day field activities here - TFO's
-// entire role in this system (Phase 1) is viewing/resolving assigned
-// issues (its own bottom tab); the six activities stay in the vendor app
-// for TFO specifically.
+// TFOs get their own activity set (TFO_ACTIVITIES) instead of this one -
+// higher roles monitor TFO work rather than logging these six themselves.
 // Activity keys that already have a real plot-lookup flow behind them,
 // mapped to the plot_type they pass through to it. The rest still show
 // "Coming Soon" until built out.
@@ -117,7 +165,7 @@ function getGreeting() {
 }
 
 export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit }) {
-  const showActivities = user.role !== 'tfo';
+  const isTfo = user.role === 'tfo';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
   const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
   const [trainingCount, setTrainingCount] = useState(null);
@@ -126,14 +174,14 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   const [agroDealerVisitCount, setAgroDealerVisitCount] = useState(null);
 
   useEffect(() => {
-    if (!showActivities) return;
+    if (isTfo) return;
     getMyVisitCount(token, 'demo').then((data) => setDemoPlotCount(data.count)).catch(() => {});
     getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
     getMyTrainingCount(token).then((data) => setTrainingCount(data.count)).catch(() => {});
     getMyFieldDayCount(token).then((data) => setFieldDayCount(data.count)).catch(() => {});
     getMyInstitutionVisitCount(token).then((data) => setInstitutionVisitCount(data.count)).catch(() => {});
     getMyAgroDealerVisitCount(token).then((data) => setAgroDealerVisitCount(data.count)).catch(() => {});
-  }, [token, showActivities]);
+  }, [token, isTfo]);
 
   const handleActivity = (activity) => {
     const plotType = PLOT_ACTIVITY_TYPES[activity.key];
@@ -170,12 +218,30 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     return null;
   };
 
-  if (!showActivities) {
+  // Layout only, per explicit scope - every TFO tile is a placeholder
+  // ("Coming Soon") until each activity is built out one by one, same as
+  // the six activities above were.
+  if (isTfo) {
     return (
-      <View style={styles.centeredContainer}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <Text style={styles.greeting}>{getGreeting()}</Text>
         <Text style={styles.title}>{user.name}</Text>
-      </View>
+
+        <Text style={styles.sectionLabel}>What are you monitoring today?</Text>
+        <View style={styles.grid}>
+          {TFO_ACTIVITIES.map((activity) => (
+            <ActivityCard
+              key={activity.key}
+              label={activity.label}
+              icon={activity.icon}
+              solid={activity.solid}
+              tint={activity.tint}
+              count={null}
+              onPress={() => Alert.alert('Coming Soon', `${activity.label} isn't built yet.`)}
+            />
+          ))}
+        </View>
+      </ScrollView>
     );
   }
 
@@ -205,7 +271,6 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingTop: 56, paddingBottom: 60 },
-  centeredContainer: { flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center' },
   greeting: { fontSize: 13, color: '#837f77' },
   title: { fontSize: 22, fontWeight: '700', marginTop: 2 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },
