@@ -13,6 +13,7 @@ import FarmersListScreen from './src/screens/FarmersListScreen';
 import CreateFarmerScreen from './src/screens/CreateFarmerScreen';
 import CreateFarmerDetailedScreen from './src/screens/CreateFarmerDetailedScreen';
 import FarmerDetailScreen from './src/screens/FarmerDetailScreen';
+import TfoFarmerDetailScreen from './src/screens/TfoFarmerDetailScreen';
 import InstitutionsListScreen from './src/screens/InstitutionsListScreen';
 import CreateInstitutionScreen from './src/screens/CreateInstitutionScreen';
 import CreateInstitutionVisitScreen from './src/screens/CreateInstitutionVisitScreen';
@@ -348,7 +349,14 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'farmer-detail' && selectedFarmer && (
+      {screen === 'farmer-detail' && selectedFarmer && user.role === 'tfo' && (
+        <TfoFarmerDetailScreen
+          token={token}
+          farmer={selectedFarmer}
+          onBack={() => setScreen('farmers')}
+        />
+      )}
+      {screen === 'farmer-detail' && selectedFarmer && user.role !== 'tfo' && (
         <FarmerDetailScreen
           token={token}
           farmer={selectedFarmer}
