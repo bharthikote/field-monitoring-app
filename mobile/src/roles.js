@@ -5,4 +5,5 @@ export const ROLES = [
   { value: 'country_manager', label: 'Country Manager' },
   { value: 'admin', label: 'Admin' },
   { value: 'leadership', label: 'Leadership' },
+  { value: 'data_enumerator', label: 'Data Enumerator' },
 ];

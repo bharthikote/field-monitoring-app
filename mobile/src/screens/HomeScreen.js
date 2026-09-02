@@ -34,6 +34,13 @@ const TFO_ACTIVITIES = [
   { key: 'tfo_marketsurvey', label: 'Market Survey', icon: 'marketsurvey', solid: '#0891b2', tint: '#cffafe' },
 ];
 
+// Data Enumerator: one rung below TFO - no activity logging of their own,
+// just farmer profiles (the existing Farmers tab, read-only) plus whatever
+// custom forms Super Admin has assigned them under Data Collection.
+const DATA_ENUMERATOR_ACTIVITIES = [
+  { key: 'data_collection', label: 'Data Collection', icon: 'clipboard', solid: '#4f8b5b', tint: '#e8f3ea' },
+];
+
 // A more deliberate icon set per activity - a graduation cap, a group of
 // people, a plant, a smaller sprout (distinct from the plant, since
 // "adopted" implies newly taken up), a bank building, and a storefront -
@@ -125,6 +132,16 @@ function ActivityIcon({ name, color }) {
       </Svg>
     );
   }
+  if (name === 'clipboard') {
+    return (
+      <Svg {...common}>
+        <Rect x="5" y="4" width="14" height="17" rx="2" />
+        <Path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" />
+        <Line x1="8" y1="11" x2="16" y2="11" />
+        <Line x1="8" y1="15" x2="16" y2="15" />
+      </Svg>
+    );
+  }
   if (name === 'marketsurvey') {
     return (
       <Svg {...common}>
@@ -164,8 +181,9 @@ function getGreeting() {
   return 'Good evening';
 }
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection }) {
   const isTfo = user.role === 'tfo';
+  const isDataEnumerator = user.role === 'data_enumerator';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
   const [adoptionPlotCount, setAdoptionPlotCount] = useState(null);
   const [trainingCount, setTrainingCount] = useState(null);
@@ -174,14 +192,14 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   const [agroDealerVisitCount, setAgroDealerVisitCount] = useState(null);
 
   useEffect(() => {
-    if (isTfo) return;
+    if (isTfo || isDataEnumerator) return;
     getMyVisitCount(token, 'demo').then((data) => setDemoPlotCount(data.count)).catch(() => {});
     getMyVisitCount(token, 'adoption').then((data) => setAdoptionPlotCount(data.count)).catch(() => {});
     getMyTrainingCount(token).then((data) => setTrainingCount(data.count)).catch(() => {});
     getMyFieldDayCount(token).then((data) => setFieldDayCount(data.count)).catch(() => {});
     getMyInstitutionVisitCount(token).then((data) => setInstitutionVisitCount(data.count)).catch(() => {});
     getMyAgroDealerVisitCount(token).then((data) => setAgroDealerVisitCount(data.count)).catch(() => {});
-  }, [token, isTfo]);
+  }, [token, isTfo, isDataEnumerator]);
 
   const handleActivity = (activity) => {
     const plotType = PLOT_ACTIVITY_TYPES[activity.key];
@@ -217,6 +235,33 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     if (activityKey === 'agriinput') return agroDealerVisitCount;
     return null;
   };
+
+  // Data Enumerator: no activity logging at all, just the one Data
+  // Collection tile - farmer profiles stay on the existing Farmers tab
+  // (read-only for this role, gated at the App.js level).
+  if (isDataEnumerator) {
+    return (
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <Text style={styles.greeting}>{getGreeting()}</Text>
+        <Text style={styles.title}>{user.name}</Text>
+
+        <Text style={styles.sectionLabel}>What are you working on today?</Text>
+        <View style={styles.grid}>
+          {DATA_ENUMERATOR_ACTIVITIES.map((activity) => (
+            <ActivityCard
+              key={activity.key}
+              label={activity.label}
+              icon={activity.icon}
+              solid={activity.solid}
+              tint={activity.tint}
+              count={null}
+              onPress={onOpenDataCollection}
+            />
+          ))}
+        </View>
+      </ScrollView>
+    );
+  }
 
   // Layout only, per explicit scope - every TFO tile is a placeholder
   // ("Coming Soon") until each activity is built out one by one, same as

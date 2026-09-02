@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Edit Data Collection Form</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 28px 0 8px; }
+  #details-form label { display: block; font-size: 13px; color: var(--text-muted); margin: 14px 0 6px; }
+  #details-form label:first-child { margin-top: 0; }
+  #details-form input, #details-form textarea { width: 100%; max-width: 460px; font-family: inherit; }
+  #details-form textarea { padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); font-size: 0.85rem; resize: vertical; }
+  .field-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .field-row:last-child { border-bottom: none; }
+  .field-label { font-weight: 600; font-size: 0.9rem; }
+  .field-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 3px; }
+  .field-type-badge { background: var(--accent-soft); color: var(--accent-hover); padding: 2px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .required-badge { color: var(--danger); font-size: 0.78rem; margin-left: 6px; }
+  #add-field-panel { margin-top: 16px; padding: 18px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  #add-field-panel label { display: block; font-size: 13px; color: var(--text-muted); margin: 12px 0 6px; }
+  #add-field-panel label:first-child { margin-top: 0; }
+  #add-field-panel input, #add-field-panel select, #add-field-panel textarea { width: 100%; max-width: 460px; font-family: inherit; }
+  #add-field-panel textarea { padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); font-size: 0.85rem; resize: vertical; }
+  .required-check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 0.85rem; }
+  .enumerator-checklist { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-height: 320px; overflow-y: auto; }
+  .enumerator-checklist label { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer; }
+  .enumerator-checklist label:hover { background: var(--bg); }
+  .submission-value-cell { max-width: 220px; white-space: normal; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<p><a href="/admin/data-collection-forms" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to Data Collection Forms</a></p>
+<h1 id="form-title-heading">Loading…</h1>
+<p id="load-error" class="error" style="display:none"></p>
+
+<div id="content" style="display:none">
+
+<div class="section-title">Details</div>
+<form id="details-form">
+  <label>Title</label>
+  <input type="text" id="detail-title" required />
+  <label>Description</label>
+  <textarea id="detail-description" rows="2"></textarea>
+  <p id="details-error" class="error" style="display:none"></p>
+  <button id="details-save" class="primary" type="submit" style="margin-top:16px">Save Details</button>
+  <span id="details-saved" class="scope-note" style="display:none; margin-left:8px;">Saved.</span>
+</form>
+
+<div class="section-title">Fields</div>
+<div id="fields-list"></div>
+<p id="fields-empty" class="empty" style="display:none">No fields yet - add one below.</p>
+
+<button id="add-field-btn" class="btn" style="margin-top:16px; background:var(--accent-soft); color:var(--accent-hover); border:1px solid transparent;">+ Add Field</button>
+<div id="add-field-panel" style="display:none">
+  <label>Field Type</label>
+  <select id="field-type">
+    <option value="text">Text</option>
+    <option value="number">Number</option>
+    <option value="textarea">Long Text</option>
+    <option value="date">Date</option>
+    <option value="phone">Phone Number</option>
+    <option value="select">Single Choice</option>
+    <option value="multiselect">Multiple Choice</option>
+    <option value="photo">Photo</option>
+  </select>
+  <label>Label</label>
+  <input type="text" id="field-label" placeholder="e.g. Number of cattle owned" />
+  <div id="field-options-wrap" style="display:none">
+    <label>Options (one per line)</label>
+    <textarea id="field-options" rows="3" placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+  </div>
+  <label class="required-check"><input type="checkbox" id="field-required" /> Required field</label>
+  <p id="add-field-error" class="error" style="display:none"></p>
+  <div class="form-actions" style="margin-top:16px; display:flex; gap:8px;">
+    <button id="add-field-save" class="primary">Add Field</button>
+    <button id="add-field-cancel" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Cancel</button>
+  </div>
+</div>
+
+<div class="section-title">Assign to Data Enumerators</div>
+<p class="scope-note" style="margin-top:0">Only enumerators ticked here will see this form on their phone.</p>
+<div id="enumerator-checklist" class="enumerator-checklist"></div>
+<p id="no-enumerators" class="empty" style="display:none">No Data Enumerator accounts exist yet.</p>
+<p id="assignments-error" class="error" style="display:none"></p>
+<button id="save-assignments" class="primary" style="margin-top:12px">Save Assignments</button>
+<span id="assignments-saved" class="scope-note" style="display:none; margin-left:8px;">Saved.</span>
+
+<div class="section-title">Submissions</div>
+<p id="submissions-empty" class="empty" style="display:none">No data submitted yet.</p>
+<div class="table-scroll">
+<table id="submissions-table" style="display:none">
+  <thead><tr id="submissions-head"></tr></thead>
+  <tbody id="submissions-rows"></tbody>
+</table>
+</div>
+
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const formId = location.pathname.split('/').pop();
+const OPTION_TYPES = ['select', 'multiselect'];
+const TYPE_LABELS = { text: 'Text', number: 'Number', textarea: 'Long Text', date: 'Date', phone: 'Phone', select: 'Single Choice', multiselect: 'Multiple Choice', photo: 'Photo' };
+const DELETE_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+let currentForm = null;
+let currentFields = [];
+
+async function loadForm() {
+  const res = await authedFetch(`/data-collection-forms/${formId}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load form');
+  currentForm = data.form;
+  currentFields = data.fields;
+}
+
+function renderDetails() {
+  document.getElementById('form-title-heading').textContent = currentForm.title;
+  document.getElementById('detail-title').value = currentForm.title;
+  document.getElementById('detail-description').value = currentForm.description || '';
+}
+
+function renderFields() {
+  const list = document.getElementById('fields-list');
+  const empty = document.getElementById('fields-empty');
+  if (!currentFields.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = currentFields.map((f) => `
+    <div class="field-row">
+      <div>
+        <span class="field-label">${escapeHtml(f.label)}</span>
+        ${f.required ? '<span class="required-badge">Required</span>' : ''}
+        <div class="field-meta">
+          <span class="field-type-badge">${TYPE_LABELS[f.field_type]}</span>
+          ${OPTION_TYPES.includes(f.field_type) && f.options ? ' &middot; ' + f.options.map(escapeHtml).join(', ') : ''}
+        </div>
+      </div>
+      <button class="btn delete-btn delete-field-btn" data-id="${f.id}">${DELETE_ICON} Delete</button>
+    </div>
+  `).join('');
+}
+
+document.getElementById('details-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById('details-error');
+  const savedEl = document.getElementById('details-saved');
+  errorEl.style.display = 'none';
+  savedEl.style.display = 'none';
+  const title = document.getElementById('detail-title').value.trim();
+  const description = document.getElementById('detail-description').value.trim();
+  if (!title) {
+    errorEl.textContent = 'Title is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('details-save');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/data-collection-forms/${formId}`, { method: 'PATCH', body: JSON.stringify({ title, description }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save');
+    currentForm = data.form;
+    renderDetails();
+    savedEl.style.display = 'inline';
+    setTimeout(() => { savedEl.style.display = 'none'; }, 2000);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('field-type').addEventListener('change', (e) => {
+  document.getElementById('field-options-wrap').style.display = OPTION_TYPES.includes(e.target.value) ? 'block' : 'none';
+});
+
+document.getElementById('add-field-btn').addEventListener('click', () => {
+  document.getElementById('add-field-panel').style.display = 'block';
+  document.getElementById('add-field-btn').style.display = 'none';
+  document.getElementById('field-label').focus();
+});
+
+function resetAddFieldPanel() {
+  document.getElementById('add-field-panel').style.display = 'none';
+  document.getElementById('add-field-btn').style.display = 'inline-flex';
+  document.getElementById('field-label').value = '';
+  document.getElementById('field-options').value = '';
+  document.getElementById('field-required').checked = false;
+  document.getElementById('field-type').value = 'text';
+  document.getElementById('field-options-wrap').style.display = 'none';
+  document.getElementById('add-field-error').style.display = 'none';
+}
+document.getElementById('add-field-cancel').addEventListener('click', resetAddFieldPanel);
+
+document.getElementById('add-field-save').addEventListener('click', async () => {
+  const errorEl = document.getElementById('add-field-error');
+  errorEl.style.display = 'none';
+  const fieldType = document.getElementById('field-type').value;
+  const label = document.getElementById('field-label').value.trim();
+  const required = document.getElementById('field-required').checked;
+  const options = document.getElementById('field-options').value.split('\n').map((s) => s.trim()).filter(Boolean);
+
+  if (!label) {
+    errorEl.textContent = 'Label is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  if (OPTION_TYPES.includes(fieldType) && options.length === 0) {
+    errorEl.textContent = 'Add at least one option.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('add-field-save');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/data-collection-forms/${formId}/fields`, {
+      method: 'POST',
+      body: JSON.stringify({ fieldType, label, required, options }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add field');
+    currentFields.push(data.field);
+    renderFields();
+    resetAddFieldPanel();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('fields-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-field-btn');
+  if (!btn) return;
+  if (!confirm('Delete this field? Any already-collected answers for it will be lost.')) return;
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/data-collection-forms/${formId}/fields/${btn.dataset.id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete field');
+    }
+    currentFields = currentFields.filter((f) => f.id !== btn.dataset.id);
+    renderFields();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
+});
+
+// --- Assignments ---
+
+let allEnumerators = [];
+let assignedIds = new Set();
+
+async function loadAssignments() {
+  const [usersRes, assignRes] = await Promise.all([
+    authedFetch('/admin/users'),
+    authedFetch(`/data-collection-forms/${formId}/assignments`),
+  ]);
+  const usersData = await usersRes.json();
+  const assignData = await assignRes.json();
+  allEnumerators = (usersData.users || []).filter((u) => u.role === 'data_enumerator');
+  assignedIds = new Set(assignData.userIds || []);
+}
+
+function renderAssignments() {
+  const list = document.getElementById('enumerator-checklist');
+  const empty = document.getElementById('no-enumerators');
+  if (!allEnumerators.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  list.innerHTML = allEnumerators.map((u) => `
+    <label>
+      <input type="checkbox" class="enumerator-check" value="${u.id}" ${assignedIds.has(u.id) ? 'checked' : ''} />
+      ${escapeHtml(u.name)} <span class="scope-note">(${escapeHtml(u.user_code)}${u.status !== 'approved' ? ' - ' + u.status : ''})</span>
+    </label>
+  `).join('');
+}
+
+document.getElementById('save-assignments').addEventListener('click', async () => {
+  const errorEl = document.getElementById('assignments-error');
+  const savedEl = document.getElementById('assignments-saved');
+  errorEl.style.display = 'none';
+  savedEl.style.display = 'none';
+  const userIds = [...document.querySelectorAll('.enumerator-check:checked')].map((cb) => cb.value);
+  const btn = document.getElementById('save-assignments');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/data-collection-forms/${formId}/assignments`, { method: 'PUT', body: JSON.stringify({ userIds }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save assignments');
+    assignedIds = new Set(data.userIds);
+    savedEl.style.display = 'inline';
+    setTimeout(() => { savedEl.style.display = 'none'; }, 2000);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// --- Submissions ---
+
+function formatValue(field, raw) {
+  if (raw === undefined || raw === null) return '—';
+  if (field.field_type === 'multiselect') return Array.isArray(raw) ? raw.map(escapeHtml).join(', ') : escapeHtml(raw);
+  if (field.field_type === 'photo') return `<a href="${raw}" target="_blank" rel="noopener">View photo</a>`;
+  return escapeHtml(String(raw));
+}
+
+async function loadSubmissions() {
+  const res = await authedFetch(`/data-collection-forms/${formId}/submissions`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load submissions');
+  return data.submissions;
+}
+
+function renderSubmissions(submissions) {
+  const table = document.getElementById('submissions-table');
+  const empty = document.getElementById('submissions-empty');
+  const head = document.getElementById('submissions-head');
+  const rows = document.getElementById('submissions-rows');
+
+  if (!submissions.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = 'table';
+
+  head.innerHTML = `
+    <th>Farmer</th><th>Village</th>
+    ${currentFields.map((f) => `<th>${escapeHtml(f.label)}</th>`).join('')}
+    <th>Submitted By</th><th>Date</th>
+  `;
+  rows.innerHTML = submissions.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.farmer_name)}<br><span class="scope-note">${escapeHtml(s.farmer_phone)}</span></td>
+      <td>${escapeHtml(s.village_name)}</td>
+      ${currentFields.map((f) => `<td class="submission-value-cell">${formatValue(f, s.values[f.id])}</td>`).join('')}
+      <td>${escapeHtml(s.submitted_by_name)}</td>
+      <td>${new Date(s.created_at).toLocaleDateString()}</td>
+    </tr>
+  `).join('');
+}
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  if (user.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can manage data collection forms.</p>';
+    return;
+  }
+  try {
+    await loadForm();
+    renderDetails();
+    renderFields();
+    await loadAssignments();
+    renderAssignments();
+    enhanceAllSelects(document.getElementById('add-field-panel'));
+    const submissions = await loadSubmissions();
+    renderSubmissions(submissions);
+    document.getElementById('content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('load-error').textContent = err.message;
+    document.getElementById('load-error').style.display = 'block';
+    document.getElementById('form-title-heading').textContent = 'Data Collection Form';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

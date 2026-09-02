@@ -143,9 +143,11 @@ export default function FarmersListScreen({ token, onBack, title = 'Farmers', on
         )}
       />
 
-      <Pressable style={styles.fab} onPress={onCreateNew}>
-        <Text style={styles.fabIcon}>+</Text>
-      </Pressable>
+      {onCreateNew && (
+        <Pressable style={styles.fab} onPress={onCreateNew}>
+          <Text style={styles.fabIcon}>+</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

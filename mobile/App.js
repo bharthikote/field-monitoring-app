@@ -21,6 +21,8 @@ import CreateInstitutionVisitScreen from './src/screens/CreateInstitutionVisitSc
 import AgroDealersListScreen from './src/screens/AgroDealersListScreen';
 import CreateAgroDealerScreen from './src/screens/CreateAgroDealerScreen';
 import CreateAgroDealerVisitScreen from './src/screens/CreateAgroDealerVisitScreen';
+import DataCollectionFormsListScreen from './src/screens/DataCollectionFormsListScreen';
+import FillDataCollectionFormScreen from './src/screens/FillDataCollectionFormScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -63,6 +65,9 @@ const BACK_MAP = {
   'select-agro-dealer': 'home',
   'create-agro-dealer': 'select-agro-dealer',
   'create-agro-dealer-visit': 'select-agro-dealer',
+  'data-collection': 'home',
+  'select-farmer-for-form': 'data-collection',
+  'fill-data-collection-form': 'select-farmer-for-form',
 };
 
 export default function App() {
@@ -88,6 +93,11 @@ export default function App() {
   const [selectedInstitutionForVisit, setSelectedInstitutionForVisit] = useState(null);
   const [selectedDealerForVisit, setSelectedDealerForVisit] = useState(null);
   const [selectedIssueId, setSelectedIssueId] = useState(null);
+  // Data Enumerator's Data Collection flow: pick a form, then a farmer,
+  // then fill it out - same linear select-then-fill shape as Institutional
+  // Visit/Agro Dealer Visit above.
+  const [selectedDataCollectionForm, setSelectedDataCollectionForm] = useState(null);
+  const [selectedFarmerForDataCollection, setSelectedFarmerForDataCollection] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
   // scroll up to bring it back. Reset to visible each time the screen is
@@ -173,6 +183,40 @@ export default function App() {
           }}
           onCreateInstitutionVisit={() => setScreen('select-institution')}
           onCreateAgroDealerVisit={() => setScreen('select-agro-dealer')}
+          onOpenDataCollection={() => setScreen('data-collection')}
+        />
+      )}
+      {screen === 'data-collection' && (
+        <DataCollectionFormsListScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onSelectForm={(form) => {
+            setSelectedDataCollectionForm(form);
+            setScreen('select-farmer-for-form');
+          }}
+        />
+      )}
+      {screen === 'select-farmer-for-form' && (
+        <FarmersListScreen
+          token={token}
+          title="Select Farmer"
+          onBack={() => setScreen('data-collection')}
+          onSelectFarmer={(farmer) => {
+            setSelectedFarmerForDataCollection(farmer);
+            setScreen('fill-data-collection-form');
+          }}
+        />
+      )}
+      {screen === 'fill-data-collection-form' && selectedDataCollectionForm && selectedFarmerForDataCollection && (
+        <FillDataCollectionFormScreen
+          token={token}
+          form={selectedDataCollectionForm}
+          farmer={selectedFarmerForDataCollection}
+          onBack={() => setScreen('select-farmer-for-form')}
+          onSubmitted={() => {
+            setSelectedFarmerForDataCollection(null);
+            setScreen('data-collection');
+          }}
         />
       )}
       {screen === 'select-farmer' && (
@@ -323,7 +367,7 @@ export default function App() {
       {screen === 'farmers' && (
         <FarmersListScreen
           token={token}
-          onCreateNew={() => setScreen('create-farmer')}
+          onCreateNew={user.role === 'data_enumerator' ? undefined : () => setScreen('create-farmer')}
           onSelectFarmer={(farmer) => {
             setSelectedFarmer(farmer);
             setScreen('farmer-detail');

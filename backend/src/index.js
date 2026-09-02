@@ -20,6 +20,7 @@ import { institutionsRouter } from './routes/institutions.js';
 import { institutionVisitsRouter } from './routes/institutionVisits.js';
 import { agroDealersRouter } from './routes/agroDealers.js';
 import { agroDealerVisitsRouter } from './routes/agroDealerVisits.js';
+import { dataCollectionFormsRouter } from './routes/dataCollectionForms.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -56,6 +57,7 @@ app.use(institutionsRouter);
 app.use(institutionVisitsRouter);
 app.use(agroDealersRouter);
 app.use(agroDealerVisitsRouter);
+app.use(dataCollectionFormsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -87,6 +89,12 @@ app.get('/admin/reports/demos', (_req, res) => {
 });
 app.get('/admin/reports/master-list', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-master-list.html'));
+});
+app.get('/admin/data-collection-forms', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'data-collection-forms.html'));
+});
+app.get('/admin/data-collection-forms/:id', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'data-collection-form-edit.html'));
 });
 
 const port = process.env.PORT || 4000;

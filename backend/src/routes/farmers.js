@@ -159,6 +159,9 @@ farmersRouter.get('/farmers/by-phone', requireAuth, async (req, res) => {
 // multipart (the optional photo needs it) - the simple higher-role form
 // just omits every field beyond name/phone/villageId.
 farmersRouter.post('/farmers', requireAuth, handleFileUpload, async (req, res) => {
+  if (req.user.role === 'data_enumerator') {
+    return res.status(403).json({ error: 'Data Enumerators can view farmer profiles but not register new ones' });
+  }
   const files = req.files || [];
   const {
     name, phone, villageId, farmerType, gender, age, birthDate,
@@ -218,6 +221,9 @@ farmersRouter.get('/farmers/:id', requireAuth, async (req, res) => {
 // omitting one keeps whatever was already there (coalesce below), so
 // re-saving the form without touching the photo field doesn't clear it.
 farmersRouter.patch('/farmers/:id', requireAuth, handleFileUpload, async (req, res) => {
+  if (req.user.role === 'data_enumerator') {
+    return res.status(403).json({ error: 'Data Enumerators can view farmer profiles but not edit them' });
+  }
   const files = req.files || [];
   const existing = await pool.query('select village_id from farmers where id = $1', [req.params.id]);
   if (existing.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
@@ -265,6 +271,9 @@ farmersRouter.patch('/farmers/:id', requireAuth, handleFileUpload, async (req, r
 // search rather than actually removed, so activity history tied to the
 // farmer_id FK on demo_plots/trainings/field_days stays intact.
 farmersRouter.post('/farmers/:id/deactivate', requireAuth, async (req, res) => {
+  if (req.user.role === 'data_enumerator') {
+    return res.status(403).json({ error: 'Data Enumerators can view farmer profiles but not deactivate them' });
+  }
   const existing = await pool.query('select village_id from farmers where id = $1', [req.params.id]);
   if (existing.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
   if (!(await requireCoverage(req, res, existing.rows[0].village_id))) return;

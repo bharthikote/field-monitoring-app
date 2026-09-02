@@ -190,6 +190,24 @@ export async function createAgroDealerVisit(token, formData) {
   return data;
 }
 
+export const getMyDataCollectionForms = (token) => request('/my-data-collection-forms', { token });
+export const getDataCollectionForm = (token, formId) => request(`/data-collection-forms/${formId}`, { token });
+
+// Field values carry a mix of plain text and photo files, so this posts
+// multipart/form-data directly, same pattern as createVisit.
+export async function submitDataCollectionForm(token, formId, formData) {
+  const res = await fetch(`${API_BASE_URL}/data-collection-forms/${formId}/submissions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Something went wrong');
+  }
+  return data;
+}
+
 export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });
