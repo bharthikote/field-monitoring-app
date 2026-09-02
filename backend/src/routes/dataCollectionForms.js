@@ -37,11 +37,11 @@ async function loadFormWithFields(formId) {
   return { form: formResult.rows[0], fields: fieldsResult.rows };
 }
 
-// Super Admin always has access (author of every form); a Data Enumerator
-// only has access to a form they've been individually assigned.
+// Super Admin always has access (author of every form); anyone else only
+// has access to a form they've been individually assigned - assignment
+// isn't restricted to any one role, any user can be handed a form to fill.
 async function hasFormAccess(req, formId) {
   if (req.user.role === 'super_admin') return true;
-  if (req.user.role !== 'data_enumerator') return false;
   const result = await pool.query(
     'select 1 from data_collection_form_assignments where form_id = $1 and user_id = $2',
     [formId, req.user.userId],
@@ -76,11 +76,12 @@ dataCollectionFormsRouter.get('/data-collection-forms', requireAuth, requireSupe
   res.json({ forms: result.rows });
 });
 
-// A Data Enumerator's assigned forms - what the mobile Data Collection tab
-// lists. Sorted by title, not creation date, since there's no "latest
-// first" logic that matters to someone just picking which form to fill.
+// Whichever forms have been individually assigned to the current user -
+// what the mobile Data Collection tab lists, for any role (not just Data
+// Enumerator). Empty for everyone until Super Admin assigns them something.
+// Sorted by title, not creation date, since there's no "latest first" logic
+// that matters to someone just picking which form to fill.
 dataCollectionFormsRouter.get('/my-data-collection-forms', requireAuth, async (req, res) => {
-  if (req.user.role !== 'data_enumerator') return res.json({ forms: [] });
   const result = await pool.query(`
     select f.id, f.title, f.description,
       (select count(*) from data_collection_form_fields ff where ff.form_id = f.id) as field_count
@@ -246,8 +247,8 @@ function handleFileUpload(req, res, next) {
 }
 
 dataCollectionFormsRouter.post('/data-collection-forms/:id/submissions', requireAuth, handleFileUpload, async (req, res) => {
-  if (req.user.role !== 'data_enumerator') {
-    return res.status(403).json({ error: 'Only Data Enumerators submit data collection forms' });
+  if (req.user.role === 'super_admin') {
+    return res.status(403).json({ error: "Super Admin doesn't submit data collection forms" });
   }
   if (!(await hasFormAccess(req, req.params.id))) {
     return res.status(403).json({ error: "You don't have access to this form" });

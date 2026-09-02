@@ -15,6 +15,7 @@ const ACTIVITIES = [
   { key: 'fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
   { key: 'govt', label: 'Institutional Visit', icon: 'govt', solid: '#7c3aed', tint: '#ede9fe' },
   { key: 'agriinput', label: 'Agro Dealer Visit', icon: 'agriinput', solid: '#db2777', tint: '#fce7f3' },
+  { key: 'data_collection', label: 'Data Collection', icon: 'clipboard', solid: '#4f8b5b', tint: '#e8f3ea' },
 ];
 
 // TFO's own activity set (confirmed scope: Demo Plot, Home Garden,
@@ -32,11 +33,15 @@ const TFO_ACTIVITIES = [
   { key: 'tfo_training', label: 'Training', icon: 'training', solid: '#2563eb', tint: '#dbeafe' },
   { key: 'tfo_fieldday', label: 'Field Day', icon: 'fieldday', solid: '#0d9488', tint: '#ccfbf1' },
   { key: 'tfo_marketsurvey', label: 'Market Survey', icon: 'marketsurvey', solid: '#0891b2', tint: '#cffafe' },
+  { key: 'data_collection', label: 'Data Collection', icon: 'clipboard', solid: '#4f8b5b', tint: '#e8f3ea' },
 ];
 
 // Data Enumerator: one rung below TFO - no activity logging of their own,
 // just farmer profiles (the existing Farmers tab, read-only) plus whatever
-// custom forms Super Admin has assigned them under Data Collection.
+// custom forms Super Admin has assigned them under Data Collection. Every
+// other role gets Data Collection folded into their own activity grid
+// above instead of a dedicated screen - this one exists because Data
+// Enumerator has nothing else to show alongside it.
 const DATA_ENUMERATOR_ACTIVITIES = [
   { key: 'data_collection', label: 'Data Collection', icon: 'clipboard', solid: '#4f8b5b', tint: '#e8f3ea' },
 ];
@@ -223,6 +228,10 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
       onCreateAgroDealerVisit();
       return;
     }
+    if (activity.key === 'data_collection') {
+      onOpenDataCollection();
+      return;
+    }
     Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
   };
 
@@ -265,7 +274,8 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
 
   // Layout only, per explicit scope - every TFO tile is a placeholder
   // ("Coming Soon") until each activity is built out one by one, same as
-  // the six activities above were.
+  // the six activities above were. Data Collection is the exception - it's
+  // real, shared by every role.
   if (isTfo) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
@@ -282,7 +292,7 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
               solid={activity.solid}
               tint={activity.tint}
               count={null}
-              onPress={() => Alert.alert('Coming Soon', `${activity.label} isn't built yet.`)}
+              onPress={activity.key === 'data_collection' ? onOpenDataCollection : () => Alert.alert('Coming Soon', `${activity.label} isn't built yet.`)}
             />
           ))}
         </View>

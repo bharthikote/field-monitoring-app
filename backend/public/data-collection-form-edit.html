@@ -82,10 +82,16 @@
   </div>
 </div>
 
-<div class="section-title">Assign to Data Enumerators</div>
-<p class="scope-note" style="margin-top:0">Only enumerators ticked here will see this form on their phone.</p>
+<div class="section-title">Assign to Users</div>
+<p class="scope-note" style="margin-top:0">Only users ticked here will see this form on their phone, whatever their role.</p>
+<div class="inline-form" style="margin-top:12px; max-width:460px;">
+  <div class="search-wrap">
+    <input type="text" id="enumerator-search" placeholder="Search by name, role, or code..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
 <div id="enumerator-checklist" class="enumerator-checklist"></div>
-<p id="no-enumerators" class="empty" style="display:none">No Data Enumerator accounts exist yet.</p>
+<p id="no-enumerators" class="empty" style="display:none">No other user accounts exist yet.</p>
 <p id="assignments-error" class="error" style="display:none"></p>
 <button id="save-assignments" class="primary" style="margin-top:12px">Save Assignments</button>
 <span id="assignments-saved" class="scope-note" style="display:none; margin-left:8px;">Saved.</span>
@@ -108,6 +114,10 @@
 const formId = location.pathname.split('/').pop();
 const OPTION_TYPES = ['select', 'multiselect'];
 const TYPE_LABELS = { text: 'Text', number: 'Number', textarea: 'Long Text', date: 'Date', phone: 'Phone', select: 'Single Choice', multiselect: 'Multiple Choice', photo: 'Photo' };
+const ROLE_LABELS = {
+  tfo: 'TFO', supervisor: 'Supervisor', team_lead: 'Team Lead', country_manager: 'Country Manager',
+  admin: 'Admin', leadership: 'Leadership', data_enumerator: 'Data Enumerator',
+};
 const DELETE_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
 let currentForm = null;
@@ -266,6 +276,7 @@ document.getElementById('fields-list').addEventListener('click', async (e) => {
 
 let allEnumerators = [];
 let assignedIds = new Set();
+let enumeratorSearch = '';
 
 async function loadAssignments() {
   const [usersRes, assignRes] = await Promise.all([
@@ -274,8 +285,19 @@ async function loadAssignments() {
   ]);
   const usersData = await usersRes.json();
   const assignData = await assignRes.json();
-  allEnumerators = (usersData.users || []).filter((u) => u.role === 'data_enumerator');
+  // Any role can be assigned a form except Super Admin - they already see
+  // every form by design, an assignment for them would be meaningless.
+  allEnumerators = (usersData.users || []).filter((u) => u.role !== 'super_admin');
   assignedIds = new Set(assignData.userIds || []);
+}
+
+function getVisibleEnumerators() {
+  if (!enumeratorSearch.trim()) return allEnumerators;
+  const q = enumeratorSearch.trim().toLowerCase();
+  return allEnumerators.filter((u) => {
+    const haystack = [u.name, u.user_code, ROLE_LABELS[u.role] || u.role].join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
 }
 
 function renderAssignments() {
@@ -283,24 +305,47 @@ function renderAssignments() {
   const empty = document.getElementById('no-enumerators');
   if (!allEnumerators.length) {
     list.innerHTML = '';
+    empty.textContent = 'No other user accounts exist yet.';
+    empty.style.display = 'block';
+    return;
+  }
+  const visible = getVisibleEnumerators();
+  if (!visible.length) {
+    list.innerHTML = '';
+    empty.textContent = 'No users match your search.';
     empty.style.display = 'block';
     return;
   }
   empty.style.display = 'none';
-  list.innerHTML = allEnumerators.map((u) => `
+  list.innerHTML = visible.map((u) => `
     <label>
       <input type="checkbox" class="enumerator-check" value="${u.id}" ${assignedIds.has(u.id) ? 'checked' : ''} />
-      ${escapeHtml(u.name)} <span class="scope-note">(${escapeHtml(u.user_code)}${u.status !== 'approved' ? ' - ' + u.status : ''})</span>
+      ${escapeHtml(u.name)} <span class="scope-note">(${ROLE_LABELS[u.role] || u.role} &middot; ${escapeHtml(u.user_code)}${u.status !== 'approved' ? ' - ' + u.status : ''})</span>
     </label>
   `).join('');
 }
+
+document.getElementById('enumerator-search').addEventListener('input', (e) => {
+  enumeratorSearch = e.target.value;
+  renderAssignments();
+});
+
+// Tracks toggles into `assignedIds` immediately (not just at Save time) so
+// a checked box for a user who then scrolls out of view via the search
+// filter isn't lost when the list re-renders down to a narrower set.
+document.getElementById('enumerator-checklist').addEventListener('change', (e) => {
+  const cb = e.target.closest('.enumerator-check');
+  if (!cb) return;
+  if (cb.checked) assignedIds.add(cb.value);
+  else assignedIds.delete(cb.value);
+});
 
 document.getElementById('save-assignments').addEventListener('click', async () => {
   const errorEl = document.getElementById('assignments-error');
   const savedEl = document.getElementById('assignments-saved');
   errorEl.style.display = 'none';
   savedEl.style.display = 'none';
-  const userIds = [...document.querySelectorAll('.enumerator-check:checked')].map((cb) => cb.value);
+  const userIds = [...assignedIds];
   const btn = document.getElementById('save-assignments');
   btn.disabled = true;
   try {
