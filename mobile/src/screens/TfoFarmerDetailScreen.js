@@ -43,7 +43,10 @@ function PersonPlaceholderIcon() {
   );
 }
 
-function TypeIcon() {
+// Matches the vendor app's own "Symbol Definition" legend: Key Farmer gets
+// a key, Core Farmer a sprout, Community Trainer Farmer a target-like
+// circle, and plain Farmer gets no icon at all (see FarmerTypeIcon below).
+function KeyFarmerIcon() {
   return (
     <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.primaryDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <Circle cx="8" cy="16" r="4" />
@@ -52,6 +55,34 @@ function TypeIcon() {
       <Path d="M14 10l2 2" />
     </Svg>
   );
+}
+
+function CoreFarmerIcon() {
+  return (
+    <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.primaryDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 21v-9" />
+      <Path d="M12 12c-3 0-5-2-5-5 3 0 5 2 5 5z" />
+      <Path d="M12 12c3 0 5-2 5-5-3 0-5 2-5 5z" />
+      <Path d="M12 12c-1-3 0-6 2-8-1 3-1 6-2 8z" />
+    </Svg>
+  );
+}
+
+function CftFarmerIcon() {
+  return (
+    <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.primaryDark} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="9" />
+      <Circle cx="12" cy="12" r="4.5" />
+      <Circle cx="12" cy="12" r="1" fill={COLORS.primaryDark} />
+    </Svg>
+  );
+}
+
+function FarmerTypeIcon({ type }) {
+  if (type === 'key_farmer') return <KeyFarmerIcon />;
+  if (type === 'core_farmer') return <CoreFarmerIcon />;
+  if (type === 'community_trainer_farmer') return <CftFarmerIcon />;
+  return null;
 }
 
 function DetailField({ label, value }) {
@@ -178,7 +209,7 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, o
               <Text style={styles.name}>{farmer.name}</Text>
               {farmer.farmer_type && (
                 <View style={styles.typeRow}>
-                  <TypeIcon />
+                  <FarmerTypeIcon type={farmer.farmer_type} />
                   <Text style={styles.typeText}>{FARMER_TYPE_LABELS[farmer.farmer_type]}</Text>
                 </View>
               )}
