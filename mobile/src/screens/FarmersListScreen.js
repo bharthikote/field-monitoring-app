@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator, Image } from 'react-native';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { searchFarmers, listFarmers } from '../api';
 import { COLORS } from '../theme';
@@ -10,6 +10,25 @@ function SearchIcon({ color }) {
       <Circle cx="11" cy="11" r="8" />
       <Line x1="21" y1="21" x2="16.65" y2="16.65" />
     </Svg>
+  );
+}
+
+// Same first-name/last-name initial rule as ProfileScreen's own avatar.
+function initialsFor(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] || '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (first + last).toUpperCase();
+}
+
+function FarmerAvatar({ farmer }) {
+  if (farmer.photo_url) {
+    return <Image source={{ uri: farmer.photo_url }} style={styles.avatarImage} />;
+  }
+  return (
+    <View style={styles.avatarPlaceholder}>
+      <Text style={styles.avatarText}>{initialsFor(farmer.name)}</Text>
+    </View>
   );
 }
 
@@ -134,11 +153,14 @@ export default function FarmersListScreen({ token, onBack, title = 'Farmers', on
         }
         renderItem={({ item: farmer }) => (
           <Pressable style={styles.card} onPress={() => onSelectFarmer(farmer)}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>{farmer.name}</Text>
-              <Text style={styles.cardVillage}>{farmer.village_name}</Text>
+            <FarmerAvatar farmer={farmer} />
+            <View style={styles.cardBody}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{farmer.name}</Text>
+                <Text style={styles.cardVillage}>{farmer.village_name}</Text>
+              </View>
+              <Text style={styles.cardLine}>{farmer.phone}</Text>
             </View>
-            <Text style={styles.cardLine}>{farmer.phone}</Text>
           </Pressable>
         )}
       />
@@ -172,7 +194,17 @@ const styles = StyleSheet.create({
   listContent: { padding: 24, paddingTop: 16, paddingBottom: 100 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   empty: { color: '#888', marginBottom: 16 },
-  card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10 },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10, padding: 14, marginBottom: 10,
+  },
+  avatarImage: { width: 44, height: 44, borderRadius: 22 },
+  avatarPlaceholder: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  cardBody: { flex: 1 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitle: { fontWeight: '700', fontSize: 16, flex: 1, marginRight: 8 },
   cardLine: { color: '#555', marginTop: 2 },
