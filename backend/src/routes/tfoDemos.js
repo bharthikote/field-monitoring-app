@@ -6,6 +6,7 @@ import { getCoveredVillageIds } from '../db/locationHelpers.js';
 
 export const tfoDemosRouter = Router();
 tfoDemosRouter.param('id', validateUuidParam);
+tfoDemosRouter.param('itemId', validateUuidParam);
 
 const CYCLES = ['demo_1', 'demo_2', 'demo_3', 'demo_4', 'adoption_1', 'adoption_2', 'adoption_3', 'adoption_4'];
 const SOIL_TYPES = ['sandy', 'sandy_loam', 'loamy', 'clay'];
@@ -274,6 +275,134 @@ tfoDemosRouter.post('/tfo-demos/:id/status', requireAuth, async (req, res) => {
 
   const result = await pool.query('update tfo_demos set status = $1 where id = $2 returning id, status', [status, req.params.id]);
   res.json({ demo: result.rows[0] });
+});
+
+// Everything the mobile Business Plan -> Expected Cost tab needs, in a
+// single round trip: every active Activity/Item configured for the demo's
+// own country (same activity_item_countries scoping the web admin already
+// enforces), each carrying its configured units and this demo's already-
+// saved cost entry if one exists. Deliberately NOT built by reusing the
+// Super-Admin-only GET /activities + GET /activities/:id endpoints - those
+// are unscoped by country and would mean one request per activity; this is
+// one query, grouped into the nested shape in JS.
+const SELECT_EXPECTED_COST_ITEMS = `
+  select a.id as activity_id, a.name as activity_name,
+    ai.id as item_id, ai.name as item_name,
+    coalesce((
+      select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
+      from activity_item_units aiu join units u on u.id = aiu.unit_id where aiu.item_id = ai.id
+    ), '[]') as units,
+    dec.quantity, dec.unit_id as saved_unit_id, dec.farmer_price, dec.loan_price
+  from activities a
+  join activity_items ai on ai.activity_id = a.id and ai.status = 'active'
+  join activity_item_countries aic on aic.item_id = ai.id and aic.country_id = $2
+  left join tfo_demo_expected_costs dec on dec.demo_id = $1 and dec.item_id = ai.id
+  where a.status = 'active'
+  order by a.name asc, ai.name asc
+`;
+
+tfoDemosRouter.get('/tfo-demos/:id/expected-cost', requireAuth, async (req, res) => {
+  const demoResult = await pool.query(
+    `select td.village_id, td.status, co.id as country_id, co.currency_code
+     from tfo_demos td
+     join villages vi on vi.id = td.village_id join blocks b on b.id = vi.block_id
+     join districts di on di.id = b.district_id join states s on s.id = di.state_id
+     join countries co on co.id = s.country_id
+     where td.id = $1`,
+    [req.params.id],
+  );
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  const demo = demoResult.rows[0];
+  if (!(await requireCoverage(req, res, demo.village_id))) return;
+
+  const rows = (await pool.query(SELECT_EXPECTED_COST_ITEMS, [req.params.id, demo.country_id])).rows;
+  const activitiesById = new Map();
+  for (const row of rows) {
+    if (!activitiesById.has(row.activity_id)) {
+      activitiesById.set(row.activity_id, { id: row.activity_id, name: row.activity_name, items: [] });
+    }
+    activitiesById.get(row.activity_id).items.push({
+      id: row.item_id,
+      name: row.item_name,
+      units: row.units,
+      savedCost: row.quantity === null ? null : {
+        quantity: row.quantity, unitId: row.saved_unit_id, farmerPrice: row.farmer_price, loanPrice: row.loan_price,
+      },
+    });
+  }
+
+  res.json({
+    currency: demo.currency_code,
+    isOngoing: demo.status === 'ongoing',
+    activities: [...activitiesById.values()].filter((a) => a.items.length > 0),
+  });
+});
+
+// Upserts one item's cost entry (create if new, update in place if this
+// Activity + Item was already saved for this demo) - the "consolidate
+// duplicate item" rule from the spec, enforced here via ON CONFLICT rather
+// than trusting the client to only ever POST once per item.
+tfoDemosRouter.post('/tfo-demos/:id/expected-cost', requireAuth, async (req, res) => {
+  const demoResult = await pool.query(
+    `select td.village_id, td.status, co.id as country_id from tfo_demos td
+     join villages vi on vi.id = td.village_id join blocks b on b.id = vi.block_id
+     join districts di on di.id = b.district_id join states s on s.id = di.state_id
+     join countries co on co.id = s.country_id
+     where td.id = $1`,
+    [req.params.id],
+  );
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  const demo = demoResult.rows[0];
+  if (!(await requireCoverage(req, res, demo.village_id))) return;
+  if (demo.status !== 'ongoing') {
+    return res.status(403).json({ error: 'This demo is not Ongoing and can\'t be edited. Ask a Super Admin to reopen it first.' });
+  }
+
+  const { itemId, quantity, unitId, farmerPrice, loanPrice } = req.body;
+  if (!itemId || !unitId) return res.status(400).json({ error: 'itemId and unitId are required' });
+  const qty = Number(quantity);
+  const farmer = Number(farmerPrice ?? 0);
+  const loan = Number(loanPrice ?? 0);
+  if (quantity === undefined || quantity === '' || Number.isNaN(qty) || qty < 0) return res.status(400).json({ error: 'Expected Quantity must be a number that is 0 or more' });
+  if (Number.isNaN(farmer) || farmer < 0) return res.status(400).json({ error: 'Farmer Expected Price must be a number that is 0 or more' });
+  if (Number.isNaN(loan) || loan < 0) return res.status(400).json({ error: 'Loan Expected Price must be a number that is 0 or more' });
+
+  const itemResult = await pool.query(
+    `select ai.id, ai.activity_id, a.status as activity_status,
+       exists(select 1 from activity_item_countries aic where aic.item_id = ai.id and aic.country_id = $2) as in_country,
+       exists(select 1 from activity_item_units aiu where aiu.item_id = ai.id and aiu.unit_id = $3) as valid_unit
+     from activity_items ai join activities a on a.id = ai.activity_id
+     where ai.id = $1 and ai.status = 'active'`,
+    [itemId, demo.country_id, unitId],
+  );
+  if (itemResult.rowCount === 0 || itemResult.rows[0].activity_status !== 'active' || !itemResult.rows[0].in_country) {
+    return res.status(400).json({ error: 'This item is not configured for this demo\'s country' });
+  }
+  if (!itemResult.rows[0].valid_unit) {
+    return res.status(400).json({ error: 'This unit is not configured for this item' });
+  }
+
+  const result = await pool.query(
+    `insert into tfo_demo_expected_costs (demo_id, activity_id, item_id, quantity, unit_id, farmer_price, loan_price, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, now())
+     on conflict (demo_id, item_id) do update set
+       quantity = excluded.quantity, unit_id = excluded.unit_id,
+       farmer_price = excluded.farmer_price, loan_price = excluded.loan_price, updated_at = now()
+     returning id`,
+    [req.params.id, itemResult.rows[0].activity_id, itemId, qty, unitId, farmer, loan],
+  );
+  res.status(200).json({ id: result.rows[0].id });
+});
+
+tfoDemosRouter.delete('/tfo-demos/:id/expected-cost/:itemId', requireAuth, async (req, res) => {
+  const demoResult = await pool.query('select village_id, status from tfo_demos where id = $1', [req.params.id]);
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  if (!(await requireCoverage(req, res, demoResult.rows[0].village_id))) return;
+  if (demoResult.rows[0].status !== 'ongoing') {
+    return res.status(403).json({ error: 'This demo is not Ongoing and can\'t be edited. Ask a Super Admin to reopen it first.' });
+  }
+  await pool.query('delete from tfo_demo_expected_costs where demo_id = $1 and item_id = $2', [req.params.id, req.params.itemId]);
+  res.status(204).end();
 });
 
 // One row per crop entry, not per demo - powers the TFO farmer detail

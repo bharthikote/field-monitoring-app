@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { getTfoDemo, setTfoDemoStatus } from '../api';
 import SearchableSelect from '../components/SearchableSelect';
+import ExpectedCostTab from '../components/ExpectedCostTab';
 import { COLORS } from '../theme';
 
 const CYCLE_LABELS = {
@@ -260,14 +261,16 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           ))}
         </View>
 
-        {activeTab === 'crop' ? (
+        {activeTab === 'crop' && (
           <>
             {selectedCrop ? <CropDetailCard crop={selectedCrop} /> : <Text style={styles.empty}>No crop details recorded.</Text>}
             <Pressable style={[styles.editButton, !isOngoing && styles.editButtonDisabled]} onPress={handleEditPress}>
               <Text style={styles.editButtonText}>Edit</Text>
             </Pressable>
           </>
-        ) : (
+        )}
+        {activeTab === 'business_plan' && <ExpectedCostTab token={token} demoId={demoId} />}
+        {activeTab !== 'crop' && activeTab !== 'business_plan' && (
           <Text style={styles.empty}>{TABS.find((t) => t.key === activeTab).label} isn't built yet.</Text>
         )}
       </ScrollView>
