@@ -107,7 +107,9 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
 }
 .nav-dropdown.open .nav-dropdown-menu { display: block; }
 .nav-dropdown-menu a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 6px;
   text-decoration: none;
@@ -116,6 +118,7 @@ h2 { font-size: 1rem; font-weight: 600; margin-top: 28px; color: var(--text); }
   margin-right: 0;
   transition: background 0.15s, color 0.15s;
 }
+.nav-dropdown-menu a svg { flex-shrink: 0; }
 .nav-dropdown-menu a:hover { background: var(--bg); color: var(--text); }
 .nav-dropdown-menu a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 .who { font-size: 0.85rem; color: var(--text-muted); }

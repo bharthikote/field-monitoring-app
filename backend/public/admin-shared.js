@@ -9,6 +9,10 @@ const NAV_ICONS = {
   dataCollection: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
   activityCosts: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   nutrientConfig: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6"/><path d="M8.5 5.5 12 2l3.5 3.5"/><path d="M5 12a7 7 0 0 0 14 0"/><path d="M12 22v-6"/></svg>',
+  locations: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7.58 7-13a7 7 0 1 0-14 0c0 5.42 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>',
+  crops: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-7"/><path d="M12 15c-4-1-7-4-7-9 5 0 8 3 9 7"/><path d="M12 12c3-1 6-3 7-8-5 0-8 2-9 6"/></svg>',
+  masterLists: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+  allUsers: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
 };
 
 const NAV_STRUCTURE = [
@@ -18,10 +22,12 @@ const NAV_STRUCTURE = [
     icon: NAV_ICONS.systemUpdate,
     roles: ['admin', 'super_admin'],
     children: [
-      { href: '/admin/locations', label: 'Locations' },
-      { href: '/admin/crops', label: 'Crops' },
-      { href: '/admin/master-lists', label: 'Master Lists' },
-      { href: '/admin/manage-users', label: 'All Users' },
+      { href: '/admin/locations', label: 'Locations', icon: NAV_ICONS.locations },
+      { href: '/admin/crops', label: 'Crops', icon: NAV_ICONS.crops },
+      { href: '/admin/master-lists', label: 'Master Lists', icon: NAV_ICONS.masterLists },
+      { href: '/admin/manage-users', label: 'All Users', icon: NAV_ICONS.allUsers },
+      { href: '/admin/activity-costs', label: 'Activity Costs', icon: NAV_ICONS.activityCosts, roles: ['super_admin'] },
+      { href: '/admin/nutrient-configurations', label: 'Nutrient Config', icon: NAV_ICONS.nutrientConfig, roles: ['super_admin'] },
     ],
   },
   {
@@ -34,8 +40,6 @@ const NAV_STRUCTURE = [
     ],
   },
   { href: '/admin/data-collection-forms', label: 'Data Collection', icon: NAV_ICONS.dataCollection, roles: ['super_admin'] },
-  { href: '/admin/activity-costs', label: 'Activity Costs', icon: NAV_ICONS.activityCosts, roles: ['super_admin'] },
-  { href: '/admin/nutrient-configurations', label: 'Nutrient Config', icon: NAV_ICONS.nutrientConfig, roles: ['super_admin'] },
 ];
 
 function getToken() {
@@ -100,9 +104,10 @@ function renderNav(user) {
 
   const linksHtml = NAV_STRUCTURE.filter((entry) => !entry.roles || entry.roles.includes(user.role)).map((entry) => {
     if (entry.children) {
-      const isActiveGroup = entry.children.some((c) => c.href === location.pathname);
-      const childLinks = entry.children
-        .map((c) => `<a href="${c.href}" class="${location.pathname === c.href ? 'active' : ''}">${c.label}</a>`)
+      const visibleChildren = entry.children.filter((c) => !c.roles || c.roles.includes(user.role));
+      const isActiveGroup = visibleChildren.some((c) => c.href === location.pathname);
+      const childLinks = visibleChildren
+        .map((c) => `<a href="${c.href}" class="${location.pathname === c.href ? 'active' : ''}">${c.icon || ''} ${c.label}</a>`)
         .join('');
       return `
         <div class="nav-dropdown">
