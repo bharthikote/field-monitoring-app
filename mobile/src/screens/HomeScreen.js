@@ -186,7 +186,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection, onCreateTfoDemo }) {
   const isTfo = user.role === 'tfo';
   const isDataEnumerator = user.role === 'data_enumerator';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
@@ -226,6 +226,18 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
     }
     if (activity.key === 'agriinput') {
       onCreateAgroDealerVisit();
+      return;
+    }
+    if (activity.key === 'data_collection') {
+      onOpenDataCollection();
+      return;
+    }
+    Alert.alert('Coming Soon', `${activity.label} isn't built yet.`);
+  };
+
+  const handleTfoActivity = (activity) => {
+    if (activity.key === 'tfo_demoplot') {
+      onCreateTfoDemo();
       return;
     }
     if (activity.key === 'data_collection') {
@@ -292,7 +304,7 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
               solid={activity.solid}
               tint={activity.tint}
               count={null}
-              onPress={activity.key === 'data_collection' ? onOpenDataCollection : () => Alert.alert('Coming Soon', `${activity.label} isn't built yet.`)}
+              onPress={() => handleTfoActivity(activity)}
             />
           ))}
         </View>

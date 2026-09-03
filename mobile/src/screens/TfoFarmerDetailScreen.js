@@ -21,6 +21,10 @@ const STATUS_COLORS = {
 };
 const TRAINING_TYPE_LABELS = { classroom: 'Classroom / Theory', field_based: 'Field-Based / Practical', mixed: 'Mixed (Both)' };
 const FIELDDAY_TYPE_LABELS = { practical: 'Practical (Hands-On / Field)', theory: 'Theory (Classroom / Discussion)', both: 'Both Practical & Theory' };
+const CYCLE_LABELS = {
+  demo_1: 'Demo 1', demo_2: 'Demo 2', demo_3: 'Demo 3', demo_4: 'Demo 4',
+  adoption_1: 'Adoption 1', adoption_2: 'Adoption 2', adoption_3: 'Adoption 3', adoption_4: 'Adoption 4',
+};
 
 // TFO's own activity set (per HomeScreen's TFO_ACTIVITIES): Demo Plot,
 // Home Garden, Training, Field Day - no Adoption Plot (not part of the TFO
@@ -113,6 +117,20 @@ function ActivityCard({ activity }) {
         <Text style={styles.cardLine}>Expected harvest: {activity.expected_harvest_date}</Text>
         {activity.remarks ? <Text style={styles.cardLine}>{activity.remarks}</Text> : null}
         {activity.photo_url ? <Image source={{ uri: activity.photo_url }} style={styles.thumb} /> : null}
+      </View>
+    );
+  }
+  // A TFO demo's crop entries share activityType 'demo' with demo_plots
+  // (so they land in the same tab), but carry no demo_status - that's how
+  // the two are told apart here, rather than a separate activityType the
+  // tab filter would also need to know about.
+  if (activity.demo_status === undefined) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{activity.crop_name} — {CYCLE_LABELS[activity.cycle] || activity.cycle}</Text>
+        <Text style={styles.cardDate}>{new Date(activity.created_at).toLocaleDateString()}</Text>
+        <Text style={styles.cardLine}>{activity.variety_name} · {activity.season_name}</Text>
+        <Text style={styles.cardLine}>Sown {activity.sowing_date} → Transplanted {activity.transplant_date} → Est. Harvest {activity.est_harvest_date}</Text>
       </View>
     );
   }

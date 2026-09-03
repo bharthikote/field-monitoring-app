@@ -30,6 +30,7 @@ export const searchLocations = (token, q) => request(`/locations/search?q=${enco
 
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });
+export const listSeasons = (token) => request('/master/seasons', { token });
 
 export const listDemoPlots = (token, plotType = 'demo') =>
   request(`/demo-plots?plot_type=${plotType}`, { token });
@@ -39,6 +40,9 @@ export const searchDemoPlots = (token, query, plotType = 'demo') =>
 
 export const createDemoPlot = (token, payload) =>
   request('/demo-plots', { method: 'POST', body: payload, token });
+
+export const createTfoDemo = (token, payload) =>
+  request('/tfo-demos', { method: 'POST', body: payload, token });
 
 export const listFarmers = (token) => request('/farmers', { token });
 export const searchFarmers = (token, query) => request(`/farmers/search?q=${encodeURIComponent(query)}`, { token });

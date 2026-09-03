@@ -23,6 +23,7 @@ import CreateAgroDealerScreen from './src/screens/CreateAgroDealerScreen';
 import CreateAgroDealerVisitScreen from './src/screens/CreateAgroDealerVisitScreen';
 import DataCollectionFormsListScreen from './src/screens/DataCollectionFormsListScreen';
 import FillDataCollectionFormScreen from './src/screens/FillDataCollectionFormScreen';
+import CreateTfoDemoScreen from './src/screens/CreateTfoDemoScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -68,6 +69,8 @@ const BACK_MAP = {
   'data-collection': 'home',
   'select-farmer-for-form': 'data-collection',
   'fill-data-collection-form': 'select-farmer-for-form',
+  'tfo-select-farmer-for-demo': 'home',
+  'create-tfo-demo': 'tfo-select-farmer-for-demo',
 };
 
 export default function App() {
@@ -98,6 +101,9 @@ export default function App() {
   // Visit/Agro Dealer Visit above.
   const [selectedDataCollectionForm, setSelectedDataCollectionForm] = useState(null);
   const [selectedFarmerForDataCollection, setSelectedFarmerForDataCollection] = useState(null);
+  // TFO's own Demo Plot flow: pick a farmer, then fill out the richer TFO
+  // demo form - same linear select-then-fill shape as Data Collection above.
+  const [selectedFarmerForTfoDemo, setSelectedFarmerForTfoDemo] = useState(null);
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
   // scroll up to bring it back. Reset to visible each time the screen is
@@ -184,6 +190,29 @@ export default function App() {
           onCreateInstitutionVisit={() => setScreen('select-institution')}
           onCreateAgroDealerVisit={() => setScreen('select-agro-dealer')}
           onOpenDataCollection={() => setScreen('data-collection')}
+          onCreateTfoDemo={() => setScreen('tfo-select-farmer-for-demo')}
+        />
+      )}
+      {screen === 'tfo-select-farmer-for-demo' && (
+        <FarmersListScreen
+          token={token}
+          title="Select Farmer — Demo"
+          onBack={() => setScreen('home')}
+          onSelectFarmer={(farmer) => {
+            setSelectedFarmerForTfoDemo(farmer);
+            setScreen('create-tfo-demo');
+          }}
+        />
+      )}
+      {screen === 'create-tfo-demo' && selectedFarmerForTfoDemo && (
+        <CreateTfoDemoScreen
+          token={token}
+          farmer={selectedFarmerForTfoDemo}
+          onBack={() => setScreen('tfo-select-farmer-for-demo')}
+          onCreated={() => {
+            setSelectedFarmerForTfoDemo(null);
+            setScreen('home');
+          }}
         />
       )}
       {screen === 'data-collection' && (

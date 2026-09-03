@@ -34,6 +34,12 @@
         {
           "contactsPermission": "Allow Field Monitoring to access your contacts so you can pick a phone number instead of typing it."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Field Monitoring to access your location to capture the GPS coordinates of a demo plot."
+        }
       ]
     ]
   }
