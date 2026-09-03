@@ -25,6 +25,8 @@ const TABS = [
   { key: 'cost', label: 'Cost' },
   { key: 'return', label: 'Return' },
   { key: 'training', label: 'Training' },
+  { key: 'field_day', label: 'Field Day' },
+  { key: 'knowledge_acquisition', label: 'Knowledge Acquisition' },
 ];
 
 // Values in the thousands abbreviate to "12.5K" (matching the reference
@@ -46,6 +48,15 @@ function formatKpiAmount(amount, currency) {
 function calcRoiPercent(costTotal, returnTotal) {
   if (!costTotal || costTotal <= 0) return 0;
   return Math.round((returnTotal / costTotal) * 100);
+}
+
+// A tiny Cost against a large Return produces a percentage with far more
+// digits than the fixed 56x56 circle can lay out on one line (a real demo
+// hit 20,000%+ and the text visibly overlapped) - capped display only,
+// the underlying number (used for the fill-bar width, already clamped to
+// 100 there) is untouched.
+function formatRoiDisplay(percent) {
+  return percent > 999 ? '999%+' : `${percent}%`;
 }
 
 function DetailField({ label, value }) {
@@ -237,7 +248,7 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(Math.max(roiPercent, 0), 100)}%` }]} />
             <View style={styles.progressCircle}>
-              <Text style={styles.progressText}>{roiPercent}%</Text>
+              <Text style={styles.progressText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatRoiDisplay(roiPercent)}</Text>
             </View>
           </View>
 
@@ -288,13 +299,13 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           )}
         </View>
 
-        <View style={styles.tabRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabRow}>
           {TABS.map((t) => (
             <Pressable key={t.key} style={[styles.tab, activeTab === t.key && styles.tabActive]} onPress={() => setActiveTab(t.key)}>
               <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
         {activeTab === 'crop' && (
           <>
@@ -356,8 +367,9 @@ const styles = StyleSheet.create({
   pillDanger: { backgroundColor: COLORS.dangerSoft, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginTop: 16 },
   pillDangerText: { color: COLORS.danger, fontWeight: '700', fontSize: 13 },
   actionsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  tabRow: { flexDirection: 'row', gap: 6, marginTop: 20 },
-  tab: { flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
+  tabScroll: { marginTop: 20, flexGrow: 0 },
+  tabRow: { flexDirection: 'row', gap: 6 },
+  tab: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   tabActive: { backgroundColor: COLORS.primary },
   tabText: { color: '#334155', fontWeight: '600', fontSize: 11 },
   tabTextActive: { color: '#fff' },
