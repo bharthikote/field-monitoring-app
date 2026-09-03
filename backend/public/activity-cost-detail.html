@@ -179,7 +179,7 @@ function renderItems() {
         <td>${escapeHtml(item.name)}</td>
         <td><div class="chip-list">${countryNames.map((n) => `<span class="chip">${escapeHtml(n)}</span>`).join('')}</div></td>
         <td><div class="chip-list">${item.units.map((u) => `<span class="chip">${escapeHtml(u.name)}</span>`).join('')}</div></td>
-        <td>${item.is_nutrient ? escapeHtml(item.nutrient_configuration_name || 'Yes') : '—'}</td>
+        <td>${item.is_nutrient ? escapeHtml(item.nutrient_composition_summary || 'Yes') : '—'}</td>
         <td>${escapeHtml(item.remark || '—')}</td>
         <td>
           <div class="actions-cell">

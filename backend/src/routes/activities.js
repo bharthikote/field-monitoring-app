@@ -53,6 +53,11 @@ activitiesRouter.post('/activities', requireAdmin, requireSuperAdmin, async (req
 const SELECT_ACTIVITY_ITEMS = `
   select ai.id, ai.name, ai.remark, ai.created_at, ai.is_nutrient, ai.nutrient_configuration_id,
     nconf.name as nutrient_configuration_name,
+    coalesce((
+      select string_agg(n.name || ' ' || ncc.percentage || '%', ', ' order by n.name)
+      from nutrient_configuration_components ncc join nutrients n on n.id = ncc.nutrient_id
+      where ncc.configuration_id = ai.nutrient_configuration_id
+    ), '') as nutrient_composition_summary,
     coalesce((select array_agg(aic.country_id) from activity_item_countries aic where aic.item_id = ai.id), '{}') as country_ids,
     coalesce((
       select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
