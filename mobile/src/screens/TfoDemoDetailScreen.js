@@ -3,6 +3,8 @@ import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert
 import { getTfoDemo, setTfoDemoStatus } from '../api';
 import SearchableSelect from '../components/SearchableSelect';
 import BusinessPlanTab from '../components/BusinessPlanTab';
+import ActualCostTab from '../components/ActualCostTab';
+import ActualReturnTab from '../components/ActualReturnTab';
 import { COLORS } from '../theme';
 
 const CYCLE_LABELS = {
@@ -31,16 +33,17 @@ const TABS = [
 
 // Values in the thousands abbreviate to "12.5K" (matching the reference
 // screenshot); Profit can go negative (cost exceeds return), so the sign
-// is preserved rather than clamped.
-function formatKpiAmount(amount, currency) {
+// is preserved rather than clamped. No currency suffix here - the
+// reference screenshots never show one on the KPI card itself (unlike the
+// Cost/Return tab bodies, which do label each amount).
+function formatKpiAmount(amount) {
   const n = Number(amount) || 0;
   const abs = Math.abs(n);
   if (abs >= 1000) {
     const k = (n / 1000).toFixed(1).replace(/\.0$/, '');
-    return currency ? `${k}K ${currency}` : `${k}K`;
+    return `${k}K`;
   }
-  const formatted = n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  return currency ? `${formatted} ${currency}` : formatted;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 // Cost = 0 has no meaningful "return per unit spent" - shown as 0% rather
@@ -117,15 +120,18 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
   const [activeTab, setActiveTab] = useState('crop');
   const [selectedCropIndex, setSelectedCropIndex] = useState(0);
   const [statusLoading, setStatusLoading] = useState(false);
+  // The KPI card reflects ACTUAL performance, not the Business Plan's
+  // expected/planned figures - Actual Cost/Return are the source of truth
+  // here (Business Plan no longer reports totals up at all).
   const [costTotal, setCostTotal] = useState(0);
   const [returnTotal, setReturnTotal] = useState(0);
-  const [bpCurrency, setBpCurrency] = useState(null);
   const [production, setProduction] = useState('0');
 
-  const handleBusinessPlanTotals = useCallback((cost, ret, currency, prod) => {
+  const handleActualCostTotal = useCallback((cost) => {
     setCostTotal(cost);
+  }, []);
+  const handleActualReturnTotal = useCallback((ret, currency, prod) => {
     setReturnTotal(ret);
-    setBpCurrency(currency);
     setProduction(prod);
   }, []);
 
@@ -255,7 +261,7 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           <View style={styles.metricsRow}>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Cost</Text>
-              <Text style={styles.metricValue}>{formatKpiAmount(costTotal, bpCurrency)}</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(costTotal)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Production</Text>
@@ -263,11 +269,11 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Return</Text>
-              <Text style={styles.metricValue}>{formatKpiAmount(returnTotal, bpCurrency)}</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(returnTotal)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Profit</Text>
-              <Text style={styles.metricValue}>{formatKpiAmount(profit, bpCurrency)}</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(profit)}</Text>
             </View>
           </View>
 
@@ -315,13 +321,20 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </Pressable>
           </>
         )}
-        <BusinessPlanTab
-          token={token}
-          demoId={demoId}
-          visible={activeTab === 'business_plan'}
-          onTotalsChange={handleBusinessPlanTotals}
-        />
-        {activeTab === 'cost' || activeTab === 'return' || activeTab === 'training' ? (
+        {activeTab === 'business_plan' && <BusinessPlanTab token={token} demoId={demoId} />}
+
+        {/* Always mounted (hidden via style, not unmounted) once the demo
+            loads, regardless of which tab is visible - the KPI card above
+            needs live Actual Cost/Return totals from the moment the
+            screen opens, not just once the user taps into Cost/Return. */}
+        <View style={activeTab === 'cost' ? undefined : styles.hidden}>
+          <ActualCostTab token={token} demoId={demoId} onTotalChange={handleActualCostTotal} />
+        </View>
+        <View style={activeTab === 'return' ? undefined : styles.hidden}>
+          <ActualReturnTab token={token} demoId={demoId} onTotalChange={handleActualReturnTotal} />
+        </View>
+
+        {activeTab === 'training' || activeTab === 'field_day' || activeTab === 'knowledge_acquisition' ? (
           <Text style={styles.empty}>{TABS.find((t) => t.key === activeTab).label} isn't built yet.</Text>
         ) : null}
       </ScrollView>
@@ -340,7 +353,11 @@ const styles = StyleSheet.create({
   cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   activityType: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   farmerName: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark, marginTop: 2 },
-  cardTopRight: { alignItems: 'flex-end', gap: 8 },
+  // flexShrink: 0 so a long farmer name can never compress this column
+  // leftward - the most plausible cause of "crop selector positioned too
+  // far left" from code inspection alone (not visually confirmed, no
+  // device available).
+  cardTopRight: { alignItems: 'flex-end', gap: 8, flexShrink: 0 },
   cropSelectorWrap: { width: 150 },
   cropChip: { backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   cropChipText: { color: COLORS.primaryDark, fontWeight: '600', fontSize: 13 },
@@ -364,9 +381,17 @@ const styles = StyleSheet.create({
   metricValue: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 15, marginTop: 2 },
   pill: { backgroundColor: COLORS.primarySoft, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start', marginTop: 16 },
   pillText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13 },
-  pillDanger: { backgroundColor: COLORS.dangerSoft, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginTop: 16 },
+  // alignSelf: 'flex-start' matters here specifically because this pill
+  // sits inside actionsRow (a row with no alignItems set, so it defaults
+  // to 'stretch') alongside .pill buttons that already override that
+  // default themselves - without it, Terminate stretched to the row's
+  // full cross-axis height while Edit/Complete didn't, visibly sitting
+  // lower than them.
+  pillDanger: { backgroundColor: COLORS.dangerSoft, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7, marginTop: 16, alignSelf: 'flex-start' },
   pillDangerText: { color: COLORS.danger, fontWeight: '700', fontSize: 13 },
-  actionsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  // marginTop separates this row from the "Show less" pill directly above
+  // it - without it there was zero gap between them, reading as merged.
+  actionsRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
   tabScroll: { marginTop: 20, flexGrow: 0 },
   tabRow: { flexDirection: 'row', gap: 6 },
   tab: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
@@ -374,6 +399,7 @@ const styles = StyleSheet.create({
   tabText: { color: '#334155', fontWeight: '600', fontSize: 11 },
   tabTextActive: { color: '#fff' },
   empty: { color: '#888', marginTop: 20 },
+  hidden: { display: 'none' },
   cropCard: { marginTop: 20 },
   cropCardTitle: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark, marginBottom: 12 },
   detailRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },

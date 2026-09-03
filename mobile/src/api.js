@@ -62,6 +62,22 @@ export const saveExpectedReturnItem = (token, demoId, payload) =>
 export const deleteExpectedReturnItem = (token, demoId, itemId) =>
   request(`/tfo-demos/${demoId}/expected-return/${itemId}`, { method: 'DELETE', token });
 
+export const getActualCost = (token, demoId) => request(`/tfo-demos/${demoId}/actual-cost`, { token });
+export const createActualCostTransaction = (token, demoId, payload) =>
+  request(`/tfo-demos/${demoId}/actual-cost`, { method: 'POST', body: payload, token });
+export const updateActualCostTransaction = (token, demoId, transactionId, payload) =>
+  request(`/tfo-demos/${demoId}/actual-cost/${transactionId}`, { method: 'PATCH', body: payload, token });
+export const deleteActualCostTransaction = (token, demoId, transactionId) =>
+  request(`/tfo-demos/${demoId}/actual-cost/${transactionId}`, { method: 'DELETE', token });
+
+export const getActualReturn = (token, demoId) => request(`/tfo-demos/${demoId}/actual-return`, { token });
+export const createActualReturnTransaction = (token, demoId, payload) =>
+  request(`/tfo-demos/${demoId}/actual-return`, { method: 'POST', body: payload, token });
+export const updateActualReturnTransaction = (token, demoId, transactionId, payload) =>
+  request(`/tfo-demos/${demoId}/actual-return/${transactionId}`, { method: 'PATCH', body: payload, token });
+export const deleteActualReturnTransaction = (token, demoId, transactionId) =>
+  request(`/tfo-demos/${demoId}/actual-return/${transactionId}`, { method: 'DELETE', token });
+
 export const createTfoHomeGarden = (token, payload) =>
   request('/tfo-home-gardens', { method: 'POST', body: payload, token });
 export const listTfoHomeGardens = (token) => request('/tfo-home-gardens', { token });
