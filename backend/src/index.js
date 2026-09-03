@@ -23,6 +23,7 @@ import { agroDealerVisitsRouter } from './routes/agroDealerVisits.js';
 import { dataCollectionFormsRouter } from './routes/dataCollectionForms.js';
 import { tfoDemosRouter } from './routes/tfoDemos.js';
 import { tfoHomeGardensRouter } from './routes/tfoHomeGardens.js';
+import { activitiesRouter } from './routes/activities.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -62,6 +63,7 @@ app.use(agroDealerVisitsRouter);
 app.use(dataCollectionFormsRouter);
 app.use(tfoDemosRouter);
 app.use(tfoHomeGardensRouter);
+app.use(activitiesRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -99,6 +101,12 @@ app.get('/admin/data-collection-forms', (_req, res) => {
 });
 app.get('/admin/data-collection-forms/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'data-collection-form-edit.html'));
+});
+app.get('/admin/activity-costs', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'activity-costs.html'));
+});
+app.get('/admin/activity-costs/:id', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'activity-cost-detail.html'));
 });
 
 const port = process.env.PORT || 4000;

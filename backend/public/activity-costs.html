@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Activity Costs</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  #new-activity-panel { display: none; margin: 16px 0 24px; padding: 18px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  #new-activity-panel label { display: block; font-size: 13px; color: var(--text-muted); margin: 12px 0 6px; }
+  #new-activity-panel label:first-child { margin-top: 0; }
+  #new-activity-panel input { width: 100%; max-width: 460px; }
+  .form-actions { margin-top: 16px; display: flex; gap: 8px; }
+  .items-preview { color: var(--text-muted); font-size: 0.85rem; max-width: 420px; }
+  .rename-row input { max-width: 320px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Activity Costs</h1>
+    <p class="scope-note" style="margin-top:0">Master Activities and their Items, for the Demo Plot Business Plan. Each Item is scoped to specific countries and applicable units.</p>
+  </div>
+  <button id="new-activity-btn" class="primary">+ Add Activity</button>
+</div>
+
+<div id="new-activity-panel">
+  <label>Activity Name</label>
+  <input type="text" id="new-activity-name" placeholder="e.g. Transplanting" />
+  <p id="new-activity-error" class="error" style="display:none"></p>
+  <div class="form-actions">
+    <button id="new-activity-create" class="primary">Create Activity</button>
+    <button id="new-activity-cancel" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Cancel</button>
+  </div>
+</div>
+
+<div class="inline-form" style="margin-bottom: 4px;">
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search by activity or item name..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Activity Name</th>
+      <th>Items</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DELETE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const EDIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const EYE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+let allActivities = [];
+let searchQuery = '';
+let renamingId = null;
+
+async function loadActivities() {
+  const statusEl = document.getElementById('status');
+  try {
+    const res = await authedFetch('/activities');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load activities');
+    allActivities = data.activities;
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = 'Failed to load activities: ' + err.message;
+    statusEl.className = 'error';
+    statusEl.style.display = 'block';
+  }
+}
+
+function getVisibleActivities() {
+  if (!searchQuery.trim()) return allActivities;
+  const q = searchQuery.trim().toLowerCase();
+  return allActivities.filter((a) => [a.name, a.item_names].join(' ').toLowerCase().includes(q));
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+  const visible = getVisibleActivities();
+
+  if (!allActivities.length) {
+    statusEl.textContent = 'No activities yet - create one to get started.';
+    statusEl.className = 'empty';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'No activities match your search.';
+    statusEl.className = 'empty';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  rows.innerHTML = visible.map((a) => {
+    if (a.id === renamingId) {
+      return `
+        <tr>
+          <td colspan="3">
+            <div class="rename-row inline-form">
+              <input type="text" class="rename-input" value="${escapeHtml(a.name)}" data-id="${a.id}" />
+              <button class="btn primary save-rename-btn" data-id="${a.id}">Save</button>
+              <button class="btn cancel-btn" data-action="cancel-rename">Cancel</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+    return `
+    <tr>
+      <td>${escapeHtml(a.name)}</td>
+      <td class="items-preview">${a.item_count > 0 ? escapeHtml(a.item_names) : '—'} ${a.item_count > 0 ? `<span class="scope-note">(${a.item_count})</span>` : ''}</td>
+      <td>
+        <div class="actions-cell">
+          <a href="/admin/activity-costs/${a.id}" class="btn edit-btn">${EYE_ICON} Preview</a>
+          <button class="btn edit-btn rename-btn" data-id="${a.id}">${EDIT_ICON} Edit</button>
+          <button class="btn delete-btn delete-activity-btn" data-id="${a.id}">${DELETE_ICON} Delete</button>
+        </div>
+      </td>
+    </tr>
+  `;
+  }).join('');
+}
+
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  render();
+});
+
+document.getElementById('new-activity-btn').addEventListener('click', () => {
+  document.getElementById('new-activity-panel').style.display = 'block';
+  document.getElementById('new-activity-name').focus();
+});
+document.getElementById('new-activity-cancel').addEventListener('click', () => {
+  document.getElementById('new-activity-panel').style.display = 'none';
+  document.getElementById('new-activity-name').value = '';
+  document.getElementById('new-activity-error').style.display = 'none';
+});
+document.getElementById('new-activity-create').addEventListener('click', async () => {
+  const errorEl = document.getElementById('new-activity-error');
+  errorEl.style.display = 'none';
+  const name = document.getElementById('new-activity-name').value.trim();
+  if (!name) {
+    errorEl.textContent = 'Activity name is required.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('new-activity-create');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch('/activities', { method: 'POST', body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create activity');
+    document.getElementById('new-activity-panel').style.display = 'none';
+    document.getElementById('new-activity-name').value = '';
+    await loadActivities();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const renameBtn = e.target.closest('.rename-btn');
+  const cancelBtn = e.target.closest('[data-action="cancel-rename"]');
+  const saveBtn = e.target.closest('.save-rename-btn');
+  const deleteBtn = e.target.closest('.delete-activity-btn');
+
+  if (renameBtn) {
+    renamingId = renameBtn.dataset.id;
+    render();
+    return;
+  }
+  if (cancelBtn) {
+    renamingId = null;
+    render();
+    return;
+  }
+  if (saveBtn) {
+    const input = document.querySelector(`.rename-input[data-id="${saveBtn.dataset.id}"]`);
+    const name = input.value.trim();
+    if (!name) return;
+    saveBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/activities/${saveBtn.dataset.id}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to rename');
+      renamingId = null;
+      await loadActivities();
+    } catch (err) {
+      alert(err.message);
+      saveBtn.disabled = false;
+    }
+    return;
+  }
+  if (deleteBtn) {
+    if (!confirm('Delete this activity? Its items will be deleted too. This can\'t be undone.')) return;
+    deleteBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/activities/${deleteBtn.dataset.id}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete activity');
+      }
+      await loadActivities();
+    } catch (err) {
+      alert(err.message);
+      deleteBtn.disabled = false;
+    }
+  }
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  if (user.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can manage Activity Costs.</p>';
+    return;
+  }
+  await loadActivities();
+}
+
+init();
+</script>
+</body>
+</html>
