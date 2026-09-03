@@ -24,6 +24,7 @@ import CreateAgroDealerVisitScreen from './src/screens/CreateAgroDealerVisitScre
 import DataCollectionFormsListScreen from './src/screens/DataCollectionFormsListScreen';
 import FillDataCollectionFormScreen from './src/screens/FillDataCollectionFormScreen';
 import CreateTfoDemoScreen from './src/screens/CreateTfoDemoScreen';
+import TfoDemosListScreen from './src/screens/TfoDemosListScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -69,8 +70,13 @@ const BACK_MAP = {
   'data-collection': 'home',
   'select-farmer-for-form': 'data-collection',
   'fill-data-collection-form': 'select-farmer-for-form',
-  'tfo-select-farmer-for-demo': 'home',
-  'create-tfo-demo': 'tfo-select-farmer-for-demo',
+  'tfo-demos-list': 'home',
+  'tfo-select-farmer-for-demo': 'tfo-demos-list',
+  // 'create-tfo-demo' isn't listed here - it's reachable from either the
+  // demos-list farmer-picker or directly from a Farmer Profile's Create
+  // Demo button, so its back target is handled dynamically via
+  // demoFormOrigin below, same pattern plotDetailOrigin already uses for
+  // 'plot-detail'.
 };
 
 export default function App() {
@@ -103,7 +109,12 @@ export default function App() {
   const [selectedFarmerForDataCollection, setSelectedFarmerForDataCollection] = useState(null);
   // TFO's own Demo Plot flow: pick a farmer, then fill out the richer TFO
   // demo form - same linear select-then-fill shape as Data Collection above.
+  // Reachable two ways (Demos list's farmer-picker, or a Farmer Profile's
+  // own Create Demo button skipping the picker) - demoFormOrigin tracks
+  // which, so 'create-tfo-demo' knows where Back/Cancel/onCreated should
+  // land, same role plotDetailOrigin plays for 'plot-detail'.
   const [selectedFarmerForTfoDemo, setSelectedFarmerForTfoDemo] = useState(null);
+  const [demoFormOrigin, setDemoFormOrigin] = useState('tfo-select-farmer-for-demo');
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
   // scroll up to bring it back. Reset to visible each time the screen is
@@ -130,6 +141,10 @@ export default function App() {
         setScreen(plotDetailOrigin);
         return true;
       }
+      if (screen === 'create-tfo-demo') {
+        setScreen(demoFormOrigin);
+        return true;
+      }
       if (screen === 'select-farmer') {
         setPendingActivityType(null);
         setScreen('home');
@@ -145,7 +160,7 @@ export default function App() {
       return true;
     });
     return () => subscription.remove();
-  }, [screen, plotDetailOrigin, pendingActivityType]);
+  }, [screen, plotDetailOrigin, pendingActivityType, demoFormOrigin]);
 
   if (screen === 'loading') {
     return (
@@ -190,14 +205,24 @@ export default function App() {
           onCreateInstitutionVisit={() => setScreen('select-institution')}
           onCreateAgroDealerVisit={() => setScreen('select-agro-dealer')}
           onOpenDataCollection={() => setScreen('data-collection')}
-          onCreateTfoDemo={() => setScreen('tfo-select-farmer-for-demo')}
+          onCreateTfoDemo={() => setScreen('tfo-demos-list')}
+        />
+      )}
+      {screen === 'tfo-demos-list' && (
+        <TfoDemosListScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreateNew={() => {
+            setDemoFormOrigin('tfo-select-farmer-for-demo');
+            setScreen('tfo-select-farmer-for-demo');
+          }}
         />
       )}
       {screen === 'tfo-select-farmer-for-demo' && (
         <FarmersListScreen
           token={token}
           title="Select Farmer — Demo"
-          onBack={() => setScreen('home')}
+          onBack={() => setScreen('tfo-demos-list')}
           onSelectFarmer={(farmer) => {
             setSelectedFarmerForTfoDemo(farmer);
             setScreen('create-tfo-demo');
@@ -208,10 +233,15 @@ export default function App() {
         <CreateTfoDemoScreen
           token={token}
           farmer={selectedFarmerForTfoDemo}
-          onBack={() => setScreen('tfo-select-farmer-for-demo')}
+          onBack={() => setScreen(demoFormOrigin)}
           onCreated={() => {
+            // On success, skip back past the farmer-picker step straight to
+            // the Demos list (when that's how this was reached) rather than
+            // making the user step through it again - same shortcut Data
+            // Collection's onSubmitted already takes below.
+            const returnTo = demoFormOrigin === 'tfo-select-farmer-for-demo' ? 'tfo-demos-list' : demoFormOrigin;
             setSelectedFarmerForTfoDemo(null);
-            setScreen('home');
+            setScreen(returnTo);
           }}
         />
       )}
@@ -433,6 +463,11 @@ export default function App() {
           onDeactivated={() => {
             setSelectedFarmer(null);
             setScreen('farmers');
+          }}
+          onCreateDemo={() => {
+            setSelectedFarmerForTfoDemo(selectedFarmer);
+            setDemoFormOrigin('farmer-detail');
+            setScreen('create-tfo-demo');
           }}
         />
       )}

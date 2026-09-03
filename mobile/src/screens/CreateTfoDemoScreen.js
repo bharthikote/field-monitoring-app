@@ -78,6 +78,7 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
         )}
       </View>
 
+      {/* Bundle 1 - Crop / Timeline Details */}
       <CropVarietyPicker token={token} onChange={({ cropId, varietyId }) => onChange({ cropId, varietyId })} />
 
       <SearchableSelect
@@ -89,7 +90,6 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
       />
 
       <NumberField label="Crop Area *" value={crop.cropArea} onChangeText={(v) => onChange({ cropArea: v })} suffix="m²" />
-      <NumberField label="No. of Seeding *" value={crop.noOfSeeding} onChangeText={(v) => onChange({ noOfSeeding: v })} />
 
       <DatePickerField label="Sowing Date *" value={crop.sowingDate} onChange={(v) => onChange({ sowingDate: v })} />
       <DatePickerField label="Transplant Date *" value={crop.transplantDate} onChange={(v) => onChange({ transplantDate: v })} />
@@ -103,6 +103,9 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
         onChange={(v) => onChange({ irrigationSystem: v })}
       />
 
+      {/* Bundle 2 - Demo / Planting Details */}
+      <Text style={styles.subSectionLabel}>Demo / Planting Details</Text>
+      <NumberField label="No. of Seeding *" value={crop.noOfSeeding} onChangeText={(v) => onChange({ noOfSeeding: v })} />
       <NumberField label="No. Transplanted" value={crop.noTransplanted} onChangeText={(v) => onChange({ noTransplanted: v })} />
       <NumberField label="No. Harvested" value={crop.noHarvested} onChangeText={(v) => onChange({ noHarvested: v })} />
     </View>
@@ -131,7 +134,9 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
     listSeasons(token).then((data) => setSeasons(data.items)).catch(() => {});
   }, [token]);
 
-  const totalArea = (Number(ownArea) || 0) + (Number(rentArea) || 0);
+  // Total Demo Size = sum of every crop's own Area field (not own/rent land
+  // size) - read-only, recalculated on every render as crop areas change.
+  const totalDemoSize = Math.round(crops.reduce((sum, c) => sum + (Number(c.cropArea) || 0), 0) * 100) / 100;
 
   const lockedVillage = {
     id: farmer.village_id, name: farmer.village_name, block_name: farmer.block_name,
@@ -266,11 +271,6 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
 
         <NumberField label="Own *" value={ownArea} onChangeText={setOwnArea} suffix="m²" />
         <NumberField label="Rent *" value={rentArea} onChangeText={setRentArea} suffix="m²" />
-        <Text style={styles.label}>Total Area</Text>
-        <View style={styles.totalAreaBox}>
-          <Text style={styles.totalAreaText}>{totalArea}</Text>
-          <Text style={styles.suffixTextStatic}>m²</Text>
-        </View>
 
         <NumberField label="Soil pH *" value={soilPh} onChangeText={setSoilPh} />
         <SearchableSelect label="Soil Type *" placeholder="-- select option --" options={SOIL_TYPES} value={soilType} onChange={setSoilType} />
@@ -288,6 +288,12 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
             onRemove={crops.length > 1 ? () => removeCrop(index) : null}
           />
         ))}
+
+        <Text style={styles.label}>Total Demo Size</Text>
+        <View style={styles.totalAreaBox}>
+          <Text style={styles.totalAreaText}>{totalDemoSize}</Text>
+          <Text style={styles.suffixTextStatic}>m²</Text>
+        </View>
 
         <Pressable style={styles.addAnotherButton} onPress={() => setCrops((prev) => [...prev, blankCrop()])}>
           <Text style={styles.addAnotherText}>Add another</Text>
@@ -336,6 +342,10 @@ const styles = StyleSheet.create({
   totalAreaText: { fontSize: 16, fontWeight: '700', color: COLORS.primaryDark },
   divider: { height: 1, backgroundColor: '#e6e4de', marginVertical: 20 },
   sectionHeader: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark },
+  subSectionLabel: {
+    fontSize: 13, fontWeight: '700', color: COLORS.primaryDark, textTransform: 'uppercase',
+    marginTop: 20, marginBottom: 4,
+  },
   cropBlock: { marginTop: 8 },
   cropBlockHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   removeText: { color: COLORS.danger, fontSize: 13, fontWeight: '600' },

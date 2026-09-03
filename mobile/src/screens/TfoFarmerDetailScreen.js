@@ -150,7 +150,7 @@ function ActivityCard({ activity }) {
   );
 }
 
-export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated }) {
+export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated, onCreateDemo }) {
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -281,7 +281,10 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, o
           ))}
         </View>
 
-        <Pressable style={styles.createButton} onPress={() => comingSoon(`Create ${activeTabLabel}`)}>
+        <Pressable
+          style={styles.createButton}
+          onPress={activeTab === 'demo' ? onCreateDemo : () => comingSoon(`Create ${activeTabLabel}`)}
+        >
           <Text style={styles.createButtonText}>Create {activeTabLabel}</Text>
         </Pressable>
 

@@ -43,6 +43,7 @@ export const createDemoPlot = (token, payload) =>
 
 export const createTfoDemo = (token, payload) =>
   request('/tfo-demos', { method: 'POST', body: payload, token });
+export const listTfoDemos = (token) => request('/tfo-demos', { token });
 
 export const listFarmers = (token) => request('/farmers', { token });
 export const searchFarmers = (token, query) => request(`/farmers/search?q=${encodeURIComponent(query)}`, { token });

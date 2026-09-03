@@ -2,9 +2,41 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
+import { getCoveredVillageIds } from '../db/locationHelpers.js';
 
 export const tfoDemosRouter = Router();
 tfoDemosRouter.param('id', validateUuidParam);
+
+// One row per demo (not per crop) - powers the Demos list screen. Crop
+// names are aggregated into a single display string since the list is a
+// summary view, not the detail (there's no per-demo detail screen yet).
+const SELECT_TFO_DEMOS = `
+  select td.id, td.farmer_id, f.name as farmer_name, f.phone as farmer_phone,
+    td.village_id, vi.name as village_name, td.cycle, td.created_at,
+    coalesce((
+      select string_agg(c.name, ', ' order by c.name)
+      from tfo_demo_crops tdc join crops c on c.id = tdc.crop_id
+      where tdc.demo_id = td.id
+    ), '') as crop_names
+  from tfo_demos td
+  join farmers f on f.id = td.farmer_id
+  join villages vi on vi.id = td.village_id
+`;
+
+// Same visibility rule as demo_plots: Super Admin sees everything, everyone
+// else is scoped to the villages their location assignments cover.
+tfoDemosRouter.get('/tfo-demos', requireAuth, async (req, res) => {
+  if (req.user.role === 'super_admin') {
+    const result = await pool.query(`${SELECT_TFO_DEMOS} order by td.created_at desc limit 200`);
+    return res.json({ demos: result.rows });
+  }
+  const villageIds = await getCoveredVillageIds(req.user.userId);
+  const result = await pool.query(
+    `${SELECT_TFO_DEMOS} where td.village_id = any($1) order by td.created_at desc limit 200`,
+    [villageIds],
+  );
+  res.json({ demos: result.rows });
+});
 
 const CYCLES = ['demo_1', 'demo_2', 'demo_3', 'demo_4', 'adoption_1', 'adoption_2', 'adoption_3', 'adoption_4'];
 const SOIL_TYPES = ['sandy', 'sandy_loam', 'loamy', 'clay'];
