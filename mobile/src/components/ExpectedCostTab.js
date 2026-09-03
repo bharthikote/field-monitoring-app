@@ -73,10 +73,10 @@ function ItemEditForm({ item, currency, draft, setDraft, onSave, onCancel, savin
         </View>
       </View>
       <View style={styles.formActions}>
-        <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
+        <Pressable style={styles.saveButton} onPress={() => onSave(item)} disabled={saving}>
           {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
         </Pressable>
-        <Pressable style={styles.cancelButton} onPress={onCancel} disabled={saving}>
+        <Pressable style={styles.cancelButton} onPress={() => onCancel(item)} disabled={saving}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </Pressable>
       </View>
