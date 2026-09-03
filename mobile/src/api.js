@@ -56,6 +56,12 @@ export const saveExpectedCostItem = (token, demoId, payload) =>
 export const deleteExpectedCostItem = (token, demoId, itemId) =>
   request(`/tfo-demos/${demoId}/expected-cost/${itemId}`, { method: 'DELETE', token });
 
+export const getExpectedReturn = (token, demoId) => request(`/tfo-demos/${demoId}/expected-return`, { token });
+export const saveExpectedReturnItem = (token, demoId, payload) =>
+  request(`/tfo-demos/${demoId}/expected-return`, { method: 'POST', body: payload, token });
+export const deleteExpectedReturnItem = (token, demoId, itemId) =>
+  request(`/tfo-demos/${demoId}/expected-return/${itemId}`, { method: 'DELETE', token });
+
 export const createTfoHomeGarden = (token, payload) =>
   request('/tfo-home-gardens', { method: 'POST', body: payload, token });
 export const listTfoHomeGardens = (token) => request('/tfo-home-gardens', { token });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { getTfoDemo, setTfoDemoStatus } from '../api';
 import SearchableSelect from '../components/SearchableSelect';
-import ExpectedCostTab from '../components/ExpectedCostTab';
+import BusinessPlanTab from '../components/BusinessPlanTab';
 import { COLORS } from '../theme';
 
 const CYCLE_LABELS = {
@@ -269,7 +269,7 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </Pressable>
           </>
         )}
-        {activeTab === 'business_plan' && <ExpectedCostTab token={token} demoId={demoId} />}
+        {activeTab === 'business_plan' && <BusinessPlanTab token={token} demoId={demoId} />}
         {activeTab !== 'crop' && activeTab !== 'business_plan' && (
           <Text style={styles.empty}>{TABS.find((t) => t.key === activeTab).label} isn't built yet.</Text>
         )}

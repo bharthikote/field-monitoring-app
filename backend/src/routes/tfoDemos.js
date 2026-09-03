@@ -405,6 +405,124 @@ tfoDemosRouter.delete('/tfo-demos/:id/expected-cost/:itemId', requireAuth, async
   res.status(204).end();
 });
 
+// Mirrors the Expected Cost endpoints above exactly (same country-scoping,
+// same single-round-trip query shape, same ongoing-only edit lock, same
+// upsert-on-(demo_id, item_id) consolidation rule) but sourced from the
+// separate activity_returns/activity_return_items tables instead - Cost
+// and Return are different master configurations, not the same one reused.
+const SELECT_EXPECTED_RETURN_ITEMS = `
+  select ar.id as activity_id, ar.name as activity_name,
+    ari.id as item_id, ari.name as item_name,
+    coalesce((
+      select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
+      from activity_return_item_units ariu join units u on u.id = ariu.unit_id where ariu.item_id = ari.id
+    ), '[]') as units,
+    der.quantity, der.unit_id as saved_unit_id, der.unit_price
+  from activity_returns ar
+  join activity_return_items ari on ari.activity_return_id = ar.id and ari.status = 'active'
+  join activity_return_item_countries aric on aric.item_id = ari.id and aric.country_id = $2
+  left join tfo_demo_expected_returns der on der.demo_id = $1 and der.item_id = ari.id
+  where ar.status = 'active'
+  order by ar.name asc, ari.name asc
+`;
+
+tfoDemosRouter.get('/tfo-demos/:id/expected-return', requireAuth, async (req, res) => {
+  const demoResult = await pool.query(
+    `select td.village_id, td.status, co.id as country_id, co.currency_code
+     from tfo_demos td
+     join villages vi on vi.id = td.village_id join blocks b on b.id = vi.block_id
+     join districts di on di.id = b.district_id join states s on s.id = di.state_id
+     join countries co on co.id = s.country_id
+     where td.id = $1`,
+    [req.params.id],
+  );
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  const demo = demoResult.rows[0];
+  if (!(await requireCoverage(req, res, demo.village_id))) return;
+
+  const rows = (await pool.query(SELECT_EXPECTED_RETURN_ITEMS, [req.params.id, demo.country_id])).rows;
+  const activitiesById = new Map();
+  for (const row of rows) {
+    if (!activitiesById.has(row.activity_id)) {
+      activitiesById.set(row.activity_id, { id: row.activity_id, name: row.activity_name, items: [] });
+    }
+    activitiesById.get(row.activity_id).items.push({
+      id: row.item_id,
+      name: row.item_name,
+      units: row.units,
+      savedReturn: row.quantity === null ? null : {
+        quantity: row.quantity, unitId: row.saved_unit_id, unitPrice: row.unit_price,
+      },
+    });
+  }
+
+  res.json({
+    currency: demo.currency_code,
+    isOngoing: demo.status === 'ongoing',
+    activities: [...activitiesById.values()].filter((a) => a.items.length > 0),
+  });
+});
+
+tfoDemosRouter.post('/tfo-demos/:id/expected-return', requireAuth, async (req, res) => {
+  const demoResult = await pool.query(
+    `select td.village_id, td.status, co.id as country_id from tfo_demos td
+     join villages vi on vi.id = td.village_id join blocks b on b.id = vi.block_id
+     join districts di on di.id = b.district_id join states s on s.id = di.state_id
+     join countries co on co.id = s.country_id
+     where td.id = $1`,
+    [req.params.id],
+  );
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  const demo = demoResult.rows[0];
+  if (!(await requireCoverage(req, res, demo.village_id))) return;
+  if (demo.status !== 'ongoing') {
+    return res.status(403).json({ error: 'This demo is not Ongoing and can\'t be edited. Ask a Super Admin to reopen it first.' });
+  }
+
+  const { itemId, quantity, unitId, unitPrice } = req.body;
+  if (!itemId || !unitId) return res.status(400).json({ error: 'itemId and unitId are required' });
+  const qty = Number(quantity);
+  const price = Number(unitPrice ?? 0);
+  if (quantity === undefined || quantity === '' || Number.isNaN(qty) || qty < 0) return res.status(400).json({ error: 'Expected Quantity must be a number that is 0 or more' });
+  if (Number.isNaN(price) || price < 0) return res.status(400).json({ error: 'Expected Unit Price must be a number that is 0 or more' });
+
+  const itemResult = await pool.query(
+    `select ari.id, ari.activity_return_id, ar.status as activity_status,
+       exists(select 1 from activity_return_item_countries aric where aric.item_id = ari.id and aric.country_id = $2) as in_country,
+       exists(select 1 from activity_return_item_units ariu where ariu.item_id = ari.id and ariu.unit_id = $3) as valid_unit
+     from activity_return_items ari join activity_returns ar on ar.id = ari.activity_return_id
+     where ari.id = $1 and ari.status = 'active'`,
+    [itemId, demo.country_id, unitId],
+  );
+  if (itemResult.rowCount === 0 || itemResult.rows[0].activity_status !== 'active' || !itemResult.rows[0].in_country) {
+    return res.status(400).json({ error: 'This item is not configured for this demo\'s country' });
+  }
+  if (!itemResult.rows[0].valid_unit) {
+    return res.status(400).json({ error: 'This unit is not configured for this item' });
+  }
+
+  const result = await pool.query(
+    `insert into tfo_demo_expected_returns (demo_id, activity_return_id, item_id, quantity, unit_id, unit_price, updated_at)
+     values ($1, $2, $3, $4, $5, $6, now())
+     on conflict (demo_id, item_id) do update set
+       quantity = excluded.quantity, unit_id = excluded.unit_id, unit_price = excluded.unit_price, updated_at = now()
+     returning id`,
+    [req.params.id, itemResult.rows[0].activity_return_id, itemId, qty, unitId, price],
+  );
+  res.status(200).json({ id: result.rows[0].id });
+});
+
+tfoDemosRouter.delete('/tfo-demos/:id/expected-return/:itemId', requireAuth, async (req, res) => {
+  const demoResult = await pool.query('select village_id, status from tfo_demos where id = $1', [req.params.id]);
+  if (demoResult.rowCount === 0) return res.status(404).json({ error: 'No such demo' });
+  if (!(await requireCoverage(req, res, demoResult.rows[0].village_id))) return;
+  if (demoResult.rows[0].status !== 'ongoing') {
+    return res.status(403).json({ error: 'This demo is not Ongoing and can\'t be edited. Ask a Super Admin to reopen it first.' });
+  }
+  await pool.query('delete from tfo_demo_expected_returns where demo_id = $1 and item_id = $2', [req.params.id, req.params.itemId]);
+  res.status(204).end();
+});
+
 // One row per crop entry, not per demo - powers the TFO farmer detail
 // screen's Demo tab, where each crop within a multi-crop demo shows as its
 // own activity card (same flattening the existing tab already expects).

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { getExpectedCost, saveExpectedCostItem, deleteExpectedCostItem } from '../api';
+import { getExpectedReturn, saveExpectedReturnItem, deleteExpectedReturnItem } from '../api';
 import SearchableSelect from './SearchableSelect';
 import NumberField from './NumberField';
 import { COLORS } from '../theme';
 
-const ORANGE_SOFT = '#fdf1e6';
+const GREEN_SOFT = '#e8f3ea';
 
 function formatAmount(amount, currency) {
   const n = Number(amount) || 0;
@@ -13,49 +13,49 @@ function formatAmount(amount, currency) {
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
-function itemTotal(savedCost) {
-  if (!savedCost) return 0;
-  return Number(savedCost.farmerPrice) + Number(savedCost.loanPrice);
+// Expected Total Price is never independently editable - always
+// quantity * unit price, per the spec.
+function itemTotal(savedReturn) {
+  if (!savedReturn) return 0;
+  return Number(savedReturn.quantity) * Number(savedReturn.unitPrice);
 }
 
 function activityTotal(activity) {
-  return activity.items.reduce((sum, item) => sum + itemTotal(item.savedCost), 0);
+  return activity.items.reduce((sum, item) => sum + itemTotal(item.savedReturn), 0);
 }
 
-// Read-only detail shown after tapping a saved item's row - matches the
-// muted "Bed preparation" state in the reference screenshot, before Edit
-// is tapped.
-function SavedDetail({ savedCost, currency }) {
+function SavedDetail({ savedReturn, currency }) {
   return (
     <View style={styles.detailGrid}>
       <View style={styles.detailRow}>
         <View style={styles.detailField}>
           <Text style={styles.detailLabel}>Expected Quantity</Text>
-          <Text style={styles.detailValue}>{savedCost.quantity}</Text>
+          <Text style={styles.detailValue}>{savedReturn.quantity}</Text>
         </View>
         <View style={styles.detailField}>
           <Text style={styles.detailLabel}>Unit</Text>
-          <Text style={styles.detailValue}>{savedCost.unitName}</Text>
+          <Text style={styles.detailValue}>{savedReturn.unitName}</Text>
         </View>
       </View>
       <View style={styles.detailRow}>
         <View style={styles.detailField}>
-          <Text style={styles.detailLabel}>Farmer Expected Price</Text>
-          <Text style={styles.detailValue}>{formatAmount(savedCost.farmerPrice, currency)}</Text>
+          <Text style={styles.detailLabel}>Expected Unit Price</Text>
+          <Text style={styles.detailValue}>{formatAmount(savedReturn.unitPrice, currency)}</Text>
         </View>
         <View style={styles.detailField}>
-          <Text style={styles.detailLabel}>Loan Expected Price</Text>
-          <Text style={styles.detailValue}>{formatAmount(savedCost.loanPrice, currency)}</Text>
+          <Text style={styles.detailLabel}>Expected Total Price</Text>
+          <Text style={styles.detailValue}>{formatAmount(itemTotal(savedReturn), currency)}</Text>
         </View>
       </View>
     </View>
   );
 }
 
-// Shared by both an existing item's inline "Edit" form and the top-level
-// "Add Cost" panel - same fields, same Save/Cancel, just a different item
-// and different callbacks wired in by the caller.
-function CostEntryForm({ item, currency, draft, setDraft, onSave, onCancel, saving }) {
+// Shared by both an existing item's inline Edit form and the top-level
+// "Add Return" panel - same fields, same Save/Cancel.
+function ReturnEntryForm({ item, currency, draft, setDraft, onSave, onCancel, saving }) {
+  const qty = Number(draft.quantity) || 0;
+  const price = Number(draft.unitPrice) || 0;
   return (
     <View>
       <NumberField label="Expected Quantity *" value={draft.quantity} onChangeText={(v) => setDraft((d) => ({ ...d, quantity: v }))} />
@@ -66,13 +66,10 @@ function CostEntryForm({ item, currency, draft, setDraft, onSave, onCancel, savi
         value={draft.unitId}
         onChange={(v) => setDraft((d) => ({ ...d, unitId: v }))}
       />
-      <View style={styles.priceRow}>
-        <View style={{ flex: 1 }}>
-          <NumberField label="Farmer Expected Price *" value={draft.farmerPrice} onChangeText={(v) => setDraft((d) => ({ ...d, farmerPrice: v }))} suffix={currency} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <NumberField label="Loan Expected Price *" value={draft.loanPrice} onChangeText={(v) => setDraft((d) => ({ ...d, loanPrice: v }))} suffix={currency} />
-        </View>
+      <NumberField label="Expected Unit Price *" value={draft.unitPrice} onChangeText={(v) => setDraft((d) => ({ ...d, unitPrice: v }))} suffix={currency} />
+      <View style={styles.totalPreviewRow}>
+        <Text style={styles.totalPreviewLabel}>Expected Total Price</Text>
+        <Text style={styles.totalPreviewValue}>{formatAmount(qty * price, currency)}</Text>
       </View>
       <View style={styles.formActions}>
         <Pressable style={styles.saveButton} onPress={onSave} disabled={saving}>
@@ -91,7 +88,7 @@ function ItemRow({ item, index, currency, isOngoing, openItemId, editMode, draft
   const isOpen = openItemId === item.id;
   const isEditing = isOpen && editMode;
   const letter = String.fromCharCode(97 + index);
-  const total = itemTotal(item.savedCost);
+  const total = itemTotal(item.savedReturn);
 
   return (
     <View style={styles.itemCard}>
@@ -106,10 +103,10 @@ function ItemRow({ item, index, currency, isOngoing, openItemId, editMode, draft
       {isOpen && (
         <View style={styles.itemBody}>
           {isEditing ? (
-            <CostEntryForm item={item} currency={currency} draft={draft} setDraft={setDraft} onSave={() => onSave(item)} onCancel={() => onCancel(item)} saving={saving} />
+            <ReturnEntryForm item={item} currency={currency} draft={draft} setDraft={setDraft} onSave={() => onSave(item)} onCancel={() => onCancel(item)} saving={saving} />
           ) : (
             <>
-              <SavedDetail savedCost={item.savedCost} currency={currency} />
+              <SavedDetail savedReturn={item.savedReturn} currency={currency} />
               {isOngoing && (
                 <View style={styles.viewActions}>
                   <Pressable style={styles.editPill} onPress={() => onEdit(item)}>
@@ -134,7 +131,7 @@ function ActivitySection({
   openItemId, editMode, draft, saving, setDraft,
   onToggleItem, onEdit, onCancel, onSave, onDelete,
 }) {
-  const savedItems = activity.items.filter((i) => i.savedCost);
+  const savedItems = activity.items.filter((i) => i.savedReturn);
 
   return (
     <View style={styles.activityCard}>
@@ -149,7 +146,7 @@ function ActivitySection({
       {expanded && (
         <View>
           {savedItems.length === 0 ? (
-            <Text style={styles.emptyActivity}>No costs added yet for this activity.</Text>
+            <Text style={styles.emptyActivity}>No returns added yet for this activity.</Text>
           ) : (
             savedItems.map((item, i) => (
               <ItemRow
@@ -177,13 +174,10 @@ function ActivitySection({
   );
 }
 
-// The "+ Add Cost" panel: pick an Activity, then an Item configured under
-// it (excluding ones already saved for this demo), then the same fields
-// CostEntryForm uses everywhere else.
-function AddCostPanel({ activities, currency, addActivityId, addItemId, draft, setDraft, saving, onPickActivity, onPickItem, onSave, onCancel }) {
+function AddReturnPanel({ activities, currency, addActivityId, addItemId, draft, setDraft, saving, onPickActivity, onPickItem, onSave, onCancel }) {
   const activityOptions = activities.map((a) => ({ id: a.id, name: a.name }));
   const selectedActivity = activities.find((a) => a.id === addActivityId);
-  const itemOptions = selectedActivity ? selectedActivity.items.filter((i) => !i.savedCost) : [];
+  const itemOptions = selectedActivity ? selectedActivity.items.filter((i) => !i.savedReturn) : [];
   const selectedItem = selectedActivity?.items.find((i) => i.id === addItemId);
 
   return (
@@ -197,7 +191,7 @@ function AddCostPanel({ activities, currency, addActivityId, addItemId, draft, s
         )
       )}
       {selectedItem && (
-        <CostEntryForm item={selectedItem} currency={currency} draft={draft} setDraft={setDraft} onSave={onSave} onCancel={onCancel} saving={saving} />
+        <ReturnEntryForm item={selectedItem} currency={currency} draft={draft} setDraft={setDraft} onSave={onSave} onCancel={onCancel} saving={saving} />
       )}
       {!selectedItem && (
         <Pressable style={styles.standaloneCancelButton} onPress={onCancel}>
@@ -208,10 +202,12 @@ function AddCostPanel({ activities, currency, addActivityId, addItemId, draft, s
   );
 }
 
-// The Business Plan -> Expected Cost tab: Activities/Items come entirely
-// from the Super Admin's Activity Cost master data (scoped to this demo's
-// own country), never hardcoded here.
-export default function ExpectedCostTab({ token, demoId }) {
+// The Business Plan -> Expected Return tab: Activities/Items come entirely
+// from the Super Admin's Activity Return master data (scoped to this
+// demo's own country), never hardcoded here. Mirrors ExpectedCostTab's
+// structure exactly (see that file for the shared interaction pattern),
+// with quantity/unit/unitPrice replacing quantity/unit/farmer+loan price.
+export default function ExpectedReturnTab({ token, demoId }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -221,14 +217,14 @@ export default function ExpectedCostTab({ token, demoId }) {
   const [adding, setAdding] = useState(false);
   const [addActivityId, setAddActivityId] = useState(null);
   const [addItemId, setAddItemId] = useState(null);
-  const [draft, setDraft] = useState({ quantity: '', unitId: null, farmerPrice: '', loanPrice: '' });
+  const [draft, setDraft] = useState({ quantity: '', unitId: null, unitPrice: '' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const result = await getExpectedCost(token, demoId);
+      const result = await getExpectedReturn(token, demoId);
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -274,15 +270,14 @@ export default function ExpectedCostTab({ token, demoId }) {
     setOpenItemId(item.id);
     setEditMode(true);
     setDraft({
-      quantity: String(item.savedCost.quantity),
-      unitId: item.savedCost.unitId,
-      farmerPrice: String(item.savedCost.farmerPrice),
-      loanPrice: String(item.savedCost.loanPrice),
+      quantity: String(item.savedReturn.quantity),
+      unitId: item.savedReturn.unitId,
+      unitPrice: String(item.savedReturn.unitPrice),
     });
   };
 
   const cancelEdit = (item) => {
-    if (item.savedCost) {
+    if (item.savedReturn) {
       setEditMode(false);
     } else {
       closeOpenItem();
@@ -302,24 +297,24 @@ export default function ExpectedCostTab({ token, demoId }) {
   };
   const pickAddItem = (itemId) => {
     setAddItemId(itemId);
-    setDraft({ quantity: '', unitId: null, farmerPrice: '', loanPrice: '' });
+    setDraft({ quantity: '', unitId: null, unitPrice: '' });
   };
 
   const deleteItem = (item) => {
-    Alert.alert('Delete item', `Remove "${item.name}" from Expected Cost?`, [
+    Alert.alert('Delete item', `Remove "${item.name}" from Expected Return?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
           try {
-            await deleteExpectedCostItem(token, demoId, item.id);
+            await deleteExpectedReturnItem(token, demoId, item.id);
             closeOpenItem();
             setData((prev) => ({
               ...prev,
               activities: prev.activities.map((a) => ({
                 ...a,
-                items: a.items.map((i) => (i.id === item.id ? { ...i, savedCost: null } : i)),
+                items: a.items.map((i) => (i.id === item.id ? { ...i, savedReturn: null } : i)),
               })),
             }));
           } catch (err) {
@@ -330,14 +325,12 @@ export default function ExpectedCostTab({ token, demoId }) {
     ]);
   };
 
-  // Shared by the existing-item Edit form and the Add Cost panel - both
-  // just upsert by itemId, which is what implements the "consolidate
-  // duplicate item" rule (same Activity + Item always overwrites the one
-  // saved row instead of creating another).
+  // Shared by the existing-item Edit form and the Add Return panel - both
+  // upsert by itemId, implementing the same "consolidate duplicate item"
+  // rule Expected Cost uses (same Activity + Item overwrites one row).
   const performSave = async (item) => {
     const qty = Number(draft.quantity);
-    const farmer = Number(draft.farmerPrice);
-    const loan = Number(draft.loanPrice);
+    const price = Number(draft.unitPrice);
     if (draft.quantity === '' || Number.isNaN(qty) || qty < 0) {
       Alert.alert('Missing information', 'Expected Quantity must be a number that is 0 or more.');
       return false;
@@ -346,18 +339,14 @@ export default function ExpectedCostTab({ token, demoId }) {
       Alert.alert('Missing information', 'Please select a Unit.');
       return false;
     }
-    if (draft.farmerPrice === '' || Number.isNaN(farmer) || farmer < 0) {
-      Alert.alert('Missing information', 'Farmer Expected Price must be a number that is 0 or more.');
-      return false;
-    }
-    if (draft.loanPrice === '' || Number.isNaN(loan) || loan < 0) {
-      Alert.alert('Missing information', 'Loan Expected Price must be a number that is 0 or more.');
+    if (draft.unitPrice === '' || Number.isNaN(price) || price < 0) {
+      Alert.alert('Missing information', 'Expected Unit Price must be a number that is 0 or more.');
       return false;
     }
 
     setSaving(true);
     try {
-      await saveExpectedCostItem(token, demoId, { itemId: item.id, quantity: qty, unitId: draft.unitId, farmerPrice: farmer, loanPrice: loan });
+      await saveExpectedReturnItem(token, demoId, { itemId: item.id, quantity: qty, unitId: draft.unitId, unitPrice: price });
       const unitName = item.units.find((u) => u.id === draft.unitId)?.name || '';
       setData((prev) => ({
         ...prev,
@@ -365,7 +354,7 @@ export default function ExpectedCostTab({ token, demoId }) {
           ...a,
           items: a.items.map((i) => (i.id !== item.id ? i : {
             ...i,
-            savedCost: { quantity: qty, unitId: draft.unitId, unitName, farmerPrice: farmer, loanPrice: loan },
+            savedReturn: { quantity: qty, unitId: draft.unitId, unitName, unitPrice: price },
           })),
         })),
       }));
@@ -396,15 +385,13 @@ export default function ExpectedCostTab({ token, demoId }) {
     return <ActivityIndicator style={{ marginTop: 40 }} />;
   }
   if (error || !data) {
-    return <Text style={styles.error}>{error || 'Could not load Expected Cost.'}</Text>;
+    return <Text style={styles.error}>{error || 'Could not load Expected Return.'}</Text>;
   }
 
-  // savedCost from the API doesn't carry unitName (only unitId) - attach it
-  // here once so SavedDetail can display it without a lookup per render.
   const activities = data.activities.map((a) => ({
     ...a,
-    items: a.items.map((i) => (i.savedCost && !i.savedCost.unitName
-      ? { ...i, savedCost: { ...i.savedCost, unitName: i.units.find((u) => u.id === i.savedCost.unitId)?.name || '' } }
+    items: a.items.map((i) => (i.savedReturn && !i.savedReturn.unitName
+      ? { ...i, savedReturn: { ...i.savedReturn, unitName: i.units.find((u) => u.id === i.savedReturn.unitId)?.name || '' } }
       : i)),
   }));
   const overallTotal = activities.reduce((sum, a) => sum + activityTotal(a), 0);
@@ -412,17 +399,17 @@ export default function ExpectedCostTab({ token, demoId }) {
   return (
     <View>
       <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Total Expected Cost</Text>
+        <Text style={styles.totalLabel}>Total Expected Return</Text>
         <Text style={styles.totalValue}>{formatAmount(overallTotal, data.currency)}</Text>
       </View>
 
       {data.isOngoing && !adding && (
         <Pressable style={styles.addButton} onPress={startAdd}>
-          <Text style={styles.addButtonText}>+ Add Cost</Text>
+          <Text style={styles.addButtonText}>+ Add Return</Text>
         </Pressable>
       )}
       {adding && (
-        <AddCostPanel
+        <AddReturnPanel
           activities={activities}
           currency={data.currency}
           addActivityId={addActivityId}
@@ -438,7 +425,7 @@ export default function ExpectedCostTab({ token, demoId }) {
       )}
 
       {activities.length === 0 ? (
-        <Text style={styles.empty}>No Activity Cost items are configured for this demo's country yet.</Text>
+        <Text style={styles.empty}>No Activity Return items are configured for this demo's country yet.</Text>
       ) : (
         activities.map((activity, index) => (
           <ActivitySection
@@ -472,7 +459,7 @@ const styles = StyleSheet.create({
   emptyActivity: { color: COLORS.textMuted, fontSize: 13, marginBottom: 8 },
   totalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: ORANGE_SOFT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
+    backgroundColor: GREEN_SOFT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
   },
   totalLabel: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 14 },
   totalValue: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 16 },
@@ -502,7 +489,12 @@ const styles = StyleSheet.create({
   editPillText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 13 },
   deletePill: { backgroundColor: COLORS.dangerSoft, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 7 },
   deletePillText: { color: COLORS.danger, fontWeight: '700', fontSize: 13 },
-  priceRow: { flexDirection: 'row', gap: 12 },
+  totalPreviewRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginTop: 14,
+  },
+  totalPreviewLabel: { color: COLORS.primaryDark, fontSize: 12, fontWeight: '600' },
+  totalPreviewValue: { color: COLORS.primaryDark, fontSize: 15, fontWeight: '700' },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
   saveButton: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 28, alignItems: 'center' },
   saveButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
