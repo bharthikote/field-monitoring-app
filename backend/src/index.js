@@ -24,6 +24,7 @@ import { dataCollectionFormsRouter } from './routes/dataCollectionForms.js';
 import { tfoDemosRouter } from './routes/tfoDemos.js';
 import { tfoHomeGardensRouter } from './routes/tfoHomeGardens.js';
 import { activitiesRouter } from './routes/activities.js';
+import { nutrientConfigurationsRouter } from './routes/nutrientConfigurations.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -64,6 +65,7 @@ app.use(dataCollectionFormsRouter);
 app.use(tfoDemosRouter);
 app.use(tfoHomeGardensRouter);
 app.use(activitiesRouter);
+app.use(nutrientConfigurationsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -107,6 +109,9 @@ app.get('/admin/activity-costs', (_req, res) => {
 });
 app.get('/admin/activity-costs/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'activity-cost-detail.html'));
+});
+app.get('/admin/nutrient-configurations', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'nutrient-configurations.html'));
 });
 
 const port = process.env.PORT || 4000;

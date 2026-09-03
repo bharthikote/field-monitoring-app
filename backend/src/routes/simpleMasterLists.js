@@ -22,6 +22,7 @@ export const SIMPLE_LISTS = [
   { path: 'good-things-observed', table: 'good_things_observed', label: 'Good Things Observed' },
   { path: 'seasons', table: 'seasons', label: 'Seasons' },
   { path: 'units', table: 'units', label: 'Units' },
+  { path: 'nutrients', table: 'nutrients', label: 'Nutrients' },
 ];
 
 function requireSuperAdmin(req, res, next) {

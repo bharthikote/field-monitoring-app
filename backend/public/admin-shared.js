@@ -8,6 +8,7 @@ const NAV_ICONS = {
   reports: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
   dataCollection: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><line x1="8" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="16" y2="15"/></svg>',
   activityCosts: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  nutrientConfig: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6"/><path d="M8.5 5.5 12 2l3.5 3.5"/><path d="M5 12a7 7 0 0 0 14 0"/><path d="M12 22v-6"/></svg>',
 };
 
 const NAV_STRUCTURE = [
@@ -34,6 +35,7 @@ const NAV_STRUCTURE = [
   },
   { href: '/admin/data-collection-forms', label: 'Data Collection', icon: NAV_ICONS.dataCollection, roles: ['super_admin'] },
   { href: '/admin/activity-costs', label: 'Activity Costs', icon: NAV_ICONS.activityCosts, roles: ['super_admin'] },
+  { href: '/admin/nutrient-configurations', label: 'Nutrient Config', icon: NAV_ICONS.nutrientConfig, roles: ['super_admin'] },
 ];
 
 function getToken() {

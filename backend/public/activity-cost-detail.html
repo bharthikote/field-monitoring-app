@@ -41,6 +41,17 @@
   <label>Unit</label>
   <div class="checklist" id="item-units"></div>
 
+  <label>Is Nutrient?</label>
+  <select id="item-is-nutrient">
+    <option value="no">No</option>
+    <option value="yes">Yes</option>
+  </select>
+
+  <div id="item-nutrient-config-wrap" style="display:none">
+    <label>Nutrient Configuration</label>
+    <select id="item-nutrient-config"></select>
+  </div>
+
   <label>Remark</label>
   <textarea id="item-remark" rows="2" placeholder="Optional"></textarea>
 
@@ -59,6 +70,7 @@
       <th>Item</th>
       <th>Country</th>
       <th>Unit</th>
+      <th>Nutrient</th>
       <th>Remark</th>
       <th>Actions</th>
     </tr>
@@ -81,6 +93,7 @@ let currentActivity = null;
 let currentItems = [];
 let allCountries = [];
 let allUnits = [];
+let allNutrientConfigs = [];
 let editingItemId = null; // null = creating new
 
 function countryChecklistHtml(selectedIds) {
@@ -96,6 +109,25 @@ function unitChecklistHtml(selectedIds) {
   `).join('');
 }
 
+// Includes the item's current configuration as an option even if it's since
+// been deactivated (hidden from allNutrientConfigs) - editing an item
+// shouldn't silently drop its existing link just because the linked
+// configuration was later soft-deleted elsewhere.
+function nutrientConfigOptionsHtml(selectedId, selectedName) {
+  let configs = allNutrientConfigs;
+  if (selectedId && !configs.some((c) => c.id === selectedId)) {
+    configs = [...configs, { id: selectedId, name: `${selectedName} (inactive)` }];
+  }
+  return '<option value="">-- select configuration --</option>' + configs.map((c) => `
+    <option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>
+  `).join('');
+}
+
+function updateNutrientConfigVisibility() {
+  const isNutrient = document.getElementById('item-is-nutrient').value === 'yes';
+  document.getElementById('item-nutrient-config-wrap').style.display = isNutrient ? 'block' : 'none';
+}
+
 function openItemPanel(item) {
   editingItemId = item ? item.id : null;
   document.getElementById('item-panel-title').textContent = item ? `Editing "${item.name}"` : 'New Item';
@@ -103,6 +135,12 @@ function openItemPanel(item) {
   document.getElementById('item-remark').value = item ? (item.remark || '') : '';
   document.getElementById('item-countries').innerHTML = countryChecklistHtml(item ? item.country_ids : []);
   document.getElementById('item-units').innerHTML = unitChecklistHtml(item ? item.units.map((u) => u.id) : []);
+  document.getElementById('item-is-nutrient').value = item?.is_nutrient ? 'yes' : 'no';
+  document.getElementById('item-nutrient-config').innerHTML = nutrientConfigOptionsHtml(
+    item ? item.nutrient_configuration_id : null,
+    item ? item.nutrient_configuration_name : null,
+  );
+  updateNutrientConfigVisibility();
   document.getElementById('item-error').style.display = 'none';
   document.getElementById('item-panel').style.display = 'block';
   document.getElementById('item-name').focus();
@@ -141,6 +179,7 @@ function renderItems() {
         <td>${escapeHtml(item.name)}</td>
         <td><div class="chip-list">${countryNames.map((n) => `<span class="chip">${escapeHtml(n)}</span>`).join('')}</div></td>
         <td><div class="chip-list">${item.units.map((u) => `<span class="chip">${escapeHtml(u.name)}</span>`).join('')}</div></td>
+        <td>${item.is_nutrient ? escapeHtml(item.nutrient_configuration_name || 'Yes') : '—'}</td>
         <td>${escapeHtml(item.remark || '—')}</td>
         <td>
           <div class="actions-cell">
@@ -155,6 +194,7 @@ function renderItems() {
 
 document.getElementById('add-item-btn').addEventListener('click', () => openItemPanel(null));
 document.getElementById('item-cancel').addEventListener('click', closeItemPanel);
+document.getElementById('item-is-nutrient').addEventListener('change', updateNutrientConfigVisibility);
 
 document.getElementById('item-save').addEventListener('click', async () => {
   const errorEl = document.getElementById('item-error');
@@ -163,6 +203,8 @@ document.getElementById('item-save').addEventListener('click', async () => {
   const remark = document.getElementById('item-remark').value.trim();
   const countryIds = [...document.querySelectorAll('.item-country-check:checked')].map((el) => el.value);
   const unitIds = [...document.querySelectorAll('.item-unit-check:checked')].map((el) => el.value);
+  const isNutrient = document.getElementById('item-is-nutrient').value === 'yes';
+  const nutrientConfigurationId = document.getElementById('item-nutrient-config').value || null;
 
   if (!name) {
     errorEl.textContent = 'Item name is required.';
@@ -179,13 +221,18 @@ document.getElementById('item-save').addEventListener('click', async () => {
     errorEl.style.display = 'block';
     return;
   }
+  if (isNutrient && !nutrientConfigurationId) {
+    errorEl.textContent = 'Select a Nutrient Configuration, or set Is Nutrient to No.';
+    errorEl.style.display = 'block';
+    return;
+  }
 
   const btn = document.getElementById('item-save');
   btn.disabled = true;
   try {
     const path = editingItemId ? `/activity-items/${editingItemId}` : `/activities/${activityId}/items`;
     const method = editingItemId ? 'PATCH' : 'POST';
-    const res = await authedFetch(path, { method, body: JSON.stringify({ name, countryIds, unitIds, remark }) });
+    const res = await authedFetch(path, { method, body: JSON.stringify({ name, countryIds, unitIds, remark, isNutrient, nutrientConfigurationId }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save item');
     closeItemPanel();
@@ -234,12 +281,14 @@ async function init() {
     return;
   }
   try {
-    const [countriesRes, unitsRes] = await Promise.all([
+    const [countriesRes, unitsRes, nutrientConfigsRes] = await Promise.all([
       authedFetch('/locations/countries'),
       authedFetch('/master/units'),
+      authedFetch('/nutrient-configurations'),
     ]);
     allCountries = (await countriesRes.json()).countries;
     allUnits = (await unitsRes.json()).items;
+    allNutrientConfigs = (await nutrientConfigsRes.json()).configurations;
 
     await loadActivity();
     document.getElementById('activity-heading').textContent = currentActivity.name;
