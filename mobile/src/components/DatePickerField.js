@@ -1,80 +1,128 @@
-import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Modal, ScrollView } from 'react-native';
 import { COLORS } from '../theme';
 
-const WEEKDAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const MONTH_LABELS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
+const ITEM_HEIGHT = 44;
+const VISIBLE_ROWS = 3; // matches the reference screenshot: one row above/below the selection
+const YEAR_SPAN = 10; // today +/- 10 years - generous headroom for any date this app records
 
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
-
 function toDateString(year, month, day) {
   return `${year}-${pad2(month + 1)}-${pad2(day)}`;
 }
-
-function ChevronLeft({ color }) {
-  return (
-    <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M15 18l-6-6 6-6" />
-    </Svg>
-  );
-}
-function ChevronRight({ color }) {
-  return (
-    <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M9 18l6-6-6-6" />
-    </Svg>
-  );
+function daysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
 }
 
-// A small pure-JS month-grid calendar - no native module, unlike
-// @react-native-community/datetimepicker, whose Android build needs a
-// codegen'd native spec file that isn't generated under Expo Go's managed
-// workflow (crashed Metro on import). value/onChange stay plain YYYY-MM-DD
-// strings, same as before, so callers didn't need to change.
+// One vertically-scrolling wheel column (Day / Month / Year). Pure ScrollView
+// + snapToInterval - no native picker module involved (the project's
+// existing @react-native-community/datetimepicker attempt doesn't build
+// under Expo Go's managed workflow, which is exactly why the original
+// calendar-grid version of this component existed in the first place).
+// `items` is an array of {value, label}; `selectedIndex` is controlled by
+// the parent so changing the Year/Month can reset the Day column's
+// position (e.g. clamping Feb 30 -> Feb 28) without fighting the scroll.
+function WheelColumn({ items, selectedIndex, onChangeIndex }) {
+  const scrollRef = useRef(null);
+  const userScrolling = useRef(false);
+  const paddingVertical = ITEM_HEIGHT * Math.floor(VISIBLE_ROWS / 2);
+
+  // Jump to the controlled index without animating - but only when this
+  // column's own scroll wasn't what caused selectedIndex to change (e.g.
+  // opening the modal, or the Day column reflowing because Month/Year
+  // changed elsewhere). Skipping it for user-driven changes matters: the
+  // ScrollView is already physically at that position from the gesture
+  // itself, so re-issuing scrollTo would just fight the user's momentum.
+  useEffect(() => {
+    if (userScrolling.current) {
+      userScrolling.current = false;
+      return;
+    }
+    scrollRef.current?.scrollTo({ y: selectedIndex * ITEM_HEIGHT, animated: false });
+  }, [items, selectedIndex]);
+
+  const handleMomentumEnd = (e) => {
+    const idx = Math.max(0, Math.min(items.length - 1, Math.round(e.nativeEvent.contentOffset.y / ITEM_HEIGHT)));
+    userScrolling.current = true;
+    onChangeIndex(idx);
+  };
+
+  return (
+    <View style={{ height: ITEM_HEIGHT * VISIBLE_ROWS, flex: 1 }}>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_HEIGHT}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical }}
+        onMomentumScrollEnd={handleMomentumEnd}
+        onScrollEndDrag={handleMomentumEnd}
+      >
+        {items.map((item, i) => (
+          <View key={item.value} style={styles.wheelRow}>
+            <Text style={[styles.wheelText, i === selectedIndex && styles.wheelTextSelected]}>{item.label}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// A native-feeling three-column (Day / Month / Year) wheel date picker,
+// matching the reference screenshot's modal exactly - dimmed backdrop,
+// rounded centered card, "Select date" heading, live-scrolling selection
+// that only commits on Confirm (Cancel discards it), Cancel/Confirm pill
+// buttons. Same external contract as before this rewrite - `value`/
+// `onChange` are still plain YYYY-MM-DD strings - so every one of this
+// app's 8 screens that already use this component needed no changes.
 export default function DatePickerField({ label, value, onChange }) {
-  const today = new Date();
-  const initial = value ? new Date(`${value}T00:00:00`) : today;
   const [open, setOpen] = useState(false);
-  const [viewYear, setViewYear] = useState(initial.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+  const [draftYear, setDraftYear] = useState(null);
+  const [draftMonth, setDraftMonth] = useState(null);
+  const [draftDay, setDraftDay] = useState(null);
 
   const handleOpen = () => {
-    const base = value ? new Date(`${value}T00:00:00`) : today;
-    setViewYear(base.getFullYear());
-    setViewMonth(base.getMonth());
+    const base = value ? new Date(`${value}T00:00:00`) : new Date();
+    setDraftYear(base.getFullYear());
+    setDraftMonth(base.getMonth());
+    setDraftDay(base.getDate());
     setOpen(true);
   };
 
-  const changeMonth = (delta) => {
-    let m = viewMonth + delta;
-    let y = viewYear;
-    if (m < 0) { m = 11; y -= 1; }
-    if (m > 11) { m = 0; y += 1; }
-    setViewMonth(m);
-    setViewYear(y);
-  };
+  const currentYear = new Date().getFullYear();
+  const yearItems = useMemo(
+    () => Array.from({ length: YEAR_SPAN * 2 + 1 }, (_, i) => {
+      const y = currentYear - YEAR_SPAN + i;
+      return { value: y, label: String(y) };
+    }),
+    [currentYear],
+  );
+  const monthItems = useMemo(() => MONTH_LABELS.map((m, i) => ({ value: i, label: m })), []);
+  const dayItems = useMemo(() => {
+    if (draftYear === null || draftMonth === null) return [];
+    const count = daysInMonth(draftYear, draftMonth);
+    return Array.from({ length: count }, (_, i) => ({ value: i + 1, label: String(i + 1) }));
+  }, [draftYear, draftMonth]);
 
-  const handleSelectDay = (day) => {
-    onChange(toDateString(viewYear, viewMonth, day));
+  // Changing month/year can invalidate the selected day (e.g. Feb 30) -
+  // clamp it down to the new month's last valid day rather than letting
+  // the day column scroll to a phantom position.
+  useEffect(() => {
+    if (draftYear === null || draftMonth === null || draftDay === null) return;
+    const maxDay = daysInMonth(draftYear, draftMonth);
+    if (draftDay > maxDay) setDraftDay(maxDay);
+  }, [draftYear, draftMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConfirm = () => {
+    onChange(toDateString(draftYear, draftMonth, draftDay));
     setOpen(false);
   };
-
-  const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const cells = [
-    ...Array.from({ length: firstWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  const weeks = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-
-  const todayString = toDateString(today.getFullYear(), today.getMonth(), today.getDate());
 
   return (
     <View>
@@ -83,50 +131,28 @@ export default function DatePickerField({ label, value, onChange }) {
         <Text style={value ? styles.fieldText : styles.placeholderText}>{value || '-- select date --'}</Text>
       </Pressable>
 
-      <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>
+      <Modal visible={open} animationType="fade" transparent onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.monthRow}>
-              <Pressable style={styles.monthNavBtn} onPress={() => changeMonth(-1)}>
-                <ChevronLeft color={COLORS.primary} />
-              </Pressable>
-              <Text style={styles.monthLabel}>{MONTH_LABELS[viewMonth]} {viewYear}</Text>
-              <Pressable style={styles.monthNavBtn} onPress={() => changeMonth(1)}>
-                <ChevronRight color={COLORS.primary} />
-              </Pressable>
-            </View>
+            <Text style={styles.title}>Select date</Text>
 
-            <View style={styles.weekdayRow}>
-              {WEEKDAY_LABELS.map((w) => (
-                <Text key={w} style={styles.weekdayText}>{w}</Text>
-              ))}
-            </View>
-
-            {weeks.map((week, wi) => (
-              <View key={wi} style={styles.weekRow}>
-                {week.map((day, di) => {
-                  if (!day) return <View key={di} style={styles.dayCell} />;
-                  const dateString = toDateString(viewYear, viewMonth, day);
-                  const isSelected = dateString === value;
-                  const isToday = dateString === todayString;
-                  return (
-                    <Pressable
-                      key={di}
-                      style={[styles.dayCell, isSelected && styles.dayCellSelected]}
-                      onPress={() => handleSelectDay(day)}
-                    >
-                      <Text style={[
-                        styles.dayText,
-                        isToday && !isSelected && styles.dayTextToday,
-                        isSelected && styles.dayTextSelected,
-                      ]}>
-                        {day}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+            {draftYear !== null && (
+              <View style={styles.wheelWrap}>
+                <View pointerEvents="none" style={styles.selectionWindow} />
+                <WheelColumn items={dayItems} selectedIndex={draftDay - 1} onChangeIndex={(i) => setDraftDay(dayItems[i].value)} />
+                <WheelColumn items={monthItems} selectedIndex={draftMonth} onChangeIndex={(i) => setDraftMonth(monthItems[i].value)} />
+                <WheelColumn items={yearItems} selectedIndex={draftYear - (currentYear - YEAR_SPAN)} onChangeIndex={(i) => setDraftYear(yearItems[i].value)} />
               </View>
-            ))}
+            )}
+
+            <View style={styles.actionsRow}>
+              <Pressable style={styles.cancelButton} onPress={() => setOpen(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+                <Text style={styles.confirmButtonText}>Confirm</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -139,17 +165,23 @@ const styles = StyleSheet.create({
   field: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12 },
   fieldText: { fontSize: 16, color: '#111' },
   placeholderText: { fontSize: 16, color: '#999' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 32 },
-  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  monthNavBtn: { padding: 8 },
-  monthLabel: { fontSize: 16, fontWeight: '700', color: '#111' },
-  weekdayRow: { flexDirection: 'row' },
-  weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: '600', color: '#888' },
-  weekRow: { flexDirection: 'row', marginTop: 4 },
-  dayCell: { flex: 1, aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  dayCellSelected: { backgroundColor: COLORS.primary },
-  dayText: { fontSize: 14, color: '#111' },
-  dayTextToday: { color: COLORS.primary, fontWeight: '700' },
-  dayTextSelected: { color: '#fff', fontWeight: '700' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  sheet: { width: '100%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 20, padding: 24 },
+  title: { fontSize: 20, fontWeight: '600', color: '#111', marginBottom: 20 },
+  wheelWrap: { flexDirection: 'row', position: 'relative' },
+  selectionWindow: {
+    position: 'absolute', left: 0, right: 0, top: ITEM_HEIGHT, height: ITEM_HEIGHT,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ddd',
+  },
+  wheelRow: { height: ITEM_HEIGHT, alignItems: 'center', justifyContent: 'center' },
+  wheelText: { fontSize: 17, color: '#aaa' },
+  wheelTextSelected: { fontSize: 20, color: '#111', fontWeight: '700' },
+  actionsRow: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  cancelButton: {
+    flex: 1, borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 999,
+    paddingVertical: 14, alignItems: 'center',
+  },
+  cancelButtonText: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 15 },
+  confirmButton: { flex: 1, backgroundColor: COLORS.primary, borderRadius: 999, paddingVertical: 14, alignItems: 'center' },
+  confirmButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
