@@ -20,6 +20,17 @@ function ChevronIcon({ color }) {
   );
 }
 
+// A solid inverted triangle, used only in compact mode (e.g. the demo
+// summary card's crop picker) - a clearer "tap to pick another" signal
+// than the plain line chevron once the field itself has no border.
+function TriangleDownIcon({ color }) {
+  return (
+    <Svg width="10" height="7" viewBox="0 0 10 7">
+      <Path d="M0 0 L10 0 L5 7 Z" fill={color} />
+    </Svg>
+  );
+}
+
 // A tap-to-open, search-to-filter dropdown - stands in for the native
 // Picker anywhere a list can be long enough that scrolling a wheel to
 // find one item (e.g. dozens of crops) is impractical.
@@ -55,7 +66,9 @@ export default function SearchableSelect({ label, placeholder = 'Select...', opt
         <Text style={[selected ? styles.fieldText : styles.placeholderText, compact && styles.fieldTextCompact]} numberOfLines={1}>
           {selected ? selected.name : placeholder}
         </Text>
-        <ChevronIcon color={disabled ? '#ccc' : COLORS.textMuted} />
+        {compact
+          ? <TriangleDownIcon color={disabled ? '#ccc' : COLORS.textMuted} />
+          : <ChevronIcon color={disabled ? '#ccc' : COLORS.textMuted} />}
       </Pressable>
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={() => setOpen(false)}>

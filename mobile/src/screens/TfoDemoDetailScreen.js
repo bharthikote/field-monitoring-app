@@ -233,7 +233,6 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
         <View style={styles.card}>
           <View style={styles.cardTopRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.activityType}>Demo</Text>
               <Text style={styles.farmerName}>{demo.farmer_name}</Text>
             </View>
             <View style={styles.cardTopRight}>
@@ -377,8 +376,7 @@ const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginHorizontal: 24 },
   card: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 14, padding: 16 },
   cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  activityType: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
-  farmerName: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark, marginTop: 2 },
+  farmerName: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark },
   // flexShrink: 0 so a long farmer name can never compress this column
   // leftward - the most plausible cause of "crop selector positioned too
   // far left" from code inspection alone (not visually confirmed, no
