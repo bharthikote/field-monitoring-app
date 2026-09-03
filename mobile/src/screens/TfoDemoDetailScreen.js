@@ -27,6 +27,27 @@ const TABS = [
   { key: 'training', label: 'Training' },
 ];
 
+// Values in the thousands abbreviate to "12.5K" (matching the reference
+// screenshot); Profit can go negative (cost exceeds return), so the sign
+// is preserved rather than clamped.
+function formatKpiAmount(amount, currency) {
+  const n = Number(amount) || 0;
+  const abs = Math.abs(n);
+  if (abs >= 1000) {
+    const k = (n / 1000).toFixed(1).replace(/\.0$/, '');
+    return currency ? `${k}K ${currency}` : `${k}K`;
+  }
+  const formatted = n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+// Cost = 0 has no meaningful "return per unit spent" - shown as 0% rather
+// than Infinity/NaN, per spec.
+function calcRoiPercent(costTotal, returnTotal) {
+  if (!costTotal || costTotal <= 0) return 0;
+  return Math.round((returnTotal / costTotal) * 100);
+}
+
 function DetailField({ label, value }) {
   return (
     <View style={styles.detailField}>
@@ -85,6 +106,17 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
   const [activeTab, setActiveTab] = useState('crop');
   const [selectedCropIndex, setSelectedCropIndex] = useState(0);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [costTotal, setCostTotal] = useState(0);
+  const [returnTotal, setReturnTotal] = useState(0);
+  const [bpCurrency, setBpCurrency] = useState(null);
+  const [production, setProduction] = useState('0');
+
+  const handleBusinessPlanTotals = useCallback((cost, ret, currency, prod) => {
+    setCostTotal(cost);
+    setReturnTotal(ret);
+    setBpCurrency(currency);
+    setProduction(prod);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -156,6 +188,8 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
   // reopens editing for everyone again) - see tfoDemos.js's POST .../status.
   const isSuperAdmin = user.role === 'super_admin';
   const selectedCrop = crops[selectedCropIndex] || null;
+  const roiPercent = calcRoiPercent(costTotal, returnTotal);
+  const profit = returnTotal - costTotal;
 
   const handleEditPress = () => {
     if (!isOngoing) {
@@ -201,27 +235,28 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           </View>
 
           <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(Math.max(roiPercent, 0), 100)}%` }]} />
             <View style={styles.progressCircle}>
-              <Text style={styles.progressText}>0%</Text>
+              <Text style={styles.progressText}>{roiPercent}%</Text>
             </View>
           </View>
 
           <View style={styles.metricsRow}>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Cost</Text>
-              <Text style={styles.metricValue}>0</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(costTotal, bpCurrency)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Production</Text>
-              <Text style={styles.metricValue}>0 Kg</Text>
+              <Text style={styles.metricValue}>{production}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Return</Text>
-              <Text style={styles.metricValue}>0</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(returnTotal, bpCurrency)}</Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Profit</Text>
-              <Text style={styles.metricValue}>0</Text>
+              <Text style={styles.metricValue}>{formatKpiAmount(profit, bpCurrency)}</Text>
             </View>
           </View>
 
@@ -269,10 +304,15 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </Pressable>
           </>
         )}
-        {activeTab === 'business_plan' && <BusinessPlanTab token={token} demoId={demoId} />}
-        {activeTab !== 'crop' && activeTab !== 'business_plan' && (
+        <BusinessPlanTab
+          token={token}
+          demoId={demoId}
+          visible={activeTab === 'business_plan'}
+          onTotalsChange={handleBusinessPlanTotals}
+        />
+        {activeTab === 'cost' || activeTab === 'return' || activeTab === 'training' ? (
           <Text style={styles.empty}>{TABS.find((t) => t.key === activeTab).label} isn't built yet.</Text>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -297,7 +337,10 @@ const styles = StyleSheet.create({
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   progressTrack: {
     height: 14, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center', marginTop: 24, marginBottom: 20,
+    alignItems: 'center', justifyContent: 'center', marginTop: 24, marginBottom: 20, overflow: 'hidden',
+  },
+  progressFill: {
+    position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: COLORS.primaryDark, borderRadius: 999,
   },
   progressCircle: {
     width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff',

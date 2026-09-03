@@ -5,8 +5,6 @@ import SearchableSelect from './SearchableSelect';
 import NumberField from './NumberField';
 import { COLORS } from '../theme';
 
-const GREEN_SOFT = '#e8f3ea';
-
 function formatAmount(amount, currency) {
   const n = Number(amount) || 0;
   const formatted = n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -22,6 +20,26 @@ function itemTotal(savedReturn) {
 
 function activityTotal(activity) {
   return activity.items.reduce((sum, item) => sum + itemTotal(item.savedReturn), 0);
+}
+
+// Sums saved quantities per unit (Kilo, Piece, Quintal, ...) rather than
+// across all of them - there's no unit-conversion mechanism anywhere in
+// this app, so 500 Kilo + 5 Quintal must never collapse into one number.
+// Reported as e.g. "500 Kilo, 5 Quintal" when more than one unit is in
+// play, or just "500 Kilo" when everything shares one unit.
+function computeProductionSummary(activities) {
+  const byUnit = new Map();
+  for (const activity of activities) {
+    for (const item of activity.items) {
+      if (!item.savedReturn) continue;
+      const unitName = item.savedReturn.unitName || '';
+      byUnit.set(unitName, (byUnit.get(unitName) || 0) + Number(item.savedReturn.quantity));
+    }
+  }
+  if (byUnit.size === 0) return '0';
+  return [...byUnit.entries()]
+    .map(([unit, qty]) => `${qty.toLocaleString()}${unit ? ' ' + unit : ''}`)
+    .join(', ');
 }
 
 function SavedDetail({ savedReturn, currency }) {
@@ -207,7 +225,7 @@ function AddReturnPanel({ activities, currency, addActivityId, addItemId, draft,
 // demo's own country), never hardcoded here. Mirrors ExpectedCostTab's
 // structure exactly (see that file for the shared interaction pattern),
 // with quantity/unit/unitPrice replacing quantity/unit/farmer+loan price.
-export default function ExpectedReturnTab({ token, demoId }) {
+export default function ExpectedReturnTab({ token, demoId, onTotalChange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -236,6 +254,27 @@ export default function ExpectedReturnTab({ token, demoId }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Reports the overall total and a unit-safe production summary up to
+  // BusinessPlanTab (-> the demo summary card's Return/Production KPIs)
+  // whenever `data` actually changes - never on an unrelated parent
+  // re-render, since this only depends on `data` itself.
+  useEffect(() => {
+    if (!onTotalChange) return;
+    if (!data) {
+      onTotalChange(0, null, '0');
+      return;
+    }
+    const resolved = data.activities.map((a) => ({
+      ...a,
+      items: a.items.map((i) => (i.savedReturn
+        ? { ...i, savedReturn: { ...i.savedReturn, unitName: i.units.find((u) => u.id === i.savedReturn.unitId)?.name || '' } }
+        : i)),
+    }));
+    const total = resolved.reduce((sum, a) => sum + activityTotal(a), 0);
+    onTotalChange(total, data.currency, computeProductionSummary(resolved));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const closeOpenItem = () => {
     setOpenItemId(null);
@@ -394,14 +433,8 @@ export default function ExpectedReturnTab({ token, demoId }) {
       ? { ...i, savedReturn: { ...i.savedReturn, unitName: i.units.find((u) => u.id === i.savedReturn.unitId)?.name || '' } }
       : i)),
   }));
-  const overallTotal = activities.reduce((sum, a) => sum + activityTotal(a), 0);
-
   return (
     <View>
-      <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Total Expected Return</Text>
-        <Text style={styles.totalValue}>{formatAmount(overallTotal, data.currency)}</Text>
-      </View>
 
       {data.isOngoing && !adding && (
         <Pressable style={styles.addButton} onPress={startAdd}>
@@ -457,12 +490,6 @@ const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginTop: 20 },
   empty: { color: '#888', marginTop: 20 },
   emptyActivity: { color: COLORS.textMuted, fontSize: 13, marginBottom: 8 },
-  totalRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: GREEN_SOFT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
-  },
-  totalLabel: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 14 },
-  totalValue: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 16 },
   addButton: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 20, alignSelf: 'flex-start', marginBottom: 20 },
   addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   addPanel: { backgroundColor: COLORS.bg, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 20 },

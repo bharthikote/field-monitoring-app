@@ -5,8 +5,6 @@ import SearchableSelect from './SearchableSelect';
 import NumberField from './NumberField';
 import { COLORS } from '../theme';
 
-const ORANGE_SOFT = '#fdf1e6';
-
 function formatAmount(amount, currency) {
   const n = Number(amount) || 0;
   const formatted = n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -211,7 +209,7 @@ function AddCostPanel({ activities, currency, addActivityId, addItemId, draft, s
 // The Business Plan -> Expected Cost tab: Activities/Items come entirely
 // from the Super Admin's Activity Cost master data (scoped to this demo's
 // own country), never hardcoded here.
-export default function ExpectedCostTab({ token, demoId }) {
+export default function ExpectedCostTab({ token, demoId, onTotalChange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -240,6 +238,24 @@ export default function ExpectedCostTab({ token, demoId }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Reports the overall total up to BusinessPlanTab (-> the demo summary
+  // card's Cost KPI) whenever `data` actually changes - load, save, or
+  // delete, never on an unrelated parent re-render, since this only
+  // depends on `data` itself, not on the onTotalChange reference.
+  useEffect(() => {
+    if (!onTotalChange) return;
+    if (!data) {
+      onTotalChange(0, null);
+      return;
+    }
+    const total = data.activities.reduce(
+      (sum, a) => sum + a.items.reduce((s, i) => s + itemTotal(i.savedCost), 0),
+      0,
+    );
+    onTotalChange(total, data.currency);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const closeOpenItem = () => {
     setOpenItemId(null);
@@ -407,15 +423,8 @@ export default function ExpectedCostTab({ token, demoId }) {
       ? { ...i, savedCost: { ...i.savedCost, unitName: i.units.find((u) => u.id === i.savedCost.unitId)?.name || '' } }
       : i)),
   }));
-  const overallTotal = activities.reduce((sum, a) => sum + activityTotal(a), 0);
-
   return (
     <View>
-      <View style={styles.totalRow}>
-        <Text style={styles.totalLabel}>Total Expected Cost</Text>
-        <Text style={styles.totalValue}>{formatAmount(overallTotal, data.currency)}</Text>
-      </View>
-
       {data.isOngoing && !adding && (
         <Pressable style={styles.addButton} onPress={startAdd}>
           <Text style={styles.addButtonText}>+ Add Cost</Text>
@@ -470,12 +479,6 @@ const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginTop: 20 },
   empty: { color: '#888', marginTop: 20 },
   emptyActivity: { color: COLORS.textMuted, fontSize: 13, marginBottom: 8 },
-  totalRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: ORANGE_SOFT, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
-  },
-  totalLabel: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 14 },
-  totalValue: { color: COLORS.primaryDark, fontWeight: '700', fontSize: 16 },
   addButton: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 20, alignSelf: 'flex-start', marginBottom: 20 },
   addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   addPanel: { backgroundColor: COLORS.bg, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 20 },
