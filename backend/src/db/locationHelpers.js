@@ -49,6 +49,34 @@ export async function resolveCountryId(level, id) {
   return countryIdForVillage(id);
 }
 
+// Same result as calling resolveCountryId once per row of a user's
+// user_locations (deduped into a set), but as a single round trip instead
+// of N - this runs on every authenticated request (requireAuth), so for a
+// user with many location assignments the old per-row loop meant N
+// sequential DB calls before the actual request could even start.
+export async function resolveCountryIdsForUser(userId) {
+  const r = await pool.query(
+    `select location_id as country_id from user_locations where user_id = $1 and level = 'country'
+     union
+     select s.country_id from user_locations ul join states s on s.id = ul.location_id where ul.user_id = $1 and ul.level = 'state'
+     union
+     select s.country_id from user_locations ul
+       join districts d on d.id = ul.location_id join states s on s.id = d.state_id
+       where ul.user_id = $1 and ul.level = 'district'
+     union
+     select s.country_id from user_locations ul
+       join blocks b on b.id = ul.location_id join districts d on d.id = b.district_id join states s on s.id = d.state_id
+       where ul.user_id = $1 and ul.level = 'block'
+     union
+     select s.country_id from user_locations ul
+       join villages v on v.id = ul.location_id join blocks b on b.id = v.block_id
+       join districts d on d.id = b.district_id join states s on s.id = d.state_id
+       where ul.user_id = $1 and ul.level = 'village'`,
+    [userId],
+  );
+  return r.rows.map((row) => row.country_id);
+}
+
 // Resolves the full display path (Country -> ... -> whatever level) for a
 // location node at any level. Returns null if the id doesn't exist.
 export async function resolveLocationPath(level, id) {
@@ -138,13 +166,41 @@ export async function isLocationCovered(level, id, coveredVillageIds) {
 // (an exclude nested inside a broader include carves those villages back
 // out). No assignments at all means no coverage - not everything.
 export async function getCoveredVillageIds(userId) {
-  const result = await pool.query('select level, location_id, mode from user_locations where user_id = $1', [userId]);
+  // Same result as calling resolveVillageIds once per row of a user's
+  // user_locations, but as a single round trip instead of N+1 - this runs
+  // on nearly every list/detail endpoint in the app (farmers, demos, home
+  // gardens, reports, visits, trainings, ...), so the old per-row loop
+  // meant N sequential DB calls per request for any user with several
+  // location assignments.
+  const result = await pool.query(
+    `select v.id as village_id, ul.mode from user_locations ul
+       join villages v on v.id = ul.location_id
+       where ul.user_id = $1 and ul.level = 'village'
+     union all
+     select v.id as village_id, ul.mode from user_locations ul
+       join blocks b on b.id = ul.location_id join villages v on v.block_id = b.id
+       where ul.user_id = $1 and ul.level = 'block'
+     union all
+     select v.id as village_id, ul.mode from user_locations ul
+       join districts d on d.id = ul.location_id join blocks b on b.district_id = d.id join villages v on v.block_id = b.id
+       where ul.user_id = $1 and ul.level = 'district'
+     union all
+     select v.id as village_id, ul.mode from user_locations ul
+       join states s on s.id = ul.location_id join districts d on d.state_id = s.id
+       join blocks b on b.district_id = d.id join villages v on v.block_id = b.id
+       where ul.user_id = $1 and ul.level = 'state'
+     union all
+     select v.id as village_id, ul.mode from user_locations ul
+       join countries c on c.id = ul.location_id join states s on s.country_id = c.id
+       join districts d on d.state_id = s.id join blocks b on b.district_id = d.id join villages v on v.block_id = b.id
+       where ul.user_id = $1 and ul.level = 'country'`,
+    [userId],
+  );
   const included = new Set();
   const excluded = new Set();
   for (const row of result.rows) {
-    const villageIds = await resolveVillageIds(row.level, row.location_id);
     const target = row.mode === 'exclude' ? excluded : included;
-    for (const id of villageIds) target.add(id);
+    target.add(row.village_id);
   }
   for (const id of excluded) included.delete(id);
   return [...included];

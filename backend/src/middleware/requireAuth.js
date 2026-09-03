@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
-import { resolveCountryId } from '../db/locationHelpers.js';
+import { resolveCountryIdsForUser } from '../db/locationHelpers.js';
 
 // Any logged-in, approved user - regardless of role. Used by mobile-facing
 // endpoints (demo plots, master data reads, location browsing) that every
@@ -32,14 +32,9 @@ export function requireAuth(req, res, next) {
     // elsewhere), not one single path. countryIds is the distinct set of
     // countries all of those assignments fall under - used to scope "own
     // country" permission checks (Admin managing locations/users).
-    const locResult = await pool.query('select level, location_id from user_locations where user_id = $1', [user.id]);
-    const countryIdSet = new Set();
-    for (const loc of locResult.rows) {
-      const countryId = await resolveCountryId(loc.level, loc.location_id);
-      if (countryId) countryIdSet.add(countryId);
-    }
+    const countryIds = await resolveCountryIdsForUser(user.id);
 
-    req.user = { userId: user.id, role: user.role, countryIds: [...countryIdSet] };
+    req.user = { userId: user.id, role: user.role, countryIds };
     next();
   });
 }
