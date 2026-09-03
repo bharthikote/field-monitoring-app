@@ -186,7 +186,7 @@ function getGreeting() {
   return 'Good evening';
 }
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection, onCreateTfoDemo }) {
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection, onCreateTfoDemo, onCreateHomeGarden }) {
   const isTfo = user.role === 'tfo';
   const isDataEnumerator = user.role === 'data_enumerator';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
@@ -238,6 +238,10 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   const handleTfoActivity = (activity) => {
     if (activity.key === 'tfo_demoplot') {
       onCreateTfoDemo();
+      return;
+    }
+    if (activity.key === 'tfo_homegarden') {
+      onCreateHomeGarden();
       return;
     }
     if (activity.key === 'data_collection') {

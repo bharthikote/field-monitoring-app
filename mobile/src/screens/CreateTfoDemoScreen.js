@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import * as Location from 'expo-location';
-import Svg, { Path, Circle } from 'react-native-svg';
+import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { createTfoDemo, listSeasons } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import SearchableSelect from '../components/SearchableSelect';
 import CropVarietyPicker from '../components/CropVarietyPicker';
 import DatePickerField from '../components/DatePickerField';
+import NumberField from '../components/NumberField';
+import GpsLocationField from '../components/GpsLocationField';
+import { IRRIGATION_SYSTEMS, FIELD_CONDITIONS } from '../constants/tfoFieldOptions';
 import { COLORS } from '../theme';
 
 // Cycle = which season-with-this-farmer this demo belongs to, not a crop
@@ -18,14 +19,9 @@ const CYCLES = [
   { id: 'adoption_1', name: 'Adoption 1' }, { id: 'adoption_2', name: 'Adoption 2' },
   { id: 'adoption_3', name: 'Adoption 3' }, { id: 'adoption_4', name: 'Adoption 4' },
 ];
-const SOIL_TYPES = [
-  { id: 'sandy', name: 'Sandy' }, { id: 'sandy_loam', name: 'Sandy Loam' },
-  { id: 'loamy', name: 'Loamy' }, { id: 'clay', name: 'Clay' },
-];
-const IRRIGATION_SYSTEMS = [
-  { id: 'hand_watering', name: 'Hand Watering' }, { id: 'drip_irrigation', name: 'Drip Irrigation' },
-  { id: 'sprinkler', name: 'Sprinkler' }, { id: 'rainfed', name: 'Rain-fed' },
-];
+// "Soil Type" here and "Site/Field Condition" on the Home Garden form are
+// the same underlying option set - see constants/tfoFieldOptions.js.
+const SOIL_TYPES = FIELD_CONDITIONS;
 
 // `_key` is a stable React key independent of array position - removing an
 // earlier crop block must not shift a later block's list index onto it,
@@ -40,27 +36,6 @@ function blankCrop() {
     sowingDate: '', transplantDate: '', estHarvestDate: '', irrigationSystem: null,
     noTransplanted: '0', noHarvested: '0',
   };
-}
-
-function PinIcon() {
-  return (
-    <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <Circle cx="12" cy="10" r="3" />
-    </Svg>
-  );
-}
-
-function NumberField({ label, value, onChangeText, suffix }) {
-  return (
-    <View>
-      <Text style={styles.label}>{label}</Text>
-      <View style={styles.suffixWrap}>
-        <TextInput style={[styles.input, suffix && styles.inputWithSuffix]} value={value} onChangeText={onChangeText} keyboardType="numeric" />
-        {suffix ? <Text style={styles.suffixText}>{suffix}</Text> : null}
-      </View>
-    </View>
-  );
 }
 
 // One repeatable "Crop Details" block. Fully controlled - `crop` and
@@ -118,7 +93,6 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
 export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }) {
   const [gpsLat, setGpsLat] = useState('');
   const [gpsLng, setGpsLng] = useState('');
-  const [gpsLoading, setGpsLoading] = useState(false);
   const [villageId, setVillageId] = useState(farmer.village_id);
   const [cycle, setCycle] = useState(null);
   const [ownArea, setOwnArea] = useState('');
@@ -141,25 +115,6 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
   const lockedVillage = {
     id: farmer.village_id, name: farmer.village_name, block_name: farmer.block_name,
     district_name: farmer.district_name, state_name: farmer.state_name, country_name: farmer.country_name,
-  };
-
-  const captureGps = async () => {
-    setError('');
-    setGpsLoading(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setError('Location permission is required to capture GPS.');
-        return;
-      }
-      const pos = await Location.getCurrentPositionAsync({});
-      setGpsLat(String(pos.coords.latitude));
-      setGpsLng(String(pos.coords.longitude));
-    } catch (err) {
-      setError('Could not get your location. Please try again.');
-    } finally {
-      setGpsLoading(false);
-    }
   };
 
   const updateCrop = (index, patch) => {
@@ -248,17 +203,12 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
       </View>
 
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>GPS Location *</Text>
-        <View style={styles.gpsRow}>
-          <View style={styles.gpsField}>
-            <Text style={gpsLat ? styles.gpsText : styles.gpsPlaceholder}>
-              {gpsLat && gpsLng ? `${Number(gpsLat).toFixed(5)}, ${Number(gpsLng).toFixed(5)}` : 'xxxxxxx , xxxxxxx'}
-            </Text>
-          </View>
-          <Pressable style={styles.gpsButton} onPress={captureGps} disabled={gpsLoading}>
-            {gpsLoading ? <ActivityIndicator color="#fff" size="small" /> : <PinIcon />}
-          </Pressable>
-        </View>
+        <GpsLocationField
+          lat={gpsLat}
+          lng={gpsLng}
+          onChange={({ lat, lng }) => { setGpsLat(lat); setGpsLng(lng); }}
+          onError={setError}
+        />
 
         <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
@@ -322,19 +272,7 @@ const styles = StyleSheet.create({
   back: { color: COLORS.primary, marginBottom: 16 },
   title: { fontSize: 22, fontWeight: '700' },
   label: { fontSize: 13, color: '#555', marginBottom: 4, marginTop: 12 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
-  suffixWrap: { position: 'relative', justifyContent: 'center' },
-  inputWithSuffix: { paddingRight: 40 },
-  suffixText: { position: 'absolute', right: 12, color: COLORS.textMuted, fontSize: 13 },
   suffixTextStatic: { color: COLORS.textMuted, fontSize: 13 },
-  gpsRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  gpsField: { flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12 },
-  gpsText: { fontSize: 16, color: '#111' },
-  gpsPlaceholder: { fontSize: 16, color: '#999' },
-  gpsButton: {
-    width: 44, height: 44, borderRadius: 10, backgroundColor: COLORS.primaryDark,
-    alignItems: 'center', justifyContent: 'center',
-  },
   totalAreaBox: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     borderWidth: 1, borderColor: '#e6e4de', backgroundColor: COLORS.bg, borderRadius: 8, padding: 12,

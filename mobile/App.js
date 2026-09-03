@@ -25,6 +25,8 @@ import DataCollectionFormsListScreen from './src/screens/DataCollectionFormsList
 import FillDataCollectionFormScreen from './src/screens/FillDataCollectionFormScreen';
 import CreateTfoDemoScreen from './src/screens/CreateTfoDemoScreen';
 import TfoDemosListScreen from './src/screens/TfoDemosListScreen';
+import CreateHomeGardenScreen from './src/screens/CreateHomeGardenScreen';
+import HomeGardensListScreen from './src/screens/HomeGardensListScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
@@ -77,6 +79,10 @@ const BACK_MAP = {
   // Demo button, so its back target is handled dynamically via
   // demoFormOrigin below, same pattern plotDetailOrigin already uses for
   // 'plot-detail'.
+  'tfo-homegardens-list': 'home',
+  'tfo-select-farmer-for-homegarden': 'tfo-homegardens-list',
+  // 'create-tfo-homegarden' isn't listed here either - same dynamic-origin
+  // handling as 'create-tfo-demo', via homeGardenFormOrigin.
 };
 
 export default function App() {
@@ -115,6 +121,9 @@ export default function App() {
   // land, same role plotDetailOrigin plays for 'plot-detail'.
   const [selectedFarmerForTfoDemo, setSelectedFarmerForTfoDemo] = useState(null);
   const [demoFormOrigin, setDemoFormOrigin] = useState('tfo-select-farmer-for-demo');
+  // TFO's Home Garden flow - same two-entry-point shape as Demo Plot above.
+  const [selectedFarmerForHomeGarden, setSelectedFarmerForHomeGarden] = useState(null);
+  const [homeGardenFormOrigin, setHomeGardenFormOrigin] = useState('tfo-select-farmer-for-homegarden');
   // Demo Plots is a drill-down screen, not a tab root, but it can still
   // show the tab bar - scroll down to hide it (more room for the list),
   // scroll up to bring it back. Reset to visible each time the screen is
@@ -145,6 +154,10 @@ export default function App() {
         setScreen(demoFormOrigin);
         return true;
       }
+      if (screen === 'create-tfo-homegarden') {
+        setScreen(homeGardenFormOrigin);
+        return true;
+      }
       if (screen === 'select-farmer') {
         setPendingActivityType(null);
         setScreen('home');
@@ -160,7 +173,7 @@ export default function App() {
       return true;
     });
     return () => subscription.remove();
-  }, [screen, plotDetailOrigin, pendingActivityType, demoFormOrigin]);
+  }, [screen, plotDetailOrigin, pendingActivityType, demoFormOrigin, homeGardenFormOrigin]);
 
   if (screen === 'loading') {
     return (
@@ -206,6 +219,7 @@ export default function App() {
           onCreateAgroDealerVisit={() => setScreen('select-agro-dealer')}
           onOpenDataCollection={() => setScreen('data-collection')}
           onCreateTfoDemo={() => setScreen('tfo-demos-list')}
+          onCreateHomeGarden={() => setScreen('tfo-homegardens-list')}
         />
       )}
       {screen === 'tfo-demos-list' && (
@@ -241,6 +255,39 @@ export default function App() {
             // Collection's onSubmitted already takes below.
             const returnTo = demoFormOrigin === 'tfo-select-farmer-for-demo' ? 'tfo-demos-list' : demoFormOrigin;
             setSelectedFarmerForTfoDemo(null);
+            setScreen(returnTo);
+          }}
+        />
+      )}
+      {screen === 'tfo-homegardens-list' && (
+        <HomeGardensListScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onCreateNew={() => {
+            setHomeGardenFormOrigin('tfo-select-farmer-for-homegarden');
+            setScreen('tfo-select-farmer-for-homegarden');
+          }}
+        />
+      )}
+      {screen === 'tfo-select-farmer-for-homegarden' && (
+        <FarmersListScreen
+          token={token}
+          title="Select Farmer — Home Garden"
+          onBack={() => setScreen('tfo-homegardens-list')}
+          onSelectFarmer={(farmer) => {
+            setSelectedFarmerForHomeGarden(farmer);
+            setScreen('create-tfo-homegarden');
+          }}
+        />
+      )}
+      {screen === 'create-tfo-homegarden' && selectedFarmerForHomeGarden && (
+        <CreateHomeGardenScreen
+          token={token}
+          farmer={selectedFarmerForHomeGarden}
+          onBack={() => setScreen(homeGardenFormOrigin)}
+          onCreated={() => {
+            const returnTo = homeGardenFormOrigin === 'tfo-select-farmer-for-homegarden' ? 'tfo-homegardens-list' : homeGardenFormOrigin;
+            setSelectedFarmerForHomeGarden(null);
             setScreen(returnTo);
           }}
         />
@@ -468,6 +515,11 @@ export default function App() {
             setSelectedFarmerForTfoDemo(selectedFarmer);
             setDemoFormOrigin('farmer-detail');
             setScreen('create-tfo-demo');
+          }}
+          onCreateHomeGarden={() => {
+            setSelectedFarmerForHomeGarden(selectedFarmer);
+            setHomeGardenFormOrigin('farmer-detail');
+            setScreen('create-tfo-homegarden');
           }}
         />
       )}

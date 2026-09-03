@@ -21,16 +21,19 @@ const STATUS_COLORS = {
 };
 const TRAINING_TYPE_LABELS = { classroom: 'Classroom / Theory', field_based: 'Field-Based / Practical', mixed: 'Mixed (Both)' };
 const FIELDDAY_TYPE_LABELS = { practical: 'Practical (Hands-On / Field)', theory: 'Theory (Classroom / Discussion)', both: 'Both Practical & Theory' };
+// Superset of both Demo's and Home Garden's cycle enums - each activity
+// only ever carries values from its own set, so sharing one label map is
+// safe (demo_2..4 never appear on a homegarden row and vice versa).
 const CYCLE_LABELS = {
   demo_1: 'Demo 1', demo_2: 'Demo 2', demo_3: 'Demo 3', demo_4: 'Demo 4',
+  homegarden_1: 'Home Garden 1', homegarden_2: 'Home Garden 2', homegarden_3: 'Home Garden 3',
   adoption_1: 'Adoption 1', adoption_2: 'Adoption 2', adoption_3: 'Adoption 3', adoption_4: 'Adoption 4',
 };
 
 // TFO's own activity set (per HomeScreen's TFO_ACTIVITIES): Demo Plot,
 // Home Garden, Training, Field Day - no Adoption Plot (not part of the TFO
 // activity set) and no Market Survey (that's about a shop, not tied to one
-// farmer). Home Garden has no backend entity yet, so its tab always shows
-// the empty state, matching the "Coming Soon" convention used elsewhere.
+// farmer).
 const TABS = [
   { key: 'demo', label: 'Demo' },
   { key: 'homegarden', label: 'Home Garden' },
@@ -120,6 +123,21 @@ function ActivityCard({ activity }) {
       </View>
     );
   }
+  if (activity.activityType === 'homegarden') {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>{activity.crop_name} — {CYCLE_LABELS[activity.cycle] || activity.cycle}</Text>
+        <Text style={styles.cardDate}>{new Date(activity.created_at).toLocaleDateString()}</Text>
+        <Text style={styles.cardLine}>{activity.variety_name} · {activity.no_of_seedlings} seedlings</Text>
+        <Text style={styles.cardLine}>Sown {activity.sowing_date} → Transplanted {activity.transplant_date} → Harvested {activity.harvest_date}</Text>
+        {(activity.container_number || activity.plant_number) && (
+          <Text style={styles.cardLine}>
+            {[activity.container_number && `Container ${activity.container_number}`, activity.plant_number && `Plant ${activity.plant_number}`].filter(Boolean).join(' · ')}
+          </Text>
+        )}
+      </View>
+    );
+  }
   // A TFO demo's crop entries share activityType 'demo' with demo_plots
   // (so they land in the same tab), but carry no demo_status - that's how
   // the two are told apart here, rather than a separate activityType the
@@ -150,7 +168,7 @@ function ActivityCard({ activity }) {
   );
 }
 
-export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated, onCreateDemo }) {
+export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated, onCreateDemo, onCreateHomeGarden }) {
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -176,12 +194,17 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, o
   }, [load]);
 
   // Only demo_plots with plot_type 'demo' - Adoption Plot isn't part of the
-  // TFO activity set, and Home Garden/Market Survey don't have a backend
-  // entity yet.
-  const filtered = activeTab === 'homegarden' ? [] : (activities || []).filter((a) => a.activityType === activeTab);
+  // TFO activity set, and Market Survey doesn't have a backend entity yet.
+  const filtered = (activities || []).filter((a) => a.activityType === activeTab);
   const activeTabLabel = TABS.find((t) => t.key === activeTab).label;
 
   const comingSoon = (label) => Alert.alert('Coming Soon', `${label} isn't built yet.`);
+
+  const handleCreateForActiveTab = () => {
+    if (activeTab === 'demo') return onCreateDemo();
+    if (activeTab === 'homegarden') return onCreateHomeGarden();
+    return comingSoon(`Create ${activeTabLabel}`);
+  };
 
   const handleDeactivate = () => {
     Alert.alert(
@@ -281,10 +304,7 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, o
           ))}
         </View>
 
-        <Pressable
-          style={styles.createButton}
-          onPress={activeTab === 'demo' ? onCreateDemo : () => comingSoon(`Create ${activeTabLabel}`)}
-        >
+        <Pressable style={styles.createButton} onPress={handleCreateForActiveTab}>
           <Text style={styles.createButtonText}>Create {activeTabLabel}</Text>
         </Pressable>
 

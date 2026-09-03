@@ -22,6 +22,7 @@ import { agroDealersRouter } from './routes/agroDealers.js';
 import { agroDealerVisitsRouter } from './routes/agroDealerVisits.js';
 import { dataCollectionFormsRouter } from './routes/dataCollectionForms.js';
 import { tfoDemosRouter } from './routes/tfoDemos.js';
+import { tfoHomeGardensRouter } from './routes/tfoHomeGardens.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -60,6 +61,7 @@ app.use(agroDealersRouter);
 app.use(agroDealerVisitsRouter);
 app.use(dataCollectionFormsRouter);
 app.use(tfoDemosRouter);
+app.use(tfoHomeGardensRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
