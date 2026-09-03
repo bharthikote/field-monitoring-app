@@ -57,6 +57,7 @@ function WheelColumn({ items, selectedIndex, onChangeIndex }) {
     <View style={{ height: ITEM_HEIGHT * VISIBLE_ROWS, flex: 1 }}>
       <ScrollView
         ref={scrollRef}
+        style={styles.wheelScroll}
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
@@ -169,6 +170,12 @@ const styles = StyleSheet.create({
   sheet: { width: '100%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 20, padding: 24 },
   title: { fontSize: 20, fontWeight: '600', color: '#111', marginBottom: 20 },
   wheelWrap: { flexDirection: 'row', position: 'relative' },
+  // Without an explicit style here, ScrollView doesn't reliably size
+  // itself to the wrapping View's fixed height in a flex-row layout - it
+  // still painted (the wrapper's own height clips the content), but its
+  // internal pan-gesture measurement came out wrong, so drags/swipes
+  // never actually registered as a scroll. flex: 1 is the fix.
+  wheelScroll: { flex: 1 },
   selectionWindow: {
     position: 'absolute', left: 0, right: 0, top: ITEM_HEIGHT, height: ITEM_HEIGHT,
     borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ddd',
