@@ -7,13 +7,21 @@ const CYCLE_LABELS = {
   demo_1: 'Demo 1', demo_2: 'Demo 2', demo_3: 'Demo 3', demo_4: 'Demo 4',
   adoption_1: 'Adoption 1', adoption_2: 'Adoption 2', adoption_3: 'Adoption 3', adoption_4: 'Adoption 4',
 };
+const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
+const STATUS_COLORS = {
+  ongoing: { bg: '#fef3c7', text: '#92400e' },
+  completed: { bg: '#dcfce7', text: '#166534' },
+  terminated: { bg: '#fee2e2', text: '#991b1b' },
+};
 
 // TFO's Demos list - reached from the Home tile, same "list + FAB" shape as
-// FarmersListScreen. Tapping the FAB starts the farmer-picker step of the
-// existing create-demo flow (CreateTfoDemoScreen); the Farmer Profile's own
-// "Create Demo" button reaches that same screen directly, skipping this
-// list and its picker entirely (see App.js's demoFormOrigin).
-export default function TfoDemosListScreen({ token, onBack, onCreateNew }) {
+// FarmersListScreen. Tapping a card opens the shared Demo Monitoring page
+// (TfoDemoDetailScreen); tapping the FAB starts the farmer-picker step of
+// the existing create-demo flow (CreateTfoDemoScreen). The Farmer
+// Profile's own "Create Demo" button reaches that same create screen
+// directly, skipping this list and its picker entirely (see App.js's
+// demoFormOrigin).
+export default function TfoDemosListScreen({ token, onBack, onCreateNew, onSelectDemo }) {
   const [demos, setDemos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -59,15 +67,20 @@ export default function TfoDemosListScreen({ token, onBack, onCreateNew }) {
           ) : null
         }
         renderItem={({ item: demo }) => (
-          <View style={styles.card}>
+          <Pressable style={styles.card} onPress={() => onSelectDemo(demo)}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>{demo.farmer_name}</Text>
-              <Text style={styles.cardVillage}>{demo.village_name}</Text>
+              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[demo.status].bg }]}>
+                <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[demo.status].text }]}>
+                  {STATUS_LABELS[demo.status]}
+                </Text>
+              </View>
             </View>
+            <Text style={styles.cardVillage}>{demo.village_name}</Text>
             <Text style={styles.cardLine}>{CYCLE_LABELS[demo.cycle] || demo.cycle}</Text>
             {!!demo.crop_names && <Text style={styles.cardLine}>{demo.crop_names}</Text>}
             <Text style={styles.cardDate}>{new Date(demo.created_at).toLocaleDateString()}</Text>
-          </View>
+          </Pressable>
         )}
       />
 
@@ -93,8 +106,10 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardTitle: { fontWeight: '700', fontSize: 16, flex: 1, marginRight: 8 },
   cardLine: { color: '#555', marginTop: 2 },
-  cardVillage: { color: '#555', fontSize: 13, textAlign: 'right' },
+  cardVillage: { color: '#555', fontSize: 13, marginTop: 2 },
   cardDate: { color: '#888', fontSize: 12, marginTop: 4 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   fab: {
     position: 'absolute',
     right: 24,

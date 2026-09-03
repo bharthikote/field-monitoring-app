@@ -25,6 +25,7 @@ import DataCollectionFormsListScreen from './src/screens/DataCollectionFormsList
 import FillDataCollectionFormScreen from './src/screens/FillDataCollectionFormScreen';
 import CreateTfoDemoScreen from './src/screens/CreateTfoDemoScreen';
 import TfoDemosListScreen from './src/screens/TfoDemosListScreen';
+import TfoDemoDetailScreen from './src/screens/TfoDemoDetailScreen';
 import CreateHomeGardenScreen from './src/screens/CreateHomeGardenScreen';
 import HomeGardensListScreen from './src/screens/HomeGardensListScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
@@ -121,6 +122,15 @@ export default function App() {
   // land, same role plotDetailOrigin plays for 'plot-detail'.
   const [selectedFarmerForTfoDemo, setSelectedFarmerForTfoDemo] = useState(null);
   const [demoFormOrigin, setDemoFormOrigin] = useState('tfo-select-farmer-for-demo');
+  // Set only when editing an existing demo (the { demo, crops } payload
+  // from GET /tfo-demos/:id) - null means CreateTfoDemoScreen is in create
+  // mode. Cleared explicitly at every screen that starts a fresh create, so
+  // a stale edit from a previous visit can never leak into a new demo.
+  const [editingTfoDemo, setEditingTfoDemo] = useState(null);
+  // Demo Monitoring page - reachable from the Demos list or a Farmer
+  // Profile's Demo tab, same dynamic-origin shape as 'plot-detail'.
+  const [selectedTfoDemoId, setSelectedTfoDemoId] = useState(null);
+  const [demoDetailOrigin, setDemoDetailOrigin] = useState('tfo-demos-list');
   // TFO's Home Garden flow - same two-entry-point shape as Demo Plot above.
   const [selectedFarmerForHomeGarden, setSelectedFarmerForHomeGarden] = useState(null);
   const [homeGardenFormOrigin, setHomeGardenFormOrigin] = useState('tfo-select-farmer-for-homegarden');
@@ -158,6 +168,10 @@ export default function App() {
         setScreen(homeGardenFormOrigin);
         return true;
       }
+      if (screen === 'tfo-demo-detail') {
+        setScreen(demoDetailOrigin);
+        return true;
+      }
       if (screen === 'select-farmer') {
         setPendingActivityType(null);
         setScreen('home');
@@ -173,7 +187,7 @@ export default function App() {
       return true;
     });
     return () => subscription.remove();
-  }, [screen, plotDetailOrigin, pendingActivityType, demoFormOrigin, homeGardenFormOrigin]);
+  }, [screen, plotDetailOrigin, pendingActivityType, demoFormOrigin, homeGardenFormOrigin, demoDetailOrigin]);
 
   if (screen === 'loading') {
     return (
@@ -227,8 +241,14 @@ export default function App() {
           token={token}
           onBack={() => setScreen('home')}
           onCreateNew={() => {
+            setEditingTfoDemo(null);
             setDemoFormOrigin('tfo-select-farmer-for-demo');
             setScreen('tfo-select-farmer-for-demo');
+          }}
+          onSelectDemo={(demo) => {
+            setSelectedTfoDemoId(demo.id);
+            setDemoDetailOrigin('tfo-demos-list');
+            setScreen('tfo-demo-detail');
           }}
         />
       )}
@@ -239,6 +259,7 @@ export default function App() {
           onBack={() => setScreen('tfo-demos-list')}
           onSelectFarmer={(farmer) => {
             setSelectedFarmerForTfoDemo(farmer);
+            setEditingTfoDemo(null);
             setScreen('create-tfo-demo');
           }}
         />
@@ -247,15 +268,38 @@ export default function App() {
         <CreateTfoDemoScreen
           token={token}
           farmer={selectedFarmerForTfoDemo}
+          demo={editingTfoDemo}
           onBack={() => setScreen(demoFormOrigin)}
           onCreated={() => {
             // On success, skip back past the farmer-picker step straight to
             // the Demos list (when that's how this was reached) rather than
             // making the user step through it again - same shortcut Data
-            // Collection's onSubmitted already takes below.
+            // Collection's onSubmitted already takes below. Editing an
+            // existing demo lands back on its own detail page instead,
+            // since demoFormOrigin is 'tfo-demo-detail' in that case.
             const returnTo = demoFormOrigin === 'tfo-select-farmer-for-demo' ? 'tfo-demos-list' : demoFormOrigin;
             setSelectedFarmerForTfoDemo(null);
+            setEditingTfoDemo(null);
             setScreen(returnTo);
+          }}
+        />
+      )}
+      {screen === 'tfo-demo-detail' && selectedTfoDemoId && (
+        <TfoDemoDetailScreen
+          token={token}
+          user={user}
+          demoId={selectedTfoDemoId}
+          onBack={() => setScreen(demoDetailOrigin)}
+          onEdit={(data) => {
+            setSelectedFarmerForTfoDemo({
+              id: data.demo.farmer_id, name: data.demo.farmer_name, phone: data.demo.farmer_phone,
+              village_id: data.demo.village_id, village_name: data.demo.village_name,
+              block_name: data.demo.block_name, district_name: data.demo.district_name,
+              state_name: data.demo.state_name, country_name: data.demo.country_name,
+            });
+            setEditingTfoDemo(data);
+            setDemoFormOrigin('tfo-demo-detail');
+            setScreen('create-tfo-demo');
           }}
         />
       )}
@@ -513,6 +557,7 @@ export default function App() {
           }}
           onCreateDemo={() => {
             setSelectedFarmerForTfoDemo(selectedFarmer);
+            setEditingTfoDemo(null);
             setDemoFormOrigin('farmer-detail');
             setScreen('create-tfo-demo');
           }}
@@ -520,6 +565,11 @@ export default function App() {
             setSelectedFarmerForHomeGarden(selectedFarmer);
             setHomeGardenFormOrigin('farmer-detail');
             setScreen('create-tfo-homegarden');
+          }}
+          onSelectDemo={(demoId) => {
+            setSelectedTfoDemoId(demoId);
+            setDemoDetailOrigin('farmer-detail');
+            setScreen('tfo-demo-detail');
           }}
         />
       )}

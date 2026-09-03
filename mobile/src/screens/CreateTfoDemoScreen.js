@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { createTfoDemo, listSeasons } from '../api';
+import { createTfoDemo, updateTfoDemo, listSeasons } from '../api';
 import LocationPicker from '../components/LocationPicker';
 import SearchableSelect from '../components/SearchableSelect';
 import CropVarietyPicker from '../components/CropVarietyPicker';
@@ -35,9 +35,26 @@ function blankCrop() {
   };
 }
 
+// Maps one crop row from GET /tfo-demos/:id (snake_case, backend field
+// names) into this form's internal shape - used to prefill the Edit flow.
+function cropFromDemoDetail(row) {
+  return {
+    _key: `crop-${cropKeySeq++}`,
+    cropId: row.crop_id, varietyId: row.variety_id, seasonId: row.season_id,
+    cropArea: row.crop_area != null ? String(row.crop_area) : '',
+    noOfSeeding: row.no_of_seeding != null ? String(row.no_of_seeding) : '',
+    sowingDate: row.sowing_date || '', transplantDate: row.transplant_date || '', estHarvestDate: row.est_harvest_date || '',
+    irrigationSystem: row.irrigation_system,
+    noTransplanted: row.no_transplanted != null ? String(row.no_transplanted) : '',
+    noHarvested: row.no_harvested != null ? String(row.no_harvested) : '',
+  };
+}
+
 // One repeatable "Crop Details" block. Fully controlled - `crop` and
 // `onChange(patch)` - so the parent screen owns the array and can add/
-// remove blocks freely.
+// remove blocks freely. `crop.cropId`/`crop.varietyId` only ever seed
+// CropVarietyPicker's *initial* selection (see that component) - after
+// that it's the one driving cropId/varietyId via onChange, same as always.
 function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
   return (
     <View style={styles.cropBlock}>
@@ -51,7 +68,12 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
       </View>
 
       {/* Bundle 1 - Crop / Timeline Details */}
-      <CropVarietyPicker token={token} onChange={({ cropId, varietyId }) => onChange({ cropId, varietyId })} />
+      <CropVarietyPicker
+        token={token}
+        initialCropId={crop.cropId}
+        initialVarietyId={crop.varietyId}
+        onChange={({ cropId, varietyId }) => onChange({ cropId, varietyId })}
+      />
 
       <SearchableSelect
         label="Season *"
@@ -85,18 +107,25 @@ function CropDetailBlock({ token, index, crop, seasons, onChange, onRemove }) {
 }
 
 // `farmer` is picked before this screen is ever reached (see App.js's
-// tfo-select-farmer-for-demo step) - village and farmer are both locked
-// summaries of that choice, not editable here.
-export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }) {
-  const [gpsLat, setGpsLat] = useState('');
-  const [gpsLng, setGpsLng] = useState('');
+// tfo-select-farmer-for-demo step, or a Farmer Profile's Create Demo
+// button) - village and farmer are both locked summaries of that choice,
+// not editable here.
+//
+// `demo` (optional) is the { demo, crops } payload from GET /tfo-demos/:id -
+// when present, this is the Edit flow: every field prefills from it and
+// Save calls PATCH instead of POST. Same form either way, per the "reuse
+// the Demo Creation form for editing" requirement - no second component.
+export default function CreateTfoDemoScreen({ token, farmer, demo, onBack, onCreated }) {
+  const isEditing = !!demo;
+  const [gpsLat, setGpsLat] = useState(demo ? String(demo.demo.gps_lat) : '');
+  const [gpsLng, setGpsLng] = useState(demo ? String(demo.demo.gps_lng) : '');
   const [villageId, setVillageId] = useState(farmer.village_id);
-  const [cycle, setCycle] = useState(null);
-  const [ownArea, setOwnArea] = useState('');
-  const [rentArea, setRentArea] = useState('');
-  const [soilPh, setSoilPh] = useState('');
-  const [soilType, setSoilType] = useState(null);
-  const [crops, setCrops] = useState([blankCrop()]);
+  const [cycle, setCycle] = useState(demo?.demo.cycle || null);
+  const [ownArea, setOwnArea] = useState(demo ? String(demo.demo.own_area) : '');
+  const [rentArea, setRentArea] = useState(demo ? String(demo.demo.rent_area) : '');
+  const [soilPh, setSoilPh] = useState(demo ? String(demo.demo.soil_ph) : '');
+  const [soilType, setSoilType] = useState(demo?.demo.soil_type || null);
+  const [crops, setCrops] = useState(() => (demo?.crops?.length ? demo.crops.map(cropFromDemoDetail) : [blankCrop()]));
   const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -166,7 +195,7 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
     setError('');
     setLoading(true);
     try {
-      await createTfoDemo(token, {
+      const payload = {
         farmerId: farmer.id,
         villageId,
         gpsLat,
@@ -181,7 +210,12 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
           noTransplanted: c.noTransplanted === '' ? null : c.noTransplanted,
           noHarvested: c.noHarvested === '' ? null : c.noHarvested,
         })),
-      });
+      };
+      if (isEditing) {
+        await updateTfoDemo(token, demo.demo.id, payload);
+      } else {
+        await createTfoDemo(token, payload);
+      }
       Alert.alert('Demo saved', '', [{ text: 'OK', onPress: onCreated }]);
     } catch (err) {
       setError(err.message);
@@ -196,7 +230,7 @@ export default function CreateTfoDemoScreen({ token, farmer, onBack, onCreated }
         <Pressable onPress={onBack}>
           <Text style={styles.back}>{'< Back'}</Text>
         </Pressable>
-        <Text style={styles.title}>Add Demo</Text>
+        <Text style={styles.title}>{isEditing ? 'Edit Demo' : 'Add Demo'}</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.container}>

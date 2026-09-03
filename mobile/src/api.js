@@ -44,6 +44,11 @@ export const createDemoPlot = (token, payload) =>
 export const createTfoDemo = (token, payload) =>
   request('/tfo-demos', { method: 'POST', body: payload, token });
 export const listTfoDemos = (token) => request('/tfo-demos', { token });
+export const getTfoDemo = (token, demoId) => request(`/tfo-demos/${demoId}`, { token });
+export const updateTfoDemo = (token, demoId, payload) =>
+  request(`/tfo-demos/${demoId}`, { method: 'PATCH', body: payload, token });
+export const setTfoDemoStatus = (token, demoId, status) =>
+  request(`/tfo-demos/${demoId}/status`, { method: 'POST', body: { status }, token });
 
 export const createTfoHomeGarden = (token, payload) =>
   request('/tfo-home-gardens', { method: 'POST', body: payload, token });

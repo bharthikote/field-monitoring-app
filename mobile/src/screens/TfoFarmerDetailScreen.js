@@ -101,7 +101,7 @@ function DetailField({ label, value }) {
   );
 }
 
-function ActivityCard({ activity }) {
+function ActivityCard({ activity, onPress }) {
   if (activity.activityType === 'training') {
     return (
       <View style={styles.card}>
@@ -141,15 +141,16 @@ function ActivityCard({ activity }) {
   // A TFO demo's crop entries share activityType 'demo' with demo_plots
   // (so they land in the same tab), but carry no demo_status - that's how
   // the two are told apart here, rather than a separate activityType the
-  // tab filter would also need to know about.
+  // tab filter would also need to know about. Tappable through to the
+  // shared Demo Monitoring page (TfoDemoDetailScreen), keyed by demo_id.
   if (activity.demo_status === undefined) {
     return (
-      <View style={styles.card}>
+      <Pressable style={styles.card} onPress={() => onPress?.(activity.demo_id)}>
         <Text style={styles.cardTitle}>{activity.crop_name} — {CYCLE_LABELS[activity.cycle] || activity.cycle}</Text>
         <Text style={styles.cardDate}>{new Date(activity.created_at).toLocaleDateString()}</Text>
         <Text style={styles.cardLine}>{activity.variety_name} · {activity.season_name}</Text>
         <Text style={styles.cardLine}>Sown {activity.sowing_date} → Transplanted {activity.transplant_date} → Est. Harvest {activity.est_harvest_date}</Text>
-      </View>
+      </Pressable>
     );
   }
   return (
@@ -168,7 +169,7 @@ function ActivityCard({ activity }) {
   );
 }
 
-export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated, onCreateDemo, onCreateHomeGarden }) {
+export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, onDeactivated, onCreateDemo, onCreateHomeGarden, onSelectDemo }) {
   const [activities, setActivities] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -314,7 +315,7 @@ export default function TfoFarmerDetailScreen({ token, farmer, onBack, onEdit, o
           <Text style={styles.empty}>No {activeTabLabel} activities logged for this farmer yet.</Text>
         )}
         {filtered.map((a) => (
-          <ActivityCard key={`${a.activityType}-${a.id}`} activity={a} />
+          <ActivityCard key={`${a.activityType}-${a.id}`} activity={a} onPress={onSelectDemo} />
         ))}
       </ScrollView>
     </View>
