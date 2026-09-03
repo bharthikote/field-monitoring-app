@@ -8,10 +8,8 @@ export const IRRIGATION_SYSTEMS = [
   { id: 'sprinkler', name: 'Sprinkler' }, { id: 'rainfed', name: 'Rain-fed' },
 ];
 
-// Demo Plot calls this "Soil Type"; Home Garden calls the same concept
-// "Site/Field Condition" - same 4 options either way, just a different
-// field label at the call site.
-export const FIELD_CONDITIONS = [
+// "Soil Type" - used identically by both Demo Plot and Home Garden.
+export const SOIL_TYPES = [
   { id: 'sandy', name: 'Sandy' }, { id: 'sandy_loam', name: 'Sandy Loam' },
   { id: 'loamy', name: 'Loamy' }, { id: 'clay', name: 'Clay' },
 ];

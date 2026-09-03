@@ -7,7 +7,7 @@ import CropVarietyPicker from '../components/CropVarietyPicker';
 import DatePickerField from '../components/DatePickerField';
 import NumberField from '../components/NumberField';
 import GpsLocationField from '../components/GpsLocationField';
-import { IRRIGATION_SYSTEMS, FIELD_CONDITIONS } from '../constants/tfoFieldOptions';
+import { IRRIGATION_SYSTEMS, SOIL_TYPES } from '../constants/tfoFieldOptions';
 import { COLORS } from '../theme';
 
 // Cycle = which season-with-this-farmer this demo belongs to, not a crop
@@ -19,9 +19,6 @@ const CYCLES = [
   { id: 'adoption_1', name: 'Adoption 1' }, { id: 'adoption_2', name: 'Adoption 2' },
   { id: 'adoption_3', name: 'Adoption 3' }, { id: 'adoption_4', name: 'Adoption 4' },
 ];
-// "Soil Type" here and "Site/Field Condition" on the Home Garden form are
-// the same underlying option set - see constants/tfoFieldOptions.js.
-const SOIL_TYPES = FIELD_CONDITIONS;
 
 // `_key` is a stable React key independent of array position - removing an
 // earlier crop block must not shift a later block's list index onto it,

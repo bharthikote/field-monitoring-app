@@ -7,7 +7,7 @@ import CropVarietyPicker from '../components/CropVarietyPicker';
 import DatePickerField from '../components/DatePickerField';
 import NumberField from '../components/NumberField';
 import GpsLocationField from '../components/GpsLocationField';
-import { IRRIGATION_SYSTEMS, FIELD_CONDITIONS } from '../constants/tfoFieldOptions';
+import { IRRIGATION_SYSTEMS, SOIL_TYPES } from '../constants/tfoFieldOptions';
 import { COLORS } from '../theme';
 
 // Same architecture as CreateTfoDemoScreen.js (Farmer/Village/GPS/Cycle,
@@ -83,8 +83,7 @@ export default function CreateHomeGardenScreen({ token, farmer, onBack, onCreate
   const [landType, setLandType] = useState(null);
   const [compost, setCompost] = useState(null);
   const [irrigationSystem, setIrrigationSystem] = useState(null);
-  const [fieldCondition, setFieldCondition] = useState(null);
-  const [siteId, setSiteId] = useState('');
+  const [soilType, setSoilType] = useState(null);
   const [crops, setCrops] = useState([blankCrop()]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -110,8 +109,7 @@ export default function CreateHomeGardenScreen({ token, farmer, onBack, onCreate
     if (!landType) return 'Please select whether this is own or leased/rented land.';
     if (!compost) return 'Please select whether compost is used.';
     if (!irrigationSystem) return 'Please select an irrigation system.';
-    if (!fieldCondition) return 'Please select the site/field condition.';
-    if (!siteId.trim()) return 'Please enter the Site ID.';
+    if (!soilType) return 'Please select a soil type.';
 
     for (let i = 0; i < crops.length; i++) {
       const c = crops[i];
@@ -149,8 +147,7 @@ export default function CreateHomeGardenScreen({ token, farmer, onBack, onCreate
         landType,
         compost: compost === 'yes',
         irrigationSystem,
-        fieldCondition,
-        siteId: siteId.trim(),
+        soilType,
         crops: crops.map(({ _key, ...c }) => ({
           ...c,
           containerNumber: c.containerNumber.trim() || null,
@@ -195,10 +192,7 @@ export default function CreateHomeGardenScreen({ token, farmer, onBack, onCreate
         <SearchableSelect label="Own / Lease / Rented *" placeholder="-- select option --" options={LAND_TYPES} value={landType} onChange={setLandType} />
         <SearchableSelect label="Compost *" placeholder="-- select option --" options={YES_NO} value={compost} onChange={setCompost} />
         <SearchableSelect label="Irrigation *" placeholder="-- select option --" options={IRRIGATION_SYSTEMS} value={irrigationSystem} onChange={setIrrigationSystem} />
-        <SearchableSelect label="Site / Field Condition *" placeholder="-- select option --" options={FIELD_CONDITIONS} value={fieldCondition} onChange={setFieldCondition} />
-
-        <Text style={styles.label}>Site ID *</Text>
-        <TextInput style={styles.input} value={siteId} onChangeText={setSiteId} />
+        <SearchableSelect label="Soil Type *" placeholder="-- select option --" options={SOIL_TYPES} value={soilType} onChange={setSoilType} />
 
         <View style={styles.divider} />
 

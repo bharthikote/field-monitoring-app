@@ -17,7 +17,7 @@ const LAND_TYPES = ['own', 'lease_rented'];
 // each route file owning its own small constants) rather than a shared
 // backend module, since only the mobile UI was asked to reuse these.
 const IRRIGATION_SYSTEMS = ['hand_watering', 'drip_irrigation', 'sprinkler', 'rainfed'];
-const FIELD_CONDITIONS = ['sandy', 'sandy_loam', 'loamy', 'clay'];
+const SOIL_TYPES = ['sandy', 'sandy_loam', 'loamy', 'clay'];
 
 // One crop entry within a Home Garden submission. Simpler than a Demo's -
 // no per-crop irrigation/season/counts, just seedlings and the sowing ->
@@ -73,7 +73,7 @@ tfoHomeGardensRouter.get('/tfo-home-gardens', requireAuth, async (req, res) => {
 // Not coverage-restricted, matching tfo_demos (POST /tfo-demos) - any
 // authorized role can log one anywhere.
 tfoHomeGardensRouter.post('/tfo-home-gardens', requireAuth, async (req, res) => {
-  const { farmerId, villageId, gpsLat, gpsLng, cycle, area, landType, compost, irrigationSystem, fieldCondition, siteId, crops } = req.body;
+  const { farmerId, villageId, gpsLat, gpsLng, cycle, area, landType, compost, irrigationSystem, soilType, crops } = req.body;
 
   if (!farmerId || !villageId || gpsLat === undefined || gpsLng === undefined || gpsLat === '' || gpsLng === '') {
     return res.status(400).json({ error: 'farmerId, villageId, gpsLat, and gpsLng are all required' });
@@ -83,8 +83,7 @@ tfoHomeGardensRouter.post('/tfo-home-gardens', requireAuth, async (req, res) => 
   if (!LAND_TYPES.includes(landType)) return res.status(400).json({ error: `landType must be one of: ${LAND_TYPES.join(', ')}` });
   if (typeof compost !== 'boolean') return res.status(400).json({ error: 'compost must be true or false' });
   if (!IRRIGATION_SYSTEMS.includes(irrigationSystem)) return res.status(400).json({ error: `irrigationSystem must be one of: ${IRRIGATION_SYSTEMS.join(', ')}` });
-  if (!FIELD_CONDITIONS.includes(fieldCondition)) return res.status(400).json({ error: `fieldCondition must be one of: ${FIELD_CONDITIONS.join(', ')}` });
-  if (!siteId || !siteId.trim()) return res.status(400).json({ error: 'siteId is required' });
+  if (!SOIL_TYPES.includes(soilType)) return res.status(400).json({ error: `soilType must be one of: ${SOIL_TYPES.join(', ')}` });
   if (!Array.isArray(crops) || crops.length === 0) return res.status(400).json({ error: 'At least one crop is required' });
 
   for (let i = 0; i < crops.length; i++) {
@@ -96,10 +95,10 @@ tfoHomeGardensRouter.post('/tfo-home-gardens', requireAuth, async (req, res) => 
   try {
     await client.query('begin');
     const hgResult = await client.query(
-      `insert into tfo_home_gardens (farmer_id, village_id, created_by, gps_lat, gps_lng, cycle, area, land_type, compost, irrigation_system, field_condition, site_id)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `insert into tfo_home_gardens (farmer_id, village_id, created_by, gps_lat, gps_lng, cycle, area, land_type, compost, irrigation_system, soil_type)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        returning id, created_at`,
-      [farmerId, villageId, req.user.userId, gpsLat, gpsLng, cycle, area, landType, compost, irrigationSystem, fieldCondition, siteId.trim()],
+      [farmerId, villageId, req.user.userId, gpsLat, gpsLng, cycle, area, landType, compost, irrigationSystem, soilType],
     );
     const homeGardenId = hgResult.rows[0].id;
 
