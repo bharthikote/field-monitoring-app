@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { getExpectedCost, saveExpectedCostItem, deleteExpectedCostItem } from '../api';
 import SearchableSelect from './SearchableSelect';
@@ -209,7 +209,13 @@ function AddCostPanel({ activities, currency, addActivityId, addItemId, draft, s
 // The Business Plan -> Expected Cost tab: Activities/Items come entirely
 // from the Super Admin's Activity Cost master data (scoped to this demo's
 // own country), never hardcoded here.
-export default function ExpectedCostTab({ token, demoId, onTotalChange }) {
+//
+// Exposes `openAdd` via ref so the floating "+" button lives at the
+// TfoDemoDetailScreen level (a sibling of the page's ScrollView, matching
+// the app's established FAB convention - fixed to the screen, not
+// scrolling away with content) while the actual add-flow state stays
+// local to this component, which is the one that knows how to drive it.
+const ExpectedCostTab = forwardRef(function ExpectedCostTab({ token, demoId, onTotalChange }, ref) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -311,6 +317,8 @@ export default function ExpectedCostTab({ token, demoId, onTotalChange }) {
     setAddActivityId(null);
     setAddItemId(null);
   };
+
+  useImperativeHandle(ref, () => ({ openAdd: startAdd }));
 
   const pickAddActivity = (activityId) => {
     setAddActivityId(activityId);
@@ -425,11 +433,6 @@ export default function ExpectedCostTab({ token, demoId, onTotalChange }) {
   }));
   return (
     <View>
-      {data.isOngoing && !adding && (
-        <Pressable style={styles.addButton} onPress={startAdd}>
-          <Text style={styles.addButtonText}>+ Add Cost</Text>
-        </Pressable>
-      )}
       {adding && (
         <AddCostPanel
           activities={activities}
@@ -473,14 +476,14 @@ export default function ExpectedCostTab({ token, demoId, onTotalChange }) {
       )}
     </View>
   );
-}
+});
+
+export default ExpectedCostTab;
 
 const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginTop: 20 },
   empty: { color: '#888', marginTop: 20 },
   emptyActivity: { color: COLORS.textMuted, fontSize: 13, marginBottom: 8 },
-  addButton: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 20, alignSelf: 'flex-start', marginBottom: 20 },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   addPanel: { backgroundColor: COLORS.bg, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 20 },
   activityCard: { marginBottom: 14 },
   activityHeader: {

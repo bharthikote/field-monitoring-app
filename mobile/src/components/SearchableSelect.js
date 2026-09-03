@@ -100,7 +100,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12,
   },
   fieldDisabled: { backgroundColor: '#f5f5f5' },
-  fieldCompact: { paddingVertical: 6, paddingHorizontal: 10 },
+  // No border/box at all - just the name and a small chevron, for spots
+  // like the demo summary card where a bordered dropdown looks too heavy.
+  fieldCompact: { borderWidth: 0, paddingVertical: 4, paddingHorizontal: 0 },
   fieldText: { fontSize: 16, color: '#111', flex: 1, marginRight: 8 },
   fieldTextCompact: { fontSize: 13 },
   placeholderText: { fontSize: 16, color: '#999', flex: 1, marginRight: 8 },

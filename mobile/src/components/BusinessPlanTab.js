@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { forwardRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import ExpectedCostTab from './ExpectedCostTab';
 import ExpectedReturnTab from './ExpectedReturnTab';
@@ -14,7 +14,12 @@ const ORANGE = '#f2994a';
 // tab, and only the currently-selected pill's tab is mounted here - the
 // demo summary card's KPIs now come from Actual Cost/Return instead (the
 // planning layer no longer needs to fetch in the background for that).
-export default function BusinessPlanTab({ token, demoId }) {
+//
+// Forwards its ref straight through to whichever of the two child tabs is
+// currently mounted (only one ever is), so the floating "+" button that
+// lives at the screen level can call openAdd() on it without this
+// wrapper needing to know anything about what that means.
+const BusinessPlanTab = forwardRef(function BusinessPlanTab({ token, demoId }, ref) {
   const [subTab, setSubTab] = useState('cost');
 
   return (
@@ -28,10 +33,12 @@ export default function BusinessPlanTab({ token, demoId }) {
         </Pressable>
       </View>
 
-      {subTab === 'cost' ? <ExpectedCostTab token={token} demoId={demoId} /> : <ExpectedReturnTab token={token} demoId={demoId} />}
+      {subTab === 'cost' ? <ExpectedCostTab ref={ref} token={token} demoId={demoId} /> : <ExpectedReturnTab ref={ref} token={token} demoId={demoId} />}
     </View>
   );
-}
+});
+
+export default BusinessPlanTab;
 
 const styles = StyleSheet.create({
   subTabRow: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 16 },

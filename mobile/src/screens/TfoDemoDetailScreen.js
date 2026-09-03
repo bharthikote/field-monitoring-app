@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { getTfoDemo, setTfoDemoStatus } from '../api';
 import SearchableSelect from '../components/SearchableSelect';
@@ -122,6 +122,11 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
   const [activeTab, setActiveTab] = useState('crop');
   const [selectedCropIndex, setSelectedCropIndex] = useState(0);
   const [statusLoading, setStatusLoading] = useState(false);
+  // Forwarded to BusinessPlanTab -> whichever of Expected Cost/Return is
+  // currently mounted - the floating "+" button (a screen-level sibling
+  // of the ScrollView, so it stays fixed instead of scrolling away with
+  // the tab content) calls openAdd() on it.
+  const businessPlanRef = useRef(null);
   // The KPI card reflects ACTUAL performance, not the Business Plan's
   // expected/planned figures - Actual Cost/Return are the source of truth
   // here (Business Plan no longer reports totals up at all).
@@ -326,7 +331,7 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </Pressable>
           </>
         )}
-        {activeTab === 'business_plan' && <BusinessPlanTab token={token} demoId={demoId} />}
+        {activeTab === 'business_plan' && <BusinessPlanTab ref={businessPlanRef} token={token} demoId={demoId} />}
 
         {/* Always mounted (hidden via style, not unmounted) once the demo
             loads, regardless of which tab is visible - the KPI card above
@@ -343,6 +348,18 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
           <Text style={styles.empty}>{TABS.find((t) => t.key === activeTab).label} isn't built yet.</Text>
         ) : null}
       </ScrollView>
+
+      {/* A screen-level sibling of the ScrollView (not inside it) so it
+          stays fixed at the bottom-right of the viewport instead of
+          scrolling away with the tab content - same FAB convention as
+          the Demos list. Only relevant while Business Plan is showing;
+          isOngoing is already known here, so the button simply doesn't
+          render rather than opening a flow the backend would reject. */}
+      {activeTab === 'business_plan' && isOngoing && (
+        <Pressable style={styles.fab} onPress={() => businessPlanRef.current?.openAdd()}>
+          <Text style={styles.fabIcon}>+</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -423,6 +440,14 @@ const styles = StyleSheet.create({
   tabTextActive: { color: '#fff' },
   empty: { color: '#888', marginTop: 20 },
   hidden: { display: 'none' },
+  // Matches TfoDemosListScreen's FAB exactly (same size/colors/shadow),
+  // for a consistent "add" affordance across the app.
+  fab: {
+    position: 'absolute', right: 24, bottom: 24, width: 56, height: 56, borderRadius: 28,
+    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
+    elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4,
+  },
+  fabIcon: { color: '#fff', fontSize: 28, lineHeight: 30, fontWeight: '400' },
   cropCard: { marginTop: 20 },
   cropCardTitle: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark, marginBottom: 12 },
   detailRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },

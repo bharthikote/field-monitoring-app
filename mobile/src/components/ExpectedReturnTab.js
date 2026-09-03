@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { getExpectedReturn, saveExpectedReturnItem, deleteExpectedReturnItem } from '../api';
 import SearchableSelect from './SearchableSelect';
@@ -225,7 +225,9 @@ function AddReturnPanel({ activities, currency, addActivityId, addItemId, draft,
 // demo's own country), never hardcoded here. Mirrors ExpectedCostTab's
 // structure exactly (see that file for the shared interaction pattern),
 // with quantity/unit/unitPrice replacing quantity/unit/farmer+loan price.
-export default function ExpectedReturnTab({ token, demoId, onTotalChange }) {
+// Exposes `openAdd` via ref for the same reason ExpectedCostTab does -
+// see that file's comment.
+const ExpectedReturnTab = forwardRef(function ExpectedReturnTab({ token, demoId, onTotalChange }, ref) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -329,6 +331,8 @@ export default function ExpectedReturnTab({ token, demoId, onTotalChange }) {
     setAddActivityId(null);
     setAddItemId(null);
   };
+
+  useImperativeHandle(ref, () => ({ openAdd: startAdd }));
 
   const pickAddActivity = (activityId) => {
     setAddActivityId(activityId);
@@ -435,12 +439,6 @@ export default function ExpectedReturnTab({ token, demoId, onTotalChange }) {
   }));
   return (
     <View>
-
-      {data.isOngoing && !adding && (
-        <Pressable style={styles.addButton} onPress={startAdd}>
-          <Text style={styles.addButtonText}>+ Add Return</Text>
-        </Pressable>
-      )}
       {adding && (
         <AddReturnPanel
           activities={activities}
@@ -484,14 +482,14 @@ export default function ExpectedReturnTab({ token, demoId, onTotalChange }) {
       )}
     </View>
   );
-}
+});
+
+export default ExpectedReturnTab;
 
 const styles = StyleSheet.create({
   error: { color: COLORS.danger, marginTop: 20 },
   empty: { color: '#888', marginTop: 20 },
   emptyActivity: { color: COLORS.textMuted, fontSize: 13, marginBottom: 8 },
-  addButton: { backgroundColor: COLORS.primary, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 20, alignSelf: 'flex-start', marginBottom: 20 },
-  addButtonText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   addPanel: { backgroundColor: COLORS.bg, borderRadius: 10, borderWidth: 1, borderColor: COLORS.border, padding: 14, marginBottom: 20 },
   activityCard: { marginBottom: 14 },
   activityHeader: {
