@@ -13,6 +13,13 @@ const CYCLE_LABELS = {
 };
 const IRRIGATION_LABELS = { hand_watering: 'Hand Watering', drip_irrigation: 'Drip Irrigation', sprinkler: 'Sprinkler', rainfed: 'Rain-fed' };
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
+// Ongoing matches the screenshot exactly - the same solid orange used for
+// the Business Plan active tab/indicator elsewhere in this app.
+const STATUS_COLORS = {
+  ongoing: { bg: '#f2994a', text: '#fff' },
+  completed: { bg: '#dcfce7', text: '#166534' },
+  terminated: { bg: '#fee2e2', text: '#991b1b' },
+};
 
 // Monitoring tabs beyond Crop are deliberate skeletons for now (per spec) -
 // each is built out into its own real section in a later pass.
@@ -228,6 +235,7 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
               {crops.length > 1 ? (
                 <View style={styles.cropSelectorWrap}>
                   <SearchableSelect
+                    compact
                     options={crops.map((c, i) => ({ id: String(i), name: c.crop_name }))}
                     value={String(selectedCropIndex)}
                     onChange={(v) => setSelectedCropIndex(Number(v))}
@@ -238,6 +246,11 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
                   <Text style={styles.cropChipText}>{selectedCrop?.crop_name || '—'}</Text>
                 </View>
               )}
+              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[demo.status].bg }]}>
+                <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[demo.status].text }]}>
+                  {STATUS_LABELS[demo.status]}
+                </Text>
+              </View>
             </View>
           </View>
 
@@ -364,6 +377,8 @@ const styles = StyleSheet.create({
   cropSelectorWrap: {},
   cropChip: { backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   cropChipText: { color: COLORS.primaryDark, fontWeight: '600', fontSize: 13 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   // progressTrack only ever holds the fill bar now, and only IT gets
   // overflow: hidden (needed to clip the fill to the track's rounded
   // corners) - progressCircle used to be a child of this same clipped

@@ -23,7 +23,10 @@ function ChevronIcon({ color }) {
 // A tap-to-open, search-to-filter dropdown - stands in for the native
 // Picker anywhere a list can be long enough that scrolling a wheel to
 // find one item (e.g. dozens of crops) is impractical.
-export default function SearchableSelect({ label, placeholder = 'Select...', options, value, onChange, disabled }) {
+// `compact` shrinks the closed trigger (padding + font) for tight spots
+// like the demo summary card's crop picker - opt-in, so every other
+// usage of this shared component is unaffected.
+export default function SearchableSelect({ label, placeholder = 'Select...', options, value, onChange, disabled, compact }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -48,8 +51,8 @@ export default function SearchableSelect({ label, placeholder = 'Select...', opt
   return (
     <View>
       {label ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={[styles.field, disabled && styles.fieldDisabled]} onPress={handleOpen}>
-        <Text style={selected ? styles.fieldText : styles.placeholderText} numberOfLines={1}>
+      <Pressable style={[styles.field, compact && styles.fieldCompact, disabled && styles.fieldDisabled]} onPress={handleOpen}>
+        <Text style={[selected ? styles.fieldText : styles.placeholderText, compact && styles.fieldTextCompact]} numberOfLines={1}>
           {selected ? selected.name : placeholder}
         </Text>
         <ChevronIcon color={disabled ? '#ccc' : COLORS.textMuted} />
@@ -97,7 +100,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12,
   },
   fieldDisabled: { backgroundColor: '#f5f5f5' },
+  fieldCompact: { paddingVertical: 6, paddingHorizontal: 10 },
   fieldText: { fontSize: 16, color: '#111', flex: 1, marginRight: 8 },
+  fieldTextCompact: { fontSize: 13 },
   placeholderText: { fontSize: 16, color: '#999', flex: 1, marginRight: 8 },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: '#fff', borderTopLeftRadius: 16, borderTopRightRadius: 16, maxHeight: '70%', paddingBottom: 24 },
