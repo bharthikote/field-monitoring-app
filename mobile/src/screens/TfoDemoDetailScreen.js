@@ -251,8 +251,10 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
             </View>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.min(Math.max(roiPercent, 0), 100)}%` }]} />
+          <View style={styles.progressOuter}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.min(Math.max(roiPercent, 0), 100)}%` }]} />
+            </View>
             <View style={styles.progressCircle}>
               <Text style={styles.progressText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatRoiDisplay(roiPercent)}</Text>
             </View>
@@ -358,23 +360,33 @@ const styles = StyleSheet.create({
   // far left" from code inspection alone (not visually confirmed, no
   // device available).
   cardTopRight: { alignItems: 'flex-end', gap: 8, flexShrink: 0 },
-  cropSelectorWrap: { width: 150 },
+  // Sized to just fit the crop name (a compact chip, not a wide fixed box) -
+  // was 150 (a plain wrapper width, unrelated to SearchableSelect's own
+  // internal padding, so shrinking it doesn't touch that shared component).
+  cropSelectorWrap: { width: 90 },
   cropChip: { backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   cropChipText: { color: COLORS.primaryDark, fontWeight: '600', fontSize: 13 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  // progressTrack only ever holds the fill bar now, and only IT gets
+  // overflow: hidden (needed to clip the fill to the track's rounded
+  // corners) - progressCircle used to be a child of this same clipped
+  // box, which cut its 56px height down to the track's 14px, leaving
+  // only a flat sliver with no visible circular border. It's now a
+  // sibling of the track inside progressOuter (unclipped), so it renders
+  // at full size regardless of how thin the track is.
+  progressOuter: { height: 64, marginTop: 24, marginBottom: 20, alignItems: 'center', justifyContent: 'center' },
   progressTrack: {
-    height: 14, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border,
-    alignItems: 'center', justifyContent: 'center', marginTop: 24, marginBottom: 20, overflow: 'hidden',
+    width: '100%', height: 28, borderRadius: 999, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden',
   },
   progressFill: {
     position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: COLORS.primaryDark, borderRadius: 999,
   },
   progressCircle: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff',
-    borderWidth: 1.5, borderColor: COLORS.primaryDark, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute', width: 64, height: 64, borderRadius: 32, backgroundColor: '#fff',
+    borderWidth: 2, borderColor: COLORS.primaryDark, alignItems: 'center', justifyContent: 'center',
   },
-  progressText: { fontWeight: '700', color: COLORS.primaryDark, fontSize: 13 },
+  progressText: { fontWeight: '700', color: COLORS.primaryDark, fontSize: 14 },
   metricsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   metric: { alignItems: 'flex-start' },
   metricLabel: { color: COLORS.primary, fontSize: 12, fontWeight: '600' },
