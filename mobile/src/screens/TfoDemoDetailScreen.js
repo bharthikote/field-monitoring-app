@@ -13,11 +13,6 @@ const CYCLE_LABELS = {
 };
 const IRRIGATION_LABELS = { hand_watering: 'Hand Watering', drip_irrigation: 'Drip Irrigation', sprinkler: 'Sprinkler', rainfed: 'Rain-fed' };
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
-const STATUS_COLORS = {
-  ongoing: { bg: '#fef3c7', text: '#92400e' },
-  completed: { bg: '#dcfce7', text: '#166534' },
-  terminated: { bg: '#fee2e2', text: '#991b1b' },
-};
 
 // Monitoring tabs beyond Crop are deliberate skeletons for now (per spec) -
 // each is built out into its own real section in a later pass.
@@ -243,11 +238,6 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
                   <Text style={styles.cropChipText}>{selectedCrop?.crop_name || '—'}</Text>
                 </View>
               )}
-              <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[demo.status].bg }]}>
-                <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[demo.status].text }]}>
-                  {STATUS_LABELS[demo.status]}
-                </Text>
-              </View>
             </View>
           </View>
 
@@ -345,13 +335,17 @@ export default function TfoDemoDetailScreen({ token, user, demoId, onBack, onEdi
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#fff' },
+  // The card stays white and stands out against this slightly tinted
+  // screen background (the app's existing COLORS.bg, already used as a
+  // subtle panel tint elsewhere) - gives the "above the card / below the
+  // card" areas a visible distinction instead of both being flat white.
+  screen: { flex: 1, backgroundColor: COLORS.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 24, paddingTop: 24, paddingBottom: 60 },
   header: { padding: 24 },
   back: { color: COLORS.primary, marginBottom: 16 },
   error: { color: COLORS.danger, marginHorizontal: 24 },
-  card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 14, padding: 16 },
+  card: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 14, padding: 16 },
   cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   activityType: { color: COLORS.primary, fontWeight: '600', fontSize: 13 },
   farmerName: { fontSize: 18, fontWeight: '700', color: COLORS.primaryDark, marginTop: 2 },
@@ -360,14 +354,16 @@ const styles = StyleSheet.create({
   // far left" from code inspection alone (not visually confirmed, no
   // device available).
   cardTopRight: { alignItems: 'flex-end', gap: 8, flexShrink: 0 },
-  // Sized to just fit the crop name (a compact chip, not a wide fixed box) -
-  // was 150 (a plain wrapper width, unrelated to SearchableSelect's own
-  // internal padding, so shrinking it doesn't touch that shared component).
-  cropSelectorWrap: { width: 90 },
+  // No fixed width at all now - sizes to the crop name's actual text
+  // length (neither this wrapper nor SearchableSelect's own Pressable set
+  // a width, and cardTopRight's alignItems: 'flex-end' - not 'stretch' -
+  // means a child with no explicit width naturally shrinks to its content
+  // instead of filling available space). A fixed pixel guess (150, then
+  // 90) was always going to be wrong for some crop name length; this
+  // isn't.
+  cropSelectorWrap: {},
   cropChip: { backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   cropChipText: { color: COLORS.primaryDark, fontWeight: '600', fontSize: 13 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
   // progressTrack only ever holds the fill bar now, and only IT gets
   // overflow: hidden (needed to clip the fill to the track's rounded
   // corners) - progressCircle used to be a child of this same clipped
