@@ -133,8 +133,17 @@ export default function DatePickerField({ label, value, onChange }) {
       </Pressable>
 
       <Modal visible={open} animationType="fade" transparent onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+        <View style={styles.backdrop}>
+          {/* Sibling of `sheet`, not an ancestor wrapping it - a Pressable
+              sitting ABOVE the wheel ScrollViews in the tree (as the old
+              backdrop+sheet nesting had it) can win the touch responder
+              negotiation before a ScrollView ever gets to claim a drag as
+              its own, which silently defeats scrolling even though taps
+              still work fine. This way `sheet` is a plain View that never
+              competes for the responder at all, and this Pressable only
+              ever sees touches in the dimmed area outside it. */}
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setOpen(false)} />
+          <View style={styles.sheet}>
             <Text style={styles.title}>Select date</Text>
 
             {draftYear !== null && (
@@ -154,8 +163,8 @@ export default function DatePickerField({ label, value, onChange }) {
                 <Text style={styles.confirmButtonText}>Confirm</Text>
               </Pressable>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
     </View>
   );
