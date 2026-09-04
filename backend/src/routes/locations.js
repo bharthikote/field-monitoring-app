@@ -32,8 +32,11 @@ function handleFileUpload(req, res, next) {
 // --- Read endpoints: any logged-in, approved user can browse the hierarchy
 // (every field role needs this to pick a Village, not just Admin/Super Admin) ---
 
+// Deactivated countries (Country Settings) drop out of every picker built
+// on this endpoint - same "vanish from active use, historical data stays
+// intact" convention as deactivated farmers.
 locationsRouter.get('/locations/countries', requireAuth, async (_req, res) => {
-  const result = await pool.query('select id, name from countries order by name');
+  const result = await pool.query("select id, name from countries where status = 'active' order by name");
   res.json({ countries: result.rows });
 });
 

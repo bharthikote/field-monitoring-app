@@ -66,7 +66,7 @@
 </div>
 
 <div class="tab-panel active" id="tab-locations">
-  <p class="scope-note" style="margin-top:0">Tick anything to assign it to this project - states, districts, blocks, or individual villages, any mix. Scoped to this project's own country (<span id="country-name-note"></span>).</p>
+  <p class="scope-note" style="margin-top:0" id="location-tab-note"></p>
   <p class="error" id="location-error" style="display:none"></p>
   <div id="location-tree"></div>
 </div>
@@ -408,7 +408,8 @@ function renderInfo() {
   document.getElementById('status-badge').textContent = project.status;
   document.getElementById('status-badge').className = `status-badge status-${project.status}`;
   document.getElementById('f-description').textContent = project.description || '—';
-  document.getElementById('country-name-note').textContent = project.country_name;
+  document.getElementById('location-tab-note').textContent =
+    `Tick anything to assign it to this project - ${project.state_label}s, ${project.district_label}s, ${project.block_label}s, or individual ${project.village_label}s, any mix. Scoped to this project's own country (${project.country_name}).`;
 
   const rows = [
     ['Country', project.country_name],

@@ -30,7 +30,8 @@ export const searchLocations = (token, q) => request(`/locations/search?q=${enco
 
 export const listCrops = (token) => request('/master/crops', { token });
 export const listVarieties = (token, cropId) => request(`/master/varieties?crop_id=${cropId}`, { token });
-export const listSeasons = (token) => request('/master/seasons', { token });
+export const listSeasons = (token, countryId) =>
+  request(`/master/seasons${countryId ? `?countryId=${countryId}` : ''}`, { token });
 
 export const listDemoPlots = (token, plotType = 'demo') =>
   request(`/demo-plots?plot_type=${plotType}`, { token });

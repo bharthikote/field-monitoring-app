@@ -92,7 +92,7 @@ const SELECT_FARMERS = `
     f.photo_url, f.farmer_type, f.gender, f.age, f.birth_date::text as birth_date, f.address,
     f.education_level, f.literacy, f.phone_type, f.social_media, f.email,
     f.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
-    s.name as state_name, co.name as country_name
+    s.name as state_name, co.name as country_name, co.id as country_id
   from farmers f
   join villages vi on vi.id = f.village_id
   join blocks b on b.id = vi.block_id

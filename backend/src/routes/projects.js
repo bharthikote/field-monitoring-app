@@ -113,7 +113,8 @@ projectsRouter.get('/projects/:id', requireAdmin, requireSuperAdmin, async (req,
        p.start_date::text as start_date, p.end_date::text as end_date,
        p.target_farmer_trained, p.target_key_farmer_trained, p.target_core_farmer_trained,
        p.target_demo, p.target_knowledge_acquisition,
-       c.id as country_id, c.name as country_name
+       c.id as country_id, c.name as country_name,
+       c.state_label, c.district_label, c.block_label, c.village_label
      from projects p join countries c on c.id = p.country_id where p.id = $1`,
     [req.params.id],
   );

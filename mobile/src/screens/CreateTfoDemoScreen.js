@@ -131,8 +131,8 @@ export default function CreateTfoDemoScreen({ token, farmer, demo, onBack, onCre
   const [error, setError] = useState('');
 
   useEffect(() => {
-    listSeasons(token).then((data) => setSeasons(data.items)).catch(() => {});
-  }, [token]);
+    listSeasons(token, farmer.country_id).then((data) => setSeasons(data.items)).catch(() => {});
+  }, [token, farmer.country_id]);
 
   // Total Demo Size = sum of every crop's own Area field (not own/rent land
   // size) - read-only, recalculated on every render as crop areas change.

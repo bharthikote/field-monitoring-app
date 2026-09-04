@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Country</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .status-badge { padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
+  .status-active { background: #dcfce7; color: #166534; }
+  .status-inactive { background: #f3f4f6; color: #4b5563; }
+  .info-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 24px; margin-top: 18px; max-width: 900px; }
+  .info-field-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .info-field-value { font-size: 0.92rem; font-weight: 600; margin-top: 2px; }
+  .action-row { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .section-block { margin-top: 30px; }
+  .section-block h2 { font-size: 1rem; margin: 0 0 12px; padding-top: 18px; border-top: 1px solid var(--border); }
+  .unit-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; max-width: 1000px; }
+  .unit-category-label { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.78rem; white-space: nowrap; }
+  .season-table td, .season-table th { padding: 8px 10px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<p><a href="/admin/countries" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to all countries</a></p>
+<p id="load-error" class="error" style="display:none"></p>
+
+<div id="content" style="display:none">
+
+<div class="info-header">
+  <h1 id="country-title">Loading…</h1>
+  <span class="status-badge" id="status-badge"></span>
+</div>
+
+<div class="info-grid" id="info-grid"></div>
+
+<div class="action-row" id="action-row"></div>
+
+<div class="section-block">
+  <h2>Units</h2>
+  <div class="unit-category-grid" id="units-grid"></div>
+</div>
+
+<div class="section-block">
+  <h2>Country Seasons</h2>
+  <div class="table-scroll">
+  <table class="season-table" id="seasons-table" style="display:none">
+    <thead><tr><th>Season Name</th><th>Start Month</th><th>End Month</th></tr></thead>
+    <tbody id="seasons-rows"></tbody>
+  </table>
+  </div>
+  <p id="seasons-empty" class="empty">No seasons configured for this country yet.</p>
+</div>
+
+<div class="section-block">
+  <h2>Location Terminology</h2>
+  <div class="info-grid" id="terminology-grid"></div>
+</div>
+
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let country = null;
+const countryId = location.pathname.split('/').pop();
+
+function infoField(label, value) {
+  return `<div><div class="info-field-label">${escapeHtml(label)}</div><div class="info-field-value">${value}</div></div>`;
+}
+
+function renderActions(user) {
+  const row = document.getElementById('action-row');
+  const buttons = [];
+  buttons.push(`<button id="edit-btn" class="btn edit-btn">Edit</button>`);
+  if (country.status === 'active') {
+    buttons.push(`<button id="deactivate-btn" class="btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Deactivate</button>`);
+  } else {
+    buttons.push(`<button id="activate-btn" class="btn primary">Reactivate</button>`);
+  }
+  buttons.push(`<button id="delete-btn" class="btn delete-btn">Delete</button>`);
+  row.innerHTML = buttons.join('');
+
+  document.getElementById('edit-btn').addEventListener('click', () => {
+    location.href = `/admin/countries?edit=${country.id}`;
+  });
+  const deactivateBtn = document.getElementById('deactivate-btn');
+  if (deactivateBtn) deactivateBtn.addEventListener('click', () => setStatus('inactive'));
+  const activateBtn = document.getElementById('activate-btn');
+  if (activateBtn) activateBtn.addEventListener('click', () => setStatus('active'));
+  document.getElementById('delete-btn').addEventListener('click', deleteCountry);
+}
+
+async function setStatus(status) {
+  try {
+    const res = await authedFetch(`/countries/${countryId}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update status');
+    await load();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteCountry() {
+  if (!confirm('Delete this country? This can\'t be undone. If it\'s already in use, deactivate it instead.')) return;
+  try {
+    const res = await authedFetch(`/countries/${countryId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete country');
+    }
+    location.href = '/admin/countries';
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function renderUnitsGrid(units) {
+  const categories = [
+    ['area', 'Area Unit'], ['weight', 'Weight/Mass Unit'], ['liquid', 'Liquid Unit'],
+    ['time', 'Time Unit'], ['distance', 'Distance/Length Unit'],
+  ];
+  document.getElementById('units-grid').innerHTML = categories.map(([key, label]) => `
+    <div>
+      <div class="unit-category-label">${escapeHtml(label)}</div>
+      <div class="chip-list">${
+        units[key].length
+          ? units[key].map((u) => `<span class="chip">${escapeHtml(u.name)}</span>`).join('')
+          : '<span class="scope-note">None configured</span>'
+      }</div>
+    </div>
+  `).join('');
+}
+
+function renderSeasons(seasons) {
+  const table = document.getElementById('seasons-table');
+  const empty = document.getElementById('seasons-empty');
+  if (!seasons.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+  document.getElementById('seasons-rows').innerHTML = seasons.map((s) => `
+    <tr>
+      <td>${escapeHtml(s.name)}</td>
+      <td>${MONTHS[s.start_month - 1]}</td>
+      <td>${MONTHS[s.end_month - 1]}</td>
+    </tr>
+  `).join('');
+}
+
+async function load() {
+  const loadError = document.getElementById('load-error');
+  try {
+    const res = await authedFetch(`/countries/${countryId}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load country');
+    country = data.country;
+
+    document.getElementById('country-title').textContent = country.name;
+    document.getElementById('status-badge').textContent = country.status;
+    document.getElementById('status-badge').className = `status-badge status-${country.status}`;
+
+    document.getElementById('info-grid').innerHTML = [
+      infoField('ISO Country Code', escapeHtml(country.iso_code || '—')),
+      infoField('Telephone Calling Code', escapeHtml(country.phone_code || '—')),
+      infoField('Lead Currency', escapeHtml(country.currency_name || '—')),
+      infoField('Currency Code', escapeHtml(country.currency_code || '—')),
+      infoField('In Use By', `${data.usage.states_count} states, ${data.usage.projects_count} projects, ${data.usage.users_count} users`),
+    ].join('');
+
+    document.getElementById('terminology-grid').innerHTML = [
+      infoField('State', escapeHtml(country.state_label)),
+      infoField('District', escapeHtml(country.district_label)),
+      infoField('Block', escapeHtml(country.block_label)),
+      infoField('Village', escapeHtml(country.village_label)),
+    ].join('');
+
+    renderUnitsGrid(data.units);
+    renderSeasons(data.seasons);
+    renderActions();
+
+    document.getElementById('content').style.display = 'block';
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    loadError.textContent = err.message;
+    loadError.style.display = 'block';
+  }
+}
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  if (user.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can manage Country Settings.</p>';
+    return;
+  }
+  await load();
+}
+
+init();
+</script>
+</body>
+</html>

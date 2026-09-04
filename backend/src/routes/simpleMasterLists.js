@@ -20,7 +20,6 @@ export const SIMPLE_LISTS = [
   { path: 'pests', table: 'pests', label: 'Pests' },
   { path: 'techniques', table: 'techniques', label: 'Techniques / Recommendations' },
   { path: 'good-things-observed', table: 'good_things_observed', label: 'Good Things Observed' },
-  { path: 'seasons', table: 'seasons', label: 'Seasons' },
   { path: 'units', table: 'units', label: 'Units' },
   { path: 'nutrients', table: 'nutrients', label: 'Nutrients' },
 ];
@@ -33,15 +32,20 @@ function requireSuperAdmin(req, res, next) {
 }
 
 for (const list of SIMPLE_LISTS) {
+  // Units alone carries a `category` column (Country Settings' Area/Weight/
+  // Liquid/Time/Distance classification, migration 043) - included here
+  // rather than duplicating the Unit Master with a second endpoint.
+  const extraColumns = list.table === 'units' ? ', category' : '';
+
   simpleMasterListsRouter.get(`/master/${list.path}`, requireAuth, async (req, res) => {
     if (req.user.role === 'super_admin') {
       const result = await pool.query(
-        `select id, name, ${countryIdsSubquery('t', list.table)} as country_ids from ${list.table} t order by name`,
+        `select id, name${extraColumns}, ${countryIdsSubquery('t', list.table)} as country_ids from ${list.table} t order by name`,
       );
       return res.json({ items: result.rows });
     }
     const result = await pool.query(
-      `select t.id, t.name, ${countryIdsSubquery('t', list.table)} as country_ids
+      `select t.id, t.name${extraColumns}, ${countryIdsSubquery('t', list.table)} as country_ids
        from ${list.table} t
        where ${scopeClause('t', list.table, 1)}
        order by t.name`,

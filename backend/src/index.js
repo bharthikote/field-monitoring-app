@@ -27,6 +27,7 @@ import { activitiesRouter } from './routes/activities.js';
 import { nutrientConfigurationsRouter } from './routes/nutrientConfigurations.js';
 import { activityReturnsRouter } from './routes/activityReturns.js';
 import { projectsRouter } from './routes/projects.js';
+import { countriesRouter } from './routes/countries.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -70,6 +71,7 @@ app.use(activitiesRouter);
 app.use(nutrientConfigurationsRouter);
 app.use(activityReturnsRouter);
 app.use(projectsRouter);
+app.use(countriesRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -128,6 +130,12 @@ app.get('/admin/projects', (_req, res) => {
 });
 app.get('/admin/projects/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'project-detail.html'));
+});
+app.get('/admin/countries', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'countries.html'));
+});
+app.get('/admin/countries/:id', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'country-detail.html'));
 });
 
 const port = process.env.PORT || 4000;

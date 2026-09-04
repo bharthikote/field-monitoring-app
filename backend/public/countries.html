@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Countries</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  #country-panel { display: none; margin: 16px 0 24px; padding: 18px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  #country-panel label { display: block; font-size: 13px; color: var(--text-muted); margin: 12px 0 6px; }
+  #country-panel .field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 16px; max-width: 900px; }
+  #country-panel .field-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  #country-panel input:not([type=checkbox]), #country-panel select { width: 100%; font-family: inherit; }
+  #country-panel .checklist input[type=checkbox] { width: auto; flex-shrink: 0; }
+  #country-panel .checklist label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; }
+  #country-panel h2 { font-size: 1rem; margin: 22px 0 4px; padding-top: 14px; border-top: 1px solid var(--border); }
+  #country-panel h2:first-of-type { border-top: none; padding-top: 0; }
+  .unit-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; max-width: 1000px; }
+  .unit-category-grid .checklist { max-width: none; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+  .unit-category-label { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+  .season-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .season-row input[type=text] { max-width: 240px; }
+  .season-row select { max-width: 150px; }
+  .season-row .remove-season-btn { background: var(--surface); color: var(--danger); border: 1px solid var(--border-strong); padding: 6px 10px; flex-shrink: 0; }
+  .season-row .remove-season-btn:hover { background: var(--danger-soft); border-color: var(--danger); }
+  #add-season-btn { margin-top: 4px; background: var(--accent-soft); color: var(--accent-hover); border: 1px solid transparent; }
+  #add-season-btn:hover { background: #d7ecdb; }
+  .status-badge { padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+  .status-active { background: #dcfce7; color: #166534; }
+  .status-inactive { background: #f3f4f6; color: #4b5563; }
+  .pagination-row { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+  .per-page-select { width: auto; display: inline-block; }
+  .page-buttons { display: flex; gap: 4px; align-items: center; }
+  .page-buttons button { min-width: 32px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
+  .page-buttons button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .page-buttons button:disabled { opacity: 0.4; cursor: default; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Countries</h1>
+    <p class="scope-note" style="margin-top:0" id="entries-summary"></p>
+  </div>
+  <div class="inline-form">
+    <button id="new-country-btn" class="primary">+ Add Country</button>
+  </div>
+</div>
+
+<div id="country-panel">
+  <p id="panel-title" style="font-weight:600; margin:0"></p>
+
+  <h2>Country Information</h2>
+  <div class="field-grid">
+    <div><label>Country Name *</label><input type="text" id="f-name" /></div>
+    <div><label>ISO Country Code *</label><input type="text" id="f-iso" placeholder="e.g. IN" maxlength="3" /></div>
+    <div><label>Telephone Calling Code *</label><input type="text" id="f-phone" placeholder="e.g. +91" /></div>
+  </div>
+  <div class="field-grid">
+    <div><label>Lead Currency / Currency Name *</label><input type="text" id="f-currency-name" placeholder="e.g. Indian Rupee" /></div>
+    <div><label>Currency Code *</label><input type="text" id="f-currency-code" placeholder="e.g. INR" maxlength="3" /></div>
+  </div>
+
+  <h2>Units</h2>
+  <p class="scope-note" style="margin-top:0">Choose which units from the existing Unit Master are valid for this country in each category.</p>
+  <div class="unit-category-grid">
+    <div><div class="unit-category-label">Area Unit</div><div class="checklist" id="units-area"></div></div>
+    <div><div class="unit-category-label">Weight/Mass Unit</div><div class="checklist" id="units-weight"></div></div>
+    <div><div class="unit-category-label">Liquid Unit</div><div class="checklist" id="units-liquid"></div></div>
+    <div><div class="unit-category-label">Time Unit</div><div class="checklist" id="units-time"></div></div>
+    <div><div class="unit-category-label">Distance/Length Unit</div><div class="checklist" id="units-distance"></div></div>
+  </div>
+
+  <h2>Country Season</h2>
+  <div id="seasons-list"></div>
+  <button id="add-season-btn" type="button">+ Add Season</button>
+
+  <h2>Location Terminology</h2>
+  <p class="scope-note" style="margin-top:0">The location hierarchy itself (State/District/Block/Village) doesn't change - only the label shown to users.</p>
+  <div class="field-grid cols-2">
+    <div><label>State Local Name *</label><input type="text" id="f-state-label" /></div>
+    <div><label>District Local Name *</label><input type="text" id="f-district-label" /></div>
+  </div>
+  <div class="field-grid cols-2">
+    <div><label>Block Local Name *</label><input type="text" id="f-block-label" /></div>
+    <div><label>Village Local Name *</label><input type="text" id="f-village-label" /></div>
+  </div>
+
+  <p id="form-error" class="error" style="display:none; margin-top:12px;"></p>
+  <div class="form-actions" style="margin-top:16px; display:flex; gap:8px;">
+    <button id="save-country-btn" class="primary">Save Country</button>
+    <button id="cancel-country-btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Cancel</button>
+  </div>
+</div>
+
+<div class="inline-form" style="margin-bottom: 4px;">
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search by country name..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+  <select id="status-filter" style="max-width:180px">
+    <option value="">All statuses</option>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+  </select>
+</div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Country Name</th>
+      <th>Lead Currency</th>
+      <th>Telephone Code</th>
+      <th>Location Terminology</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+
+<div class="pagination-row" id="pagination-row" style="display:none">
+  <div>
+    <select id="per-page-select" class="per-page-select">
+      <option value="10">10</option>
+      <option value="25">25</option>
+      <option value="50">50</option>
+    </select>
+    <span class="scope-note">entries per page</span>
+  </div>
+  <div class="page-buttons" id="page-buttons"></div>
+</div>
+
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DELETE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const EDIT_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+const EYE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let allCountries = [];
+let allUnits = [];
+let searchQuery = '';
+let statusFilter = '';
+let perPage = 10;
+let currentPage = 1;
+let editingCountryId = null; // null = creating new
+let seasonRowSeq = 0;
+
+async function loadUnits() {
+  const res = await authedFetch('/master/units');
+  allUnits = (await res.json()).items;
+}
+
+async function loadCountries() {
+  const statusEl = document.getElementById('status');
+  try {
+    const params = searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
+    const res = await authedFetch(`/countries${params}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load countries');
+    allCountries = data.countries;
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = 'Failed to load countries: ' + err.message;
+    statusEl.className = 'error';
+    statusEl.style.display = 'block';
+  }
+}
+
+function getVisibleCountries() {
+  let visible = allCountries;
+  if (statusFilter) visible = visible.filter((c) => c.status === statusFilter);
+  return visible;
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const rows = document.getElementById('rows');
+  const paginationRow = document.getElementById('pagination-row');
+  const visible = getVisibleCountries();
+
+  if (!allCountries.length) {
+    statusEl.textContent = 'No countries match your search.';
+    statusEl.className = 'empty';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    paginationRow.style.display = 'none';
+    document.getElementById('entries-summary').textContent = '';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'No countries match your filter.';
+    statusEl.className = 'empty';
+    statusEl.style.display = 'block';
+    table.style.display = 'none';
+    paginationRow.style.display = 'none';
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(visible.length / perPage));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * perPage;
+  const pageItems = visible.slice(start, start + perPage);
+
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  paginationRow.style.display = 'flex';
+  document.getElementById('entries-summary').textContent =
+    `Showing ${start + 1} to ${Math.min(start + perPage, visible.length)} of ${visible.length} entries.`;
+
+  rows.innerHTML = pageItems.map((c, i) => `
+    <tr>
+      <td>${start + i + 1}</td>
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.currency_name || '—')}${c.currency_code ? ` (${escapeHtml(c.currency_code)})` : ''}</td>
+      <td>${escapeHtml(c.phone_code || '—')}</td>
+      <td>${escapeHtml(c.location_terminology)}</td>
+      <td><span class="status-badge status-${c.status}">${c.status}</span></td>
+      <td>
+        <div class="actions-cell">
+          <a href="/admin/countries/${c.id}" class="btn edit-btn">${EYE_ICON} Preview</a>
+          <button class="btn edit-btn edit-country-btn" data-id="${c.id}">${EDIT_ICON} Edit</button>
+          <button class="btn delete-btn delete-country-btn" data-id="${c.id}">${DELETE_ICON} Delete</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  const buttons = document.getElementById('page-buttons');
+  let html = `<button data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    if (totalPages > 7 && i !== 1 && i !== totalPages && Math.abs(i - currentPage) > 1) {
+      if (i === 2 || i === totalPages - 1) html += `<span>…</span>`;
+      continue;
+    }
+    html += `<button data-page="${i}" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+  }
+  html += `<button data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>`;
+  buttons.innerHTML = html;
+}
+
+document.getElementById('page-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-page]');
+  if (!btn || btn.disabled) return;
+  currentPage = Number(btn.dataset.page);
+  render();
+});
+document.getElementById('per-page-select').addEventListener('change', (e) => {
+  perPage = Number(e.target.value);
+  currentPage = 1;
+  render();
+});
+document.getElementById('search-input').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  currentPage = 1;
+  loadCountries();
+});
+document.getElementById('status-filter').addEventListener('change', (e) => {
+  statusFilter = e.target.value;
+  currentPage = 1;
+  render();
+});
+
+function unitChecklistHtml(category, selectedIds) {
+  const selected = new Set(selectedIds || []);
+  return allUnits.filter((u) => u.category === category).map((u) => `
+    <label><input type="checkbox" class="unit-check" data-category="${category}" value="${u.id}" ${selected.has(u.id) ? 'checked' : ''} /> ${escapeHtml(u.name)}</label>
+  `).join('') || '<span class="scope-note">No units in this category yet - add one in Master Lists → Units.</span>';
+}
+
+function monthOptionsHtml(selected) {
+  return MONTHS.map((m, i) => `<option value="${i + 1}" ${Number(selected) === i + 1 ? 'selected' : ''}>${m}</option>`).join('');
+}
+
+function addSeasonRow(season) {
+  const rowId = `season-${seasonRowSeq++}`;
+  const row = document.createElement('div');
+  row.className = 'season-row';
+  row.dataset.rowId = rowId;
+  row.innerHTML = `
+    <input type="text" class="season-name" placeholder="Season name" value="${season ? escapeHtml(season.name) : ''}" />
+    <select class="season-start">${monthOptionsHtml(season?.start_month)}</select>
+    <select class="season-end">${monthOptionsHtml(season?.end_month)}</select>
+    <button type="button" class="btn remove-season-btn">Remove</button>
+  `;
+  document.getElementById('seasons-list').appendChild(row);
+  enhanceAllSelects(row);
+}
+
+document.getElementById('add-season-btn').addEventListener('click', () => addSeasonRow(null));
+document.getElementById('seasons-list').addEventListener('click', (e) => {
+  const removeBtn = e.target.closest('.remove-season-btn');
+  if (!removeBtn) return;
+  removeBtn.closest('.season-row').remove();
+});
+
+function openPanel(country, detail) {
+  editingCountryId = country ? country.id : null;
+  document.getElementById('panel-title').textContent = country ? `Editing "${country.name}"` : 'New Country';
+
+  document.getElementById('f-name').value = country ? country.name : '';
+  document.getElementById('f-iso').value = country ? (country.iso_code || '') : '';
+  document.getElementById('f-phone').value = country ? (country.phone_code || '') : '';
+  document.getElementById('f-currency-name').value = country ? (country.currency_name || '') : '';
+  document.getElementById('f-currency-code').value = country ? (country.currency_code || '') : '';
+  document.getElementById('f-state-label').value = country ? country.state_label : 'State';
+  document.getElementById('f-district-label').value = country ? country.district_label : 'District';
+  document.getElementById('f-block-label').value = country ? country.block_label : 'Block';
+  document.getElementById('f-village-label').value = country ? country.village_label : 'Village';
+
+  const units = detail?.units || { area: [], weight: [], liquid: [], time: [], distance: [] };
+  document.getElementById('units-area').innerHTML = unitChecklistHtml('area', units.area.map((u) => u.id));
+  document.getElementById('units-weight').innerHTML = unitChecklistHtml('weight', units.weight.map((u) => u.id));
+  document.getElementById('units-liquid').innerHTML = unitChecklistHtml('liquid', units.liquid.map((u) => u.id));
+  document.getElementById('units-time').innerHTML = unitChecklistHtml('time', units.time.map((u) => u.id));
+  document.getElementById('units-distance').innerHTML = unitChecklistHtml('distance', units.distance.map((u) => u.id));
+
+  document.getElementById('seasons-list').innerHTML = '';
+  (detail?.seasons || []).forEach((s) => addSeasonRow(s));
+
+  document.getElementById('form-error').style.display = 'none';
+  document.getElementById('country-panel').style.display = 'block';
+  document.getElementById('f-name').focus();
+}
+function closePanel() {
+  editingCountryId = null;
+  document.getElementById('country-panel').style.display = 'none';
+}
+
+document.getElementById('new-country-btn').addEventListener('click', () => openPanel(null, null));
+document.getElementById('cancel-country-btn').addEventListener('click', closePanel);
+
+document.getElementById('save-country-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('form-error');
+  errorEl.style.display = 'none';
+
+  const units = { area: [], weight: [], liquid: [], time: [], distance: [] };
+  document.querySelectorAll('.unit-check:checked').forEach((cb) => units[cb.dataset.category].push(cb.value));
+
+  const seasonRows = [...document.querySelectorAll('.season-row')];
+  const seasons = seasonRows.map((row) => ({
+    name: row.querySelector('.season-name').value.trim(),
+    startMonth: row.querySelector('.season-start').value,
+    endMonth: row.querySelector('.season-end').value,
+  }));
+  if (seasons.some((s) => !s.name)) {
+    errorEl.textContent = 'Every season row needs a name (or remove the empty row).';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    isoCode: document.getElementById('f-iso').value.trim(),
+    phoneCode: document.getElementById('f-phone').value.trim(),
+    currencyName: document.getElementById('f-currency-name').value.trim(),
+    currencyCode: document.getElementById('f-currency-code').value.trim(),
+    stateLabel: document.getElementById('f-state-label').value.trim(),
+    districtLabel: document.getElementById('f-district-label').value.trim(),
+    blockLabel: document.getElementById('f-block-label').value.trim(),
+    villageLabel: document.getElementById('f-village-label').value.trim(),
+    units, seasons,
+  };
+
+  const btn = document.getElementById('save-country-btn');
+  btn.disabled = true;
+  try {
+    const path = editingCountryId ? `/countries/${editingCountryId}` : '/countries';
+    const method = editingCountryId ? 'PATCH' : 'POST';
+    const res = await authedFetch(path, { method, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save country');
+    closePanel();
+    await loadCountries();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('rows').addEventListener('click', async (e) => {
+  const editBtn = e.target.closest('.edit-country-btn');
+  const deleteBtn = e.target.closest('.delete-country-btn');
+
+  if (editBtn) {
+    editBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/countries/${editBtn.dataset.id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load country');
+      openPanel(data.country, data);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      editBtn.disabled = false;
+    }
+    return;
+  }
+  if (deleteBtn) {
+    if (!confirm('Delete this country? This can\'t be undone. If it\'s already in use, deactivate it instead.')) return;
+    deleteBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/countries/${deleteBtn.dataset.id}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete country');
+      }
+      await loadCountries();
+    } catch (err) {
+      alert(err.message);
+      deleteBtn.disabled = false;
+    }
+  }
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  if (user.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can manage Country Settings.</p>';
+    return;
+  }
+  await loadUnits();
+  await loadCountries();
+
+  const editId = new URLSearchParams(location.search).get('edit');
+  if (editId) {
+    const res = await authedFetch(`/countries/${editId}`);
+    if (res.ok) {
+      const data = await res.json();
+      openPanel(data.country, data);
+    }
+    history.replaceState(null, '', '/admin/countries');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
