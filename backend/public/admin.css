@@ -178,7 +178,7 @@ button, .btn {
 }
 .btn:hover { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06); }
 .btn svg { flex-shrink: 0; }
-select, input[type=text], input[type=password] {
+select, input[type=text], input[type=password], input[type=date], input[type=number], textarea {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
@@ -187,7 +187,7 @@ select, input[type=text], input[type=password] {
   background: var(--surface);
   color: var(--text);
 }
-select:focus, input:focus { outline: none; border-color: var(--accent); }
+select:focus, input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 
 .approve, .primary { background: var(--accent); color: white; }
 .approve:hover, .primary:hover { background: var(--accent-hover); }
