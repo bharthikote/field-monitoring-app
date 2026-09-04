@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Project</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .status-badge { padding: 4px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
+  .status-ongoing { background: #dcfce7; color: #166534; }
+  .status-completed { background: #dbeafe; color: #1e40af; }
+  .status-terminated { background: #fee2e2; color: #991b1b; }
+  .info-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px 24px; margin-top: 18px; max-width: 900px; }
+  .info-field-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+  .info-field-value { font-size: 0.92rem; font-weight: 600; margin-top: 2px; }
+  .desc-block { margin-top: 14px; max-width: 900px; }
+  .action-row { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .tabs-row { display: flex; border-bottom: 1px solid var(--border); margin-top: 28px; }
+  .tab-btn { padding: 10px 18px; background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-weight: 600; color: var(--text-muted); font-family: inherit; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; padding-top: 18px; }
+  .tab-panel.active { display: block; }
+  .loc-tree-level { list-style: none; padding-left: 0; margin: 2px 0; }
+  .loc-tree-level .loc-tree-level { padding-left: 24px; border-left: 1px solid var(--border); margin-left: 9px; }
+  .loc-tree-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: var(--radius-sm); }
+  .loc-tree-row:hover { background: var(--bg); }
+  .loc-toggle { background: none; border: none; font-size: 0.8rem; width: 18px; padding: 0; margin: 0; cursor: pointer; color: var(--text-muted); }
+  .loc-toggle-spacer { display: inline-block; width: 18px; }
+  .loc-tree-name { font-size: 0.88rem; }
+  .add-user-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; }
+  .add-user-row select { max-width: 320px; }
+  .user-row-locs { padding: 10px 14px; background: var(--bg); border-radius: var(--radius-sm); margin: 0 0 10px; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: 0.78rem; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .chip button { border: none; background: none; color: var(--danger); cursor: pointer; font-weight: 700; padding: 0; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<p><a href="/admin/projects" style="color:var(--text-muted); font-size:0.85rem; text-decoration:none;">&larr; Back to all projects</a></p>
+<p id="load-error" class="error" style="display:none"></p>
+
+<div id="content" style="display:none">
+
+<div class="info-header">
+  <h1 id="project-title">Loading…</h1>
+  <span class="status-badge" id="status-badge"></span>
+</div>
+
+<div class="desc-block">
+  <div class="info-field-label">Description</div>
+  <div class="info-field-value" id="f-description" style="font-weight:400"></div>
+</div>
+
+<div class="info-grid" id="info-grid"></div>
+
+<div class="action-row" id="action-row"></div>
+
+<div class="tabs-row">
+  <button class="tab-btn active" data-tab="locations">Project Location</button>
+  <button class="tab-btn" data-tab="users">Users</button>
+</div>
+
+<div class="tab-panel active" id="tab-locations">
+  <p class="scope-note" style="margin-top:0">Tick anything to assign it to this project - states, districts, blocks, or individual villages, any mix. Scoped to this project's own country (<span id="country-name-note"></span>).</p>
+  <p class="error" id="location-error" style="display:none"></p>
+  <div id="location-tree"></div>
+</div>
+
+<div class="tab-panel" id="tab-users">
+  <div class="add-user-row">
+    <select id="add-user-select"><option value="">Select a user to add…</option></select>
+    <button id="add-user-btn" class="primary">+ Add User</button>
+  </div>
+  <p class="error" id="user-error" style="display:none"></p>
+  <div class="table-scroll">
+  <table id="users-table" style="display:none">
+    <thead><tr><th>#</th><th>User Name</th><th>Role</th><th>Locations</th><th>Actions</th></tr></thead>
+    <tbody id="users-rows"></tbody>
+  </table>
+  </div>
+  <p id="users-empty" class="empty">No users assigned to this project yet.</p>
+</div>
+
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DELETE_ICON = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+const projectId = location.pathname.split('/').pop();
+let currentUser = null;
+let project = null;
+
+// --- Project Location tree (state -> village, fixed to the project's own
+// country) - a plain flat set (no include/exclude, no inheritance-display):
+// each checkbox reflects exactly one project_locations row. Matches the
+// spec's own worked example (explicit villages listed one by one), and
+// keeps the UI's semantics identical to the backend's exact-match rule
+// for what a user can later receive.
+const LEVELS = [
+  { key: 'state', label: 'State', list: (parentId) => `/locations/states?country_id=${parentId}`, dataKey: 'states' },
+  { key: 'district', label: 'District', list: (parentId) => `/locations/districts?state_id=${parentId}`, dataKey: 'districts' },
+  { key: 'block', label: 'Block', list: (parentId) => `/locations/blocks?district_id=${parentId}`, dataKey: 'blocks' },
+  { key: 'village', label: 'Village', list: (parentId) => `/locations/villages?block_id=${parentId}`, dataKey: 'villages' },
+];
+const treeExpanded = { state: new Set(), district: new Set(), block: new Set() };
+const treeCache = new Map();
+let projectLocKeys = new Set(); // `${level}:${locationId}`
+let projectLocIdByKey = new Map();
+let projectLocations = []; // [{id, level, locationId, path}]
+
+async function fetchTreeItems(level, parentId) {
+  const cacheKey = `${level.key}:${parentId}`;
+  if (treeCache.has(cacheKey)) return treeCache.get(cacheKey);
+  const res = await authedFetch(level.list(parentId));
+  const data = await res.json();
+  treeCache.set(cacheKey, data[level.dataKey]);
+  return data[level.dataKey];
+}
+
+async function buildTreeHtml(levelIndex, parentId) {
+  const level = LEVELS[levelIndex];
+  const items = await fetchTreeItems(level, parentId);
+  const hasNext = levelIndex < LEVELS.length - 1;
+
+  let html = '<ul class="loc-tree-level">';
+  for (const item of items) {
+    const key = `${level.key}:${item.id}`;
+    const isChecked = projectLocKeys.has(key);
+    const isExpanded = hasNext && treeExpanded[level.key].has(item.id);
+    html += `<li><div class="loc-tree-row">
+      ${hasNext
+        ? `<button class="loc-toggle" data-level="${levelIndex}" data-id="${item.id}">${isExpanded ? '▾' : '▸'}</button>`
+        : '<span class="loc-toggle-spacer"></span>'}
+      <input type="checkbox" class="loc-check" data-level-key="${level.key}" data-id="${item.id}" ${isChecked ? 'checked' : ''} />
+      <span class="loc-tree-name">${escapeHtml(item.name)}</span>
+    </div>`;
+    if (isExpanded) html += await buildTreeHtml(levelIndex + 1, item.id);
+    html += '</li>';
+  }
+  html += '</ul>';
+  return html;
+}
+
+async function renderTree() {
+  document.getElementById('location-tree').innerHTML = await buildTreeHtml(0, project.country_id);
+}
+
+document.getElementById('location-tree').addEventListener('click', async (e) => {
+  const toggle = e.target.closest('.loc-toggle');
+  if (!toggle) return;
+  const levelKey = LEVELS[Number(toggle.dataset.level)].key;
+  const id = toggle.dataset.id;
+  if (treeExpanded[levelKey].has(id)) treeExpanded[levelKey].delete(id);
+  else treeExpanded[levelKey].add(id);
+  await renderTree();
+});
+
+document.getElementById('location-tree').addEventListener('change', async (e) => {
+  const cb = e.target.closest('.loc-check');
+  if (!cb) return;
+  const errorEl = document.getElementById('location-error');
+  errorEl.style.display = 'none';
+  const levelKey = cb.dataset.levelKey;
+  const locationId = cb.dataset.id;
+  const key = `${levelKey}:${locationId}`;
+  cb.disabled = true;
+  try {
+    if (cb.checked) {
+      const res = await authedFetch(`/projects/${projectId}/locations`, {
+        method: 'POST', body: JSON.stringify({ level: levelKey, locationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign');
+      projectLocKeys.add(key);
+      projectLocIdByKey.set(key, data.assignment.id);
+      projectLocations.push({ id: data.assignment.id, level: levelKey, locationId, path: data.assignment.path });
+    } else {
+      const assignmentId = projectLocIdByKey.get(key);
+      const res = await authedFetch(`/projects/${projectId}/locations/${assignmentId}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove');
+      }
+      projectLocKeys.delete(key);
+      projectLocIdByKey.delete(key);
+      projectLocations = projectLocations.filter((l) => l.id !== assignmentId);
+    }
+    cb.disabled = false;
+    await renderUsers(); // a removed location may have cascaded a user's own assignment
+  } catch (err) {
+    cb.checked = !cb.checked;
+    cb.disabled = false;
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+async function loadProjectLocations() {
+  const res = await authedFetch(`/projects/${projectId}/locations`);
+  const data = await res.json();
+  projectLocations = data.assignments;
+  projectLocKeys = new Set(projectLocations.map((a) => `${a.level}:${a.locationId}`));
+  projectLocIdByKey = new Map(projectLocations.map((a) => [`${a.level}:${a.locationId}`, a.id]));
+}
+
+// --- Users tab ---
+
+let projectUsers = [];
+let allUsers = [];
+let expandedUserId = null;
+let userLocAssignments = new Map(); // userId -> [{id, level, locationId, path}]
+
+async function loadAllUsers() {
+  const res = await authedFetch('/admin/users');
+  const data = await res.json();
+  allUsers = data.users.filter((u) => u.status === 'approved');
+}
+
+function renderAddUserSelect() {
+  const assignedIds = new Set(projectUsers.map((u) => u.user_id));
+  const options = allUsers.filter((u) => !assignedIds.has(u.id));
+  document.getElementById('add-user-select').innerHTML =
+    '<option value="">Select a user to add…</option>' +
+    options.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
+}
+
+async function loadProjectUsers() {
+  const res = await authedFetch(`/projects/${projectId}/users`);
+  const data = await res.json();
+  projectUsers = data.users;
+}
+
+async function loadUserLocations(userId) {
+  if (userLocAssignments.has(userId)) return userLocAssignments.get(userId);
+  const res = await authedFetch(`/projects/${projectId}/users/${userId}/locations`);
+  const data = await res.json();
+  userLocAssignments.set(userId, data.assignments);
+  return data.assignments;
+}
+
+async function renderUsers() {
+  const table = document.getElementById('users-table');
+  const empty = document.getElementById('users-empty');
+  const rows = document.getElementById('users-rows');
+
+  if (!projectUsers.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    renderAddUserSelect();
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  const rowsHtml = [];
+  for (let i = 0; i < projectUsers.length; i++) {
+    const u = projectUsers[i];
+    rowsHtml.push(`
+      <tr>
+        <td>${i + 1}</td>
+        <td>${escapeHtml(u.name)}</td>
+        <td>${escapeHtml(u.role)}</td>
+        <td>${u.location_count} assigned</td>
+        <td>
+          <div class="actions-cell">
+            <button class="btn edit-btn toggle-user-locs-btn" data-id="${u.user_id}">${expandedUserId === u.user_id ? 'Hide' : 'Locations'}</button>
+            <button class="btn delete-btn remove-user-btn" data-id="${u.user_id}">${DELETE_ICON} Remove</button>
+          </div>
+        </td>
+      </tr>
+    `);
+    if (expandedUserId === u.user_id) {
+      const assigned = await loadUserLocations(u.user_id);
+      const assignedKeys = new Set(assigned.map((a) => `${a.level}:${a.locationId}`));
+      rowsHtml.push(`
+        <tr><td colspan="5">
+          <div class="user-row-locs">
+            <p class="scope-note" style="margin:0 0 8px">Only locations already assigned to this project can be given to a user.</p>
+            ${projectLocations.length === 0 ? '<p class="empty" style="margin:0">This project has no locations assigned yet.</p>' : `
+              <div class="chip-list">
+                ${projectLocations.map((loc) => {
+                  const key = `${loc.level}:${loc.locationId}`;
+                  const isChecked = assignedKeys.has(key);
+                  return `<label class="chip" style="cursor:pointer">
+                    <input type="checkbox" class="user-loc-check" data-user-id="${u.user_id}" data-level="${loc.level}" data-loc-id="${loc.locationId}" ${isChecked ? 'checked' : ''} />
+                    ${escapeHtml(loc.path)}
+                  </label>`;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        </td></tr>
+      `);
+    }
+  }
+  rows.innerHTML = rowsHtml.join('');
+  renderAddUserSelect();
+}
+
+document.getElementById('users-rows').addEventListener('click', async (e) => {
+  const toggleBtn = e.target.closest('.toggle-user-locs-btn');
+  const removeBtn = e.target.closest('.remove-user-btn');
+
+  if (toggleBtn) {
+    expandedUserId = expandedUserId === toggleBtn.dataset.id ? null : toggleBtn.dataset.id;
+    await renderUsers();
+    return;
+  }
+  if (removeBtn) {
+    if (!confirm('Remove this user from the project? Their project-specific location assignments will be removed too.')) return;
+    removeBtn.disabled = true;
+    try {
+      const res = await authedFetch(`/projects/${projectId}/users/${removeBtn.dataset.id}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove user');
+      }
+      userLocAssignments.delete(removeBtn.dataset.id);
+      if (expandedUserId === removeBtn.dataset.id) expandedUserId = null;
+      await loadProjectUsers();
+      await renderUsers();
+    } catch (err) {
+      alert(err.message);
+      removeBtn.disabled = false;
+    }
+  }
+});
+
+document.getElementById('users-rows').addEventListener('change', async (e) => {
+  const cb = e.target.closest('.user-loc-check');
+  if (!cb) return;
+  const errorEl = document.getElementById('user-error');
+  errorEl.style.display = 'none';
+  const userId = cb.dataset.userId;
+  const level = cb.dataset.level;
+  const locationId = cb.dataset.locId;
+  cb.disabled = true;
+  try {
+    if (cb.checked) {
+      const res = await authedFetch(`/projects/${projectId}/users/${userId}/locations`, {
+        method: 'POST', body: JSON.stringify({ level, locationId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to assign');
+    } else {
+      const assigned = userLocAssignments.get(userId) || [];
+      const match = assigned.find((a) => a.level === level && a.locationId === locationId);
+      if (match) {
+        const res = await authedFetch(`/projects/${projectId}/users/${userId}/locations/${match.id}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to remove');
+        }
+      }
+    }
+    userLocAssignments.delete(userId);
+    await loadProjectUsers();
+    await renderUsers();
+  } catch (err) {
+    cb.checked = !cb.checked;
+    cb.disabled = false;
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+document.getElementById('add-user-btn').addEventListener('click', async () => {
+  const select = document.getElementById('add-user-select');
+  const userId = select.value;
+  if (!userId) return;
+  const errorEl = document.getElementById('user-error');
+  errorEl.style.display = 'none';
+  try {
+    const res = await authedFetch(`/projects/${projectId}/users`, { method: 'POST', body: JSON.stringify({ userId }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add user');
+    await loadProjectUsers();
+    await renderUsers();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
+
+// --- Tabs ---
+
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+// --- Project info + actions ---
+
+function renderInfo() {
+  document.getElementById('project-title').textContent = project.title;
+  document.getElementById('status-badge').textContent = project.status;
+  document.getElementById('status-badge').className = `status-badge status-${project.status}`;
+  document.getElementById('f-description').textContent = project.description || '—';
+  document.getElementById('country-name-note').textContent = project.country_name;
+
+  const rows = [
+    ['Country', project.country_name],
+    ['Start Date', project.start_date],
+    ['End Date', project.end_date],
+    ['Target Farmer Trained', project.target_farmer_trained ?? '—'],
+    ['Target Key Farmer Trained', project.target_key_farmer_trained ?? '—'],
+    ['Target Core Farmer Trained', project.target_core_farmer_trained ?? '—'],
+    ['Target Demo', project.target_demo ?? '—'],
+    ['Target Knowledge Acquisition', project.target_knowledge_acquisition ?? '—'],
+  ];
+  document.getElementById('info-grid').innerHTML = rows
+    .map(([label, value]) => `<div><div class="info-field-label">${label}</div><div class="info-field-value">${escapeHtml(String(value))}</div></div>`)
+    .join('');
+
+  const actions = [`<a href="#" id="edit-link" class="btn primary" style="text-decoration:none">Edit</a>`];
+  if (project.status === 'ongoing') {
+    actions.push(`<button class="btn" data-status="completed" style="background:#22c55e;color:#fff;border:none">Complete</button>`);
+    actions.push(`<button class="btn" data-status="terminated" style="background:#fff;color:var(--danger);border:1px solid var(--danger)">Terminate</button>`);
+  } else {
+    actions.push(`<button class="btn" data-status="ongoing" style="background:var(--accent);color:#fff;border:none">Reopen</button>`);
+  }
+  actions.push(`<button class="btn delete-btn" id="delete-project-btn">${DELETE_ICON} Delete</button>`);
+  document.getElementById('action-row').innerHTML = actions.join('');
+}
+
+document.getElementById('action-row').addEventListener('click', async (e) => {
+  const statusBtn = e.target.closest('button[data-status]');
+  const deleteBtn = e.target.closest('#delete-project-btn');
+  const editLink = e.target.closest('#edit-link');
+
+  if (editLink) {
+    e.preventDefault();
+    window.location.href = `/admin/projects?edit=${projectId}`;
+    return;
+  }
+  if (statusBtn) {
+    const label = statusBtn.dataset.status === 'ongoing' ? 'reopen' : statusBtn.dataset.status;
+    if (!confirm(`Mark this project as ${label}?`)) return;
+    try {
+      const res = await authedFetch(`/projects/${projectId}/status`, { method: 'POST', body: JSON.stringify({ status: statusBtn.dataset.status }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update status');
+      await loadProject();
+    } catch (err) {
+      alert(err.message);
+    }
+    return;
+  }
+  if (deleteBtn) {
+    if (!confirm('Delete this project? This can\'t be undone.')) return;
+    try {
+      const res = await authedFetch(`/projects/${projectId}`, { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete project');
+      }
+      window.location.href = '/admin/projects';
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+});
+
+async function loadProject() {
+  const res = await authedFetch(`/projects/${projectId}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to load project');
+  project = data.project;
+  renderInfo();
+}
+
+async function init() {
+  currentUser = await initAdminPage();
+  if (!currentUser) return;
+  if (currentUser.role !== 'super_admin') {
+    document.querySelector('.panel').innerHTML = '<p class="error">Only Super Admin can manage Projects.</p>';
+    return;
+  }
+  try {
+    await loadProject();
+    await loadProjectLocations();
+    await renderTree();
+    await loadAllUsers();
+    await loadProjectUsers();
+    await renderUsers();
+    document.getElementById('content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('load-error').textContent = err.message;
+    document.getElementById('load-error').style.display = 'block';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

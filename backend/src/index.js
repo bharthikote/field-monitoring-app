@@ -26,6 +26,7 @@ import { tfoHomeGardensRouter } from './routes/tfoHomeGardens.js';
 import { activitiesRouter } from './routes/activities.js';
 import { nutrientConfigurationsRouter } from './routes/nutrientConfigurations.js';
 import { activityReturnsRouter } from './routes/activityReturns.js';
+import { projectsRouter } from './routes/projects.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -68,6 +69,7 @@ app.use(tfoHomeGardensRouter);
 app.use(activitiesRouter);
 app.use(nutrientConfigurationsRouter);
 app.use(activityReturnsRouter);
+app.use(projectsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {
@@ -120,6 +122,12 @@ app.get('/admin/activity-returns', (_req, res) => {
 });
 app.get('/admin/activity-returns/:id', (_req, res) => {
   res.sendFile(path.join(publicDir, 'activity-return-detail.html'));
+});
+app.get('/admin/projects', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'projects.html'));
+});
+app.get('/admin/projects/:id', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'project-detail.html'));
 });
 
 const port = process.env.PORT || 4000;

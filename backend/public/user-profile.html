@@ -59,6 +59,15 @@
     <p class="error" id="location-error" style="display:none"></p>
     <div id="location-tree"></div>
 
+    <div class="section-title">Projects</div>
+    <p class="scope-note" style="margin-top:0">Which projects this user works on. Once added, use that project's own Preview page to give them specific locations within it - it only offers locations already assigned to the project.</p>
+    <p class="error" id="project-error" style="display:none"></p>
+    <div id="project-list" style="margin-bottom:12px"></div>
+    <div class="inline-form" id="add-project-row">
+      <select id="add-project-select"><option value="">Select a project to add…</option></select>
+      <button id="add-project-btn" class="edit-btn small">+ Add to Project</button>
+    </div>
+
     <div class="section-title">Status</div>
     <div class="field-row">
       <div class="field-label">Current status</div>
@@ -149,6 +158,91 @@ function renderPreview() {
   // see controls that would just 403 on click.
   document.getElementById('edit-toggle-row').style.display = canWrite() ? 'flex' : 'none';
 }
+
+// --- Projects ---
+
+let allProjects = [];
+let userProjects = [];
+
+async function loadAllProjects() {
+  const res = await authedFetch('/projects');
+  if (!res.ok) return; // not Super Admin - Projects section stays empty, harmlessly
+  allProjects = (await res.json()).projects;
+}
+
+async function loadUserProjects() {
+  const res = await authedFetch(`/users/${userId}/projects`);
+  if (!res.ok) { userProjects = []; return; }
+  userProjects = (await res.json()).projects;
+}
+
+function renderProjects() {
+  const list = document.getElementById('project-list');
+  const select = document.getElementById('add-project-select');
+
+  if (!userProjects.length) {
+    list.innerHTML = '<p class="empty" style="margin:0">Not assigned to any project yet.</p>';
+  } else {
+    list.innerHTML = userProjects.map((p) => `
+      <div class="field-row">
+        <div class="field-label">${escapeHtml(p.title)}</div>
+        <div class="field-value">
+          <span class="role-badge">${escapeHtml(p.status)}</span>
+          <span class="scope-note">${p.location_count} location(s) within this project</span>
+          <a href="/admin/projects/${p.id}" style="margin-left:8px">Manage in Project →</a>
+          ${canWrite() ? `<button class="delete-btn small remove-project-btn" data-id="${p.id}" style="margin-left:8px">Remove</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  const assignedIds = new Set(userProjects.map((p) => p.id));
+  const options = allProjects.filter((p) => !assignedIds.has(p.id));
+  select.innerHTML = '<option value="">Select a project to add…</option>' +
+    options.map((p) => `<option value="${p.id}">${escapeHtml(p.title)}</option>`).join('');
+
+  document.getElementById('add-project-row').style.display = canWrite() ? 'flex' : 'none';
+}
+
+document.getElementById('project-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.remove-project-btn');
+  if (!btn) return;
+  if (!confirm('Remove this user from the project? Their project-specific location assignments will be removed too.')) return;
+  const errorEl = document.getElementById('project-error');
+  errorEl.style.display = 'none';
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/projects/${btn.dataset.id}/users/${userId}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 204) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to remove');
+    }
+    await loadUserProjects();
+    renderProjects();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('add-project-btn').addEventListener('click', async () => {
+  const select = document.getElementById('add-project-select');
+  const projectId = select.value;
+  if (!projectId) return;
+  const errorEl = document.getElementById('project-error');
+  errorEl.style.display = 'none';
+  try {
+    const res = await authedFetch(`/projects/${projectId}/users`, { method: 'POST', body: JSON.stringify({ userId }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add to project');
+    await loadUserProjects();
+    renderProjects();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  }
+});
 
 async function loadLocationAssignments() {
   const res = await authedFetch(`/admin/users/${userId}/locations`);
@@ -464,6 +558,9 @@ async function init() {
   await loadProfile();
   await loadLocationAssignments();
   await renderTree();
+  await loadAllProjects();
+  await loadUserProjects();
+  renderProjects();
 }
 
 init();
