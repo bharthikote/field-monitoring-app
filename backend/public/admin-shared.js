@@ -231,9 +231,50 @@ function enhanceAllSelects(container) {
   (container || document).querySelectorAll('select').forEach(enhanceSelect);
 }
 
+// Rebuilds a <select> whose option set changes after the page first loads
+// (e.g. an "assign X" list that shrinks as items get assigned elsewhere).
+// enhanceSelect's custom-dropdown menu is a one-time snapshot of whatever
+// options existed at enhance time - mutating the underlying select's
+// innerHTML afterward leaves that menu stale. This replaces the whole
+// select (and its enhanced wrapper, if any) with a fresh node instead, so
+// it's always safe to call again whenever the option set changes.
+function rebuildSelect(id, optionsHtml) {
+  const existing = document.getElementById(id);
+  const host = existing.closest('.custom-select') || existing;
+  const fresh = document.createElement('select');
+  fresh.id = id;
+  fresh.innerHTML = optionsHtml;
+  host.replaceWith(fresh);
+  enhanceSelect(fresh);
+  return fresh;
+}
+
 document.addEventListener('click', () => {
   document.querySelectorAll('.custom-select.open').forEach((el) => el.classList.remove('open'));
 });
+
+// Standard success/error feedback, used app-wide after a create/update/
+// delete/assign/etc. actually succeeds (or fails) - the app previously had
+// no positive success feedback anywhere (a saved form just closed and the
+// list refreshed), only confirm()/alert() for destructive actions and
+// failures. One shared function so every page gets the same look instead
+// of each screen inventing its own popup.
+function showToast(message, type = 'success') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('toast-hide');
+    toast.addEventListener('transitionend', () => toast.remove());
+  }, 3000);
+}
 
 // Call at the top of every admin page. Redirects to login if not authenticated.
 // Returns the current user object, or null if a redirect happened.

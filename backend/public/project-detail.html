@@ -195,6 +195,7 @@ document.getElementById('location-tree').addEventListener('change', async (e) =>
     }
     cb.disabled = false;
     await renderUsers(); // a removed location may have cascaded a user's own assignment
+    showToast(cb.checked ? 'Location assigned successfully.' : 'Location removed successfully.');
   } catch (err) {
     cb.checked = !cb.checked;
     cb.disabled = false;
@@ -227,9 +228,12 @@ async function loadAllUsers() {
 function renderAddUserSelect() {
   const assignedIds = new Set(projectUsers.map((u) => u.user_id));
   const options = allUsers.filter((u) => !assignedIds.has(u.id));
-  document.getElementById('add-user-select').innerHTML =
+  // The option set shrinks every time a user is added, so the select is
+  // rebuilt from scratch (not innerHTML-mutated) and re-enhanced each time -
+  // see rebuildSelect() in admin-shared.js for why that matters.
+  rebuildSelect('add-user-select',
     '<option value="">Select a user to add…</option>' +
-    options.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join('');
+    options.map((u) => `<option value="${u.id}">${escapeHtml(u.name)} (${escapeHtml(u.role)})</option>`).join(''));
 }
 
 async function loadProjectUsers() {
@@ -327,8 +331,9 @@ document.getElementById('users-rows').addEventListener('click', async (e) => {
       if (expandedUserId === removeBtn.dataset.id) expandedUserId = null;
       await loadProjectUsers();
       await renderUsers();
+      showToast('User removed successfully.');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
       removeBtn.disabled = false;
     }
   }
@@ -364,6 +369,7 @@ document.getElementById('users-rows').addEventListener('change', async (e) => {
     userLocAssignments.delete(userId);
     await loadProjectUsers();
     await renderUsers();
+    showToast(cb.checked ? 'Location assigned successfully.' : 'Location removed successfully.');
   } catch (err) {
     cb.checked = !cb.checked;
     cb.disabled = false;
@@ -384,6 +390,7 @@ document.getElementById('add-user-btn').addEventListener('click', async () => {
     if (!res.ok) throw new Error(data.error || 'Failed to add user');
     await loadProjectUsers();
     await renderUsers();
+    showToast('User added successfully.');
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
@@ -427,10 +434,10 @@ function renderInfo() {
 
   const actions = [`<a href="#" id="edit-link" class="btn primary" style="text-decoration:none">Edit</a>`];
   if (project.status === 'ongoing') {
-    actions.push(`<button class="btn" data-status="completed" style="background:#22c55e;color:#fff;border:none">Complete</button>`);
-    actions.push(`<button class="btn" data-status="terminated" style="background:#fff;color:var(--danger);border:1px solid var(--danger)">Terminate</button>`);
+    actions.push(`<button class="btn approve" data-status="completed">Complete</button>`);
+    actions.push(`<button class="btn reject" data-status="terminated">Terminate</button>`);
   } else {
-    actions.push(`<button class="btn" data-status="ongoing" style="background:var(--accent);color:#fff;border:none">Reopen</button>`);
+    actions.push(`<button class="btn primary" data-status="ongoing">Reopen</button>`);
   }
   actions.push(`<button class="btn delete-btn" id="delete-project-btn">${DELETE_ICON} Delete</button>`);
   document.getElementById('action-row').innerHTML = actions.join('');
@@ -454,8 +461,9 @@ document.getElementById('action-row').addEventListener('click', async (e) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update status');
       await loadProject();
+      showToast(`Project ${label === 'reopen' ? 'reopened' : label} successfully.`);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
     return;
   }
@@ -467,9 +475,9 @@ document.getElementById('action-row').addEventListener('click', async (e) => {
         const data = await res.json();
         throw new Error(data.error || 'Failed to delete project');
       }
-      window.location.href = '/admin/projects';
+      window.location.href = '/admin/projects?deleted=1';
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   }
 });

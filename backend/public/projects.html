@@ -130,6 +130,7 @@ async function loadCountries() {
   const res = await authedFetch('/locations/countries');
   allCountries = (await res.json()).countries;
   document.getElementById('f-country').innerHTML = allCountries.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  enhanceSelect(document.getElementById('f-country'));
 }
 
 async function loadProjects() {
@@ -309,11 +310,13 @@ document.getElementById('save-project-btn').addEventListener('click', async () =
   try {
     const path = editingProjectId ? `/projects/${editingProjectId}` : '/projects';
     const method = editingProjectId ? 'PATCH' : 'POST';
+    const wasEditing = !!editingProjectId;
     const res = await authedFetch(path, { method, body: JSON.stringify(body) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save project');
     closePanel();
     await loadProjects();
+    showToast(wasEditing ? 'Project updated successfully.' : 'Project created successfully.');
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
@@ -334,7 +337,7 @@ document.getElementById('rows').addEventListener('click', async (e) => {
       if (!res.ok) throw new Error(data.error || 'Failed to load project');
       openPanel(data.project);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     } finally {
       editBtn.disabled = false;
     }
@@ -350,8 +353,9 @@ document.getElementById('rows').addEventListener('click', async (e) => {
         throw new Error(data.error || 'Failed to delete project');
       }
       await loadProjects();
+      showToast('Project deleted successfully.');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
       deleteBtn.disabled = false;
     }
   }
@@ -374,6 +378,10 @@ async function init() {
       const res = await authedFetch(`/projects/${editId}`);
       if (res.ok) openPanel((await res.json()).project);
     }
+    history.replaceState(null, '', '/admin/projects');
+  }
+  if (new URLSearchParams(location.search).get('deleted')) {
+    showToast('Project deleted successfully.');
     history.replaceState(null, '', '/admin/projects');
   }
 }

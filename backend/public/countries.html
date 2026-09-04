@@ -379,6 +379,7 @@ document.getElementById('save-country-btn').addEventListener('click', async () =
   const btn = document.getElementById('save-country-btn');
   btn.disabled = true;
   try {
+    const wasEditing = !!editingCountryId;
     const path = editingCountryId ? `/countries/${editingCountryId}` : '/countries';
     const method = editingCountryId ? 'PATCH' : 'POST';
     const res = await authedFetch(path, { method, body: JSON.stringify(body) });
@@ -386,6 +387,7 @@ document.getElementById('save-country-btn').addEventListener('click', async () =
     if (!res.ok) throw new Error(data.error || 'Failed to save country');
     closePanel();
     await loadCountries();
+    showToast(wasEditing ? 'Country updated successfully.' : 'Country created successfully.');
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
@@ -406,7 +408,7 @@ document.getElementById('rows').addEventListener('click', async (e) => {
       if (!res.ok) throw new Error(data.error || 'Failed to load country');
       openPanel(data.country, data);
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     } finally {
       editBtn.disabled = false;
     }
@@ -422,8 +424,9 @@ document.getElementById('rows').addEventListener('click', async (e) => {
         throw new Error(data.error || 'Failed to delete country');
       }
       await loadCountries();
+      showToast('Country deleted successfully.');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
       deleteBtn.disabled = false;
     }
   }
@@ -446,6 +449,10 @@ async function init() {
       const data = await res.json();
       openPanel(data.country, data);
     }
+    history.replaceState(null, '', '/admin/countries');
+  }
+  if (new URLSearchParams(location.search).get('deleted')) {
+    showToast('Country deleted successfully.');
     history.replaceState(null, '', '/admin/countries');
   }
 }

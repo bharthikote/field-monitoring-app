@@ -82,7 +82,7 @@ function renderActions(user) {
   const buttons = [];
   buttons.push(`<button id="edit-btn" class="btn edit-btn">Edit</button>`);
   if (country.status === 'active') {
-    buttons.push(`<button id="deactivate-btn" class="btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Deactivate</button>`);
+    buttons.push(`<button id="deactivate-btn" class="btn edit-btn">Deactivate</button>`);
   } else {
     buttons.push(`<button id="activate-btn" class="btn primary">Reactivate</button>`);
   }
@@ -105,8 +105,9 @@ async function setStatus(status) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to update status');
     await load();
+    showToast(status === 'active' ? 'Country reactivated successfully.' : 'Country deactivated successfully.');
   } catch (err) {
-    alert(err.message);
+    showToast(err.message, 'error');
   }
 }
 
@@ -118,9 +119,9 @@ async function deleteCountry() {
       const data = await res.json();
       throw new Error(data.error || 'Failed to delete country');
     }
-    location.href = '/admin/countries';
+    location.href = '/admin/countries?deleted=1';
   } catch (err) {
-    alert(err.message);
+    showToast(err.message, 'error');
   }
 }
 
