@@ -250,6 +250,8 @@ export async function submitDataCollectionForm(token, formId, formData) {
   return data;
 }
 
+export const getMyProjects = (token) => request('/my-projects', { token });
+
 export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });

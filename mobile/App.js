@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet, BackHandler } from 'react-native';
 import SignUpScreen from './src/screens/SignUpScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import SelectProjectScreen from './src/screens/SelectProjectScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import DemoPlotLookupScreen from './src/screens/DemoPlotLookupScreen';
 import CreateDemoPlotScreen from './src/screens/CreateDemoPlotScreen';
@@ -34,7 +35,8 @@ import IssueDetailScreen from './src/screens/IssueDetailScreen';
 import MessagingScreen from './src/screens/MessagingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomTabBar from './src/components/BottomTabBar';
-import { loadSession } from './src/session';
+import { loadSession, saveActiveProjectId } from './src/session';
+import { getMyProjects } from './src/api';
 
 // The five root screens the bottom tab bar switches between. The tab bar
 // always shows on these; every other drill-down screen hides it (except
@@ -139,16 +141,50 @@ export default function App() {
   // scroll up to bring it back. Reset to visible each time the screen is
   // entered fresh, so it doesn't start hidden from a previous visit.
   const [lookupTabBarVisible, setLookupTabBarVisible] = useState(true);
+  // Populated only while the 'select-project' screen is showing - a TFO
+  // with more than one active Project. Zero or one project never reaches
+  // this state at all (skipped/auto-selected respectively), per spec.
+  const [pendingProjects, setPendingProjects] = useState([]);
+
+  // Resolves whether a just-authenticated TFO needs the project-selection
+  // step: fetches their active projects, auto-saves the choice and
+  // returns 'home' for 0 or 1, or returns 'select-project' (with the
+  // list stashed in state) for more than one. Any other role, or any
+  // failure fetching the list, goes straight to 'home' - this is a
+  // convenience step, not a gate that should ever block login.
+  async function resolveNextScreen(loggedInUser, loggedInToken) {
+    if (loggedInUser.role !== 'tfo') return 'home';
+    try {
+      const { projects } = await getMyProjects(loggedInToken);
+      if (projects.length <= 1) {
+        if (projects.length === 1) await saveActiveProjectId(projects[0].id);
+        return 'home';
+      }
+      setPendingProjects(projects);
+      return 'select-project';
+    } catch {
+      return 'home';
+    }
+  }
 
   useEffect(() => {
     loadSession()
-      .then((session) => {
-        if (session) {
-          setUser(session.user);
-          setToken(session.token);
+      .then(async (session) => {
+        if (!session) {
+          setScreen('login');
+          return;
+        }
+        setUser(session.user);
+        setToken(session.token);
+        // A previously-chosen active project (this session or an earlier
+        // app run, since it lives in the same persisted blob) stays
+        // active until logout - only resolve it fresh if it was never
+        // set at all (a TFO who's never been through this step, or an
+        // older session from before this feature existed).
+        if (session.activeProjectId || session.user.role !== 'tfo') {
           setScreen('home');
         } else {
-          setScreen('login');
+          setScreen(await resolveNextScreen(session.user, session.token));
         }
       })
       .catch(() => setScreen('login'));
@@ -204,9 +240,19 @@ export default function App() {
       {screen === 'login' && (
         <LoginScreen
           onGoToSignUp={() => setScreen('signup')}
-          onLoggedIn={(loggedInUser, loggedInToken) => {
+          onLoggedIn={async (loggedInUser, loggedInToken) => {
             setUser(loggedInUser);
             setToken(loggedInToken);
+            setScreen(await resolveNextScreen(loggedInUser, loggedInToken));
+          }}
+        />
+      )}
+      {screen === 'select-project' && (
+        <SelectProjectScreen
+          projects={pendingProjects}
+          onSelect={async (projectId) => {
+            await saveActiveProjectId(projectId);
+            setPendingProjects([]);
             setScreen('home');
           }}
         />
