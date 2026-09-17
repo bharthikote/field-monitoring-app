@@ -1,6 +1,11 @@
 import { useMemo, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Alert, Modal, FlatList, ActivityIndicator } from 'react-native';
-import * as Contacts from 'expo-contacts';
+// expo-contacts' modern (non-legacy) API replaced requestPermissionsAsync /
+// getContactsAsync / Fields with a class-based Contact API as of SDK 57 -
+// the old names still exist under this import but throw at runtime from the
+// main entry point. This keeps the original, well-established pair working
+// instead of rewriting against the new API.
+import * as Contacts from 'expo-contacts/legacy';
 import Svg, { Rect, Circle, Line, Path } from 'react-native-svg';
 import { COLORS } from '../theme';
 

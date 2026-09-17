@@ -40,7 +40,8 @@
         {
           "locationWhenInUsePermission": "Allow Field Monitoring to access your location to capture the GPS coordinates of a demo plot."
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

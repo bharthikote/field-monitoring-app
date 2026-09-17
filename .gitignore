@@ -5,6 +5,11 @@ node_modules/
 .env
 .env.local
 .env.*.local
+# Exception: mobile/.env holds only EXPO_PUBLIC_* runtime flags (bundled
+# into the client, never secret) - e.g. EXPO_PUBLIC_USE_RN_FETCH, required
+# on every machine to avoid Expo SDK 57's fetch/FormData bug. backend/.env
+# (the real secret, DATABASE_URL) stays ignored by the blanket rule above.
+!mobile/.env
 
 # Backend
 backend/dist/
