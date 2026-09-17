@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { uploadPhoto } from '../storage.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const dataCollectionFormsRouter = Router();
 dataCollectionFormsRouter.param('id', validateUuidParam);
@@ -246,7 +247,7 @@ function handleFileUpload(req, res, next) {
   });
 }
 
-dataCollectionFormsRouter.post('/data-collection-forms/:id/submissions', requireAuth, handleFileUpload, async (req, res) => {
+dataCollectionFormsRouter.post('/data-collection-forms/:id/submissions', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   if (req.user.role === 'super_admin') {
     return res.status(403).json({ error: "Super Admin doesn't submit data collection forms" });
   }

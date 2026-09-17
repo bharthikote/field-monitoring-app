@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const demoPlotsRouter = Router();
 
@@ -82,7 +83,7 @@ demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
   res.json({ demoPlots: result.rows });
 });
 
-demoPlotsRouter.post('/demo-plots', requireAuth, async (req, res) => {
+demoPlotsRouter.post('/demo-plots', requireAuth, requireLocation, async (req, res) => {
   const { farmerName, phone, cropId, varietyId, villageId, demoStatus, plotType } = req.body;
 
   if (!farmerName || !phone || !cropId || !varietyId || !villageId) {

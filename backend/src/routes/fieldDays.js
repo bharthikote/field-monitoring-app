@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const fieldDaysRouter = Router();
 
@@ -65,7 +66,7 @@ fieldDaysRouter.get('/field-days', requireAuth, async (req, res) => {
   res.json({ fieldDays: result.rows });
 });
 
-fieldDaysRouter.post('/field-days', requireAuth, handleFileUpload, async (req, res) => {
+fieldDaysRouter.post('/field-days', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const {
     farmerName, phone, villageId, fielddayType, interactionQuality, roiDiscussion,

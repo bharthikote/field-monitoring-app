@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import Svg, { Path, Rect, Line, Circle } from 'react-native-svg';
 import { getMyVisitCount, getMyTrainingCount, getMyFieldDayCount, getMyInstitutionVisitCount, getMyAgroDealerVisitCount } from '../api';
+import { COLORS } from '../theme';
 
 // The six daily field activities - order set per feedback (Demo Plot,
 // Adoption Plot, Training, Field Day, Institutional Visit, Agro Dealer
@@ -186,7 +187,29 @@ function getGreeting() {
   return 'Good evening';
 }
 
-export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection, onCreateTfoDemo, onCreateHomeGarden }) {
+function BellIcon({ color }) {
+  return (
+    <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </Svg>
+  );
+}
+
+function NotificationBell({ unreadCount, onPress }) {
+  return (
+    <Pressable style={styles.bellButton} onPress={onPress}>
+      <BellIcon color="#2d2a26" />
+      {unreadCount > 0 && (
+        <View style={styles.bellBadge}>
+          <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraining, onCreateFieldDay, onCreateInstitutionVisit, onCreateAgroDealerVisit, onOpenDataCollection, onCreateTfoDemo, onCreateHomeGarden, notificationsEnabled, unreadNotificationCount, onOpenNotifications }) {
   const isTfo = user.role === 'tfo';
   const isDataEnumerator = user.role === 'data_enumerator';
   const [demoPlotCount, setDemoPlotCount] = useState(null);
@@ -267,8 +290,13 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   if (isDataEnumerator) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-        <Text style={styles.greeting}>{getGreeting()}</Text>
-        <Text style={styles.title}>{user.name}</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.title}>{user.name}</Text>
+          </View>
+          {notificationsEnabled && <NotificationBell unreadCount={unreadNotificationCount} onPress={onOpenNotifications} />}
+        </View>
 
         <Text style={styles.sectionLabel}>What are you working on today?</Text>
         <View style={styles.grid}>
@@ -295,8 +323,13 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
   if (isTfo) {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-        <Text style={styles.greeting}>{getGreeting()}</Text>
-        <Text style={styles.title}>{user.name}</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
+            <Text style={styles.title}>{user.name}</Text>
+          </View>
+          {notificationsEnabled && <NotificationBell unreadCount={unreadNotificationCount} onPress={onOpenNotifications} />}
+        </View>
 
         <Text style={styles.sectionLabel}>What are you monitoring today?</Text>
         <View style={styles.grid}>
@@ -318,8 +351,13 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Text style={styles.greeting}>{getGreeting()}</Text>
-      <Text style={styles.title}>{user.name}</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
+          <Text style={styles.title}>{user.name}</Text>
+        </View>
+        {notificationsEnabled && <NotificationBell unreadCount={unreadNotificationCount} onPress={onOpenNotifications} />}
+      </View>
 
       <Text style={styles.sectionLabel}>What are you monitoring today?</Text>
       <View style={styles.grid}>
@@ -342,6 +380,13 @@ export default function HomeScreen({ token, user, onFindDemoPlot, onCreateTraini
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingTop: 56, paddingBottom: 60 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  bellButton: { padding: 4, marginTop: 2 },
+  bellBadge: {
+    position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: COLORS.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   greeting: { fontSize: 13, color: '#837f77' },
   title: { fontSize: 22, fontWeight: '700', marginTop: 2 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginTop: 32, marginBottom: 12, textTransform: 'uppercase' },

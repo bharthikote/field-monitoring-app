@@ -82,9 +82,7 @@ function VisitCard({ visit }) {
   );
 }
 
-const CAN_RAISE_ISSUES = ['country_manager', 'team_lead', 'supervisor'];
-
-export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRaiseIssue }) {
+export default function DemoPlotDetailScreen({ token, plot, onBack }) {
   const [tab, setTab] = useState('log-visit');
   const [visits, setVisits] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -135,12 +133,6 @@ export default function DemoPlotDetailScreen({ token, user, plot, onBack, onRais
           </View>
         </View>
 
-        {CAN_RAISE_ISSUES.includes(user.role) && (
-          <Pressable style={styles.raiseIssueButton} onPress={() => onRaiseIssue(plot)}>
-            <Text style={styles.raiseIssueButtonText}>Raise an Issue</Text>
-          </Pressable>
-        )}
-
         <View style={styles.tabRow}>
           <Pressable style={[styles.tab, tab === 'log-visit' && styles.tabActive]} onPress={() => setTab('log-visit')}>
             <Text style={[styles.tabText, tab === 'log-visit' && styles.tabTextActive]}>Log Visit</Text>
@@ -182,11 +174,6 @@ const styles = StyleSheet.create({
   villageLine: { color: '#555', fontSize: 13, textAlign: 'right' },
   statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   statusBadgeText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  raiseIssueButton: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: COLORS.danger, borderRadius: 8,
-    padding: 14, alignItems: 'center', marginTop: 16,
-  },
-  raiseIssueButtonText: { color: COLORS.danger, fontWeight: '600', fontSize: 16 },
   tabRow: { flexDirection: 'row', gap: 8, marginTop: 20 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   tabActive: { backgroundColor: COLORS.primary },

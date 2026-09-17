@@ -36,7 +36,7 @@ export default function IssueDetailScreen({ token, user, issueId, onBack }) {
       const data = await getIssue(token, issueId);
       setIssue(data.issue);
       if (data.issue.status === 'raised') {
-        const a = await listAssignableUsers(token);
+        const a = await listAssignableUsers(token, data.issue.village_id);
         setAssignableUsers(a.users);
       }
     } catch (err) {

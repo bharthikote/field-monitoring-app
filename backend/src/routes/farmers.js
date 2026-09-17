@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { uploadPhoto } from '../storage.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 import { SELECT_DEMO_PLOTS } from './demoPlots.js';
 import { SELECT_TRAININGS } from './trainings.js';
 import { SELECT_FIELD_DAYS } from './fieldDays.js';
@@ -160,7 +161,7 @@ farmersRouter.get('/farmers/by-phone', requireAuth, async (req, res) => {
 // reusing it, since registering is a deliberate action here. Always
 // multipart (the optional photo needs it) - the simple higher-role form
 // just omits every field beyond name/phone/villageId.
-farmersRouter.post('/farmers', requireAuth, handleFileUpload, async (req, res) => {
+farmersRouter.post('/farmers', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   if (req.user.role === 'data_enumerator') {
     return res.status(403).json({ error: 'Data Enumerators can view farmer profiles but not register new ones' });
   }

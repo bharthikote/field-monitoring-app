@@ -18,3 +18,14 @@ export const saveActiveProjectId = async (activeProjectId) => {
   if (!session) return;
   await saveSession({ ...session, activeProjectId });
 };
+
+// Per-device mute switch, deliberately separate from the session blob - it
+// should survive a logout/login on the same phone rather than reset with it.
+const NOTIFICATIONS_ENABLED_KEY = 'notificationsEnabled';
+
+export const areNotificationsEnabled = async () => {
+  const raw = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
+  return raw === null ? true : raw === 'true';
+};
+export const setNotificationsEnabled = (enabled) =>
+  AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');

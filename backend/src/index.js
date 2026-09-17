@@ -28,6 +28,7 @@ import { nutrientConfigurationsRouter } from './routes/nutrientConfigurations.js
 import { activityReturnsRouter } from './routes/activityReturns.js';
 import { projectsRouter } from './routes/projects.js';
 import { countriesRouter } from './routes/countries.js';
+import { notificationsRouter } from './routes/notifications.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -72,6 +73,7 @@ app.use(nutrientConfigurationsRouter);
 app.use(activityReturnsRouter);
 app.use(projectsRouter);
 app.use(countriesRouter);
+app.use(notificationsRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin', (_req, res) => {

@@ -3,6 +3,7 @@ import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const institutionVisitsRouter = Router();
 
@@ -36,7 +37,7 @@ institutionVisitsRouter.get('/institution-visits/my-count', requireAuth, async (
   res.json({ count: result.rows[0].count });
 });
 
-institutionVisitsRouter.post('/institution-visits', requireAuth, handleFileUpload, async (req, res) => {
+institutionVisitsRouter.post('/institution-visits', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const { institutionId, observations } = req.body;
   const purposes = parseStringList(req.body.purposes);

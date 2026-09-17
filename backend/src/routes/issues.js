@@ -1,20 +1,10 @@
 import { Router } from 'express';
-import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { uploadPhoto } from '../storage.js';
+import { createNotification } from './notifications.js';
+import { getCoveredVillageIds } from '../db/locationHelpers.js';
 
 export const issuesRouter = Router();
-
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
-
-function handleFileUpload(req, res, next) {
-  upload.any()(req, res, (err) => {
-    if (!err) return next();
-    if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'The photo is too large (max 8MB)' });
-    res.status(400).json({ error: err.message });
-  });
-}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidId(value) {
@@ -23,8 +13,11 @@ function isValidId(value) {
 
 // Who can raise an issue, and which roles they're allowed to route it to.
 // Only these three roles raise issues at all (PRD Section 8) - tfo/admin/
-// super_admin/leadership never appear here.
-const ASSIGNABLE_TARGETS = {
+// super_admin/leadership never appear here. Exported: visits.js reuses this
+// (and assignableUsersFor below) to auto-create+auto-route an issue for
+// every "Issues Observed Today" tag on a logged visit, instead of a
+// separate manual raise-issue step.
+export const ASSIGNABLE_TARGETS = {
   country_manager: ['team_lead', 'supervisor'],
   team_lead: ['supervisor'],
   supervisor: ['tfo'],
@@ -34,7 +27,7 @@ const SELECT_ISSUES = `
   select i.id, i.demo_plot_id, i.status, i.photo_url, i.resolution_note, i.rejection_note,
     i.reopened_count, i.created_at, i.assigned_at, i.started_at, i.resolved_at, i.closed_at,
     it.name as issue_type_name,
-    dp.farmer_name, dp.farmer_phone, vi.name as village_name,
+    dp.farmer_name, dp.farmer_phone, dp.village_id, vi.name as village_name,
     ru.id as raised_by_id, ru.name as raised_by_name,
     au.id as assigned_to_id, au.name as assigned_to_name
   from issues i
@@ -49,7 +42,16 @@ const SELECT_ISSUES = `
 // target role for their own role, within one of their own countries. There's
 // no "this TFO reports to this Supervisor" data in the schema, so same-country
 // is the closest real restriction available without a new reporting-line table.
-async function assignableUsersFor(req) {
+//
+// When villageId is given (the demo plot's own village), this narrows that
+// country-wide list down to just the candidates whose own location coverage
+// actually includes that village - reusing the same include/exclude coverage
+// logic every other list in the app already uses (getCoveredVillageIds),
+// rather than a fresh ad-hoc ancestor match that could silently ignore
+// exclusions. If narrowing would leave nobody (no one's coverage happens to
+// reach that exact village), it falls back to the full country-wide list
+// instead of leaving the raiser with no one to assign to at all.
+export async function assignableUsersFor(req, villageId) {
   const targetRoles = ASSIGNABLE_TARGETS[req.user.role];
   if (!targetRoles || !req.user.countryIds.length) return [];
   const result = await pool.query(
@@ -70,16 +72,24 @@ async function assignableUsersFor(req) {
      order by u.name`,
     [targetRoles, req.user.countryIds],
   );
-  return result.rows;
+  if (!villageId) return result.rows;
+
+  const coverageChecks = await Promise.all(
+    result.rows.map(async (u) => ((await getCoveredVillageIds(u.id)).includes(villageId) ? u : null)),
+  );
+  const narrowed = coverageChecks.filter(Boolean);
+  return narrowed.length > 0 ? narrowed : result.rows;
 }
 
-async function isValidAssignee(req, assignedTo) {
-  const candidates = await assignableUsersFor(req);
+async function isValidAssignee(req, assignedTo, villageId) {
+  const candidates = await assignableUsersFor(req, villageId);
   return candidates.some((c) => c.id === assignedTo);
 }
 
 issuesRouter.get('/issues/assignable-users', requireAuth, async (req, res) => {
-  const users = await assignableUsersFor(req);
+  const { villageId } = req.query;
+  if (!isValidId(villageId)) return res.status(400).json({ error: 'Invalid villageId' });
+  const users = await assignableUsersFor(req, villageId || null);
   res.json({ users });
 });
 
@@ -111,65 +121,30 @@ issuesRouter.get('/issues/:id', requireAuth, async (req, res) => {
   res.json({ issue });
 });
 
-issuesRouter.post('/issues', requireAuth, handleFileUpload, async (req, res) => {
-  const { demoPlotId, issueTypeId, assignedTo } = req.body;
-
-  if (!ASSIGNABLE_TARGETS[req.user.role]) {
-    return res.status(403).json({ error: 'Your role cannot raise issues' });
-  }
-  if (!demoPlotId || !issueTypeId) {
-    return res.status(400).json({ error: 'demoPlotId and issueTypeId are required' });
-  }
-  if (![demoPlotId, issueTypeId, assignedTo].every(isValidId)) {
-    return res.status(400).json({ error: 'One of the submitted ids is invalid' });
-  }
-  // Only Team Lead can hold an issue unassigned for later delegation -
-  // everyone else must route it to someone immediately (PRD Section 8).
-  if (!assignedTo && req.user.role !== 'team_lead') {
-    return res.status(400).json({ error: 'assignedTo is required for your role' });
-  }
-  if (assignedTo && !(await isValidAssignee(req, assignedTo))) {
-    return res.status(400).json({ error: 'Not a valid person to assign this to' });
-  }
-
-  const plotResult = await pool.query('select id from demo_plots where id = $1', [demoPlotId]);
-  if (plotResult.rowCount === 0) return res.status(400).json({ error: 'No such demo plot' });
-
-  const files = req.files || [];
-  const photo = files.find((f) => f.fieldname === 'photo');
-  const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
-
-  try {
-    const status = assignedTo ? 'assigned' : 'raised';
-    const result = await pool.query(
-      `insert into issues (demo_plot_id, issue_type_id, photo_url, raised_by, assigned_to, status, assigned_at)
-       values ($1, $2, $3, $4, $5, $6, ${assignedTo ? 'now()' : 'null'})
-       returning id, status, created_at`,
-      [demoPlotId, issueTypeId, photoUrl, req.user.userId, assignedTo || null, status],
-    );
-    res.status(201).json({ issue: result.rows[0] });
-  } catch (err) {
-    if (err.code === '23503') return res.status(400).json({ error: 'The demo plot or issue type no longer exists' });
-    res.status(500).json({ error: err.message });
-  }
-});
-
 issuesRouter.post('/issues/:id/assign', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { assignedTo } = req.body;
   if (!isValidId(id) || !UUID_RE.test(assignedTo || '')) return res.status(400).json({ error: 'Invalid id' });
 
-  const result = await pool.query('select raised_by, status from issues where id = $1', [id]);
+  const result = await pool.query(
+    `select i.raised_by, i.status, it.name as issue_type_name, dp.village_id
+     from issues i
+     join issue_types it on it.id = i.issue_type_id
+     join demo_plots dp on dp.id = i.demo_plot_id
+     where i.id = $1`,
+    [id],
+  );
   if (result.rowCount === 0) return res.status(404).json({ error: 'No such issue' });
   const issue = result.rows[0];
   if (issue.raised_by !== req.user.userId) return res.status(403).json({ error: 'Only the person who raised this can assign it' });
   if (issue.status !== 'raised') return res.status(400).json({ error: 'This issue is already assigned' });
-  if (!(await isValidAssignee(req, assignedTo))) return res.status(400).json({ error: 'Not a valid person to assign this to' });
+  if (!(await isValidAssignee(req, assignedTo, issue.village_id))) return res.status(400).json({ error: 'Not a valid person to assign this to' });
 
   await pool.query(
     `update issues set assigned_to = $1, status = 'assigned', assigned_at = now() where id = $2`,
     [assignedTo, id],
   );
+  await createNotification(assignedTo, id, 'issue_assigned', `You've been assigned a new issue: ${issue.issue_type_name}`);
   res.json({ ok: true });
 });
 
@@ -192,7 +167,11 @@ issuesRouter.post('/issues/:id/resolve', requireAuth, async (req, res) => {
   const { note } = req.body;
   if (!isValidId(id)) return res.status(400).json({ error: 'Invalid id' });
 
-  const result = await pool.query('select assigned_to, status from issues where id = $1', [id]);
+  const result = await pool.query(
+    `select i.assigned_to, i.status, i.raised_by, it.name as issue_type_name
+     from issues i join issue_types it on it.id = i.issue_type_id where i.id = $1`,
+    [id],
+  );
   if (result.rowCount === 0) return res.status(404).json({ error: 'No such issue' });
   const issue = result.rows[0];
   if (issue.assigned_to !== req.user.userId) return res.status(403).json({ error: 'This issue is not assigned to you' });
@@ -204,6 +183,12 @@ issuesRouter.post('/issues/:id/resolve', requireAuth, async (req, res) => {
     `update issues set status = 'pending_verification', resolved_at = now(), resolution_note = $1 where id = $2`,
     [note?.trim() || null, id],
   );
+  await createNotification(
+    issue.raised_by,
+    id,
+    'issue_resolved',
+    `${issue.issue_type_name} was marked resolved and is waiting for your verification`,
+  );
   res.json({ ok: true });
 });
 
@@ -212,7 +197,11 @@ issuesRouter.post('/issues/:id/verify', requireAuth, async (req, res) => {
   const { approved, note } = req.body;
   if (!isValidId(id)) return res.status(400).json({ error: 'Invalid id' });
 
-  const result = await pool.query('select raised_by, status from issues where id = $1', [id]);
+  const result = await pool.query(
+    `select i.raised_by, i.status, i.assigned_to, it.name as issue_type_name
+     from issues i join issue_types it on it.id = i.issue_type_id where i.id = $1`,
+    [id],
+  );
   if (result.rowCount === 0) return res.status(404).json({ error: 'No such issue' });
   const issue = result.rows[0];
   if (issue.raised_by !== req.user.userId) return res.status(403).json({ error: 'Only the person who raised this can verify it' });
@@ -223,10 +212,17 @@ issuesRouter.post('/issues/:id/verify', requireAuth, async (req, res) => {
       `update issues set status = 'closed', closed_at = now(), verified_by = $1 where id = $2`,
       [req.user.userId, id],
     );
+    await createNotification(issue.assigned_to, id, 'issue_verified', `${issue.issue_type_name} was verified and closed`);
   } else {
     await pool.query(
       `update issues set status = 'assigned', resolved_at = null, rejection_note = $1, reopened_count = reopened_count + 1 where id = $2`,
       [note?.trim() || null, id],
+    );
+    await createNotification(
+      issue.assigned_to,
+      id,
+      'issue_reopened',
+      `${issue.issue_type_name} was rejected and reopened for you`,
     );
   }
   res.json({ ok: true });

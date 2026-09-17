@@ -3,6 +3,7 @@ import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const agroDealerVisitsRouter = Router();
 
@@ -36,7 +37,7 @@ agroDealerVisitsRouter.get('/agro-dealer-visits/my-count', requireAuth, async (r
   res.json({ count: result.rows[0].count });
 });
 
-agroDealerVisitsRouter.post('/agro-dealer-visits', requireAuth, handleFileUpload, async (req, res) => {
+agroDealerVisitsRouter.post('/agro-dealer-visits', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const { dealerId, observations } = req.body;
   const purposes = parseStringList(req.body.purposes);

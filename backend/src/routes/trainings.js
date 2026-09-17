@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const trainingsRouter = Router();
 
@@ -65,7 +66,7 @@ trainingsRouter.get('/trainings', requireAuth, async (req, res) => {
   res.json({ trainings: result.rows });
 });
 
-trainingsRouter.post('/trainings', requireAuth, handleFileUpload, async (req, res) => {
+trainingsRouter.post('/trainings', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const {
     farmerName, phone, villageId, trainingType, extMaterialUsed,

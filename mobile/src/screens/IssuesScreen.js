@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { listIssuesAssignedToMe, listIssuesRaisedByMe } from '../api';
 import { COLORS } from '../theme';
@@ -26,6 +26,25 @@ function StatusBadge({ status }) {
   return (
     <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
       <Text style={[styles.statusBadgeText, { color: colors.text }]}>{STATUS_LABELS[status]}</Text>
+    </View>
+  );
+}
+
+const STATS = [
+  { status: 'assigned', label: 'Assigned' },
+  { status: 'in_progress', label: 'In Progress' },
+  { status: 'closed', label: 'Closed' },
+];
+
+function StatsStrip({ issues }) {
+  return (
+    <View style={styles.statsRow}>
+      {STATS.map(({ status, label }) => (
+        <View key={status} style={styles.statBox}>
+          <Text style={styles.statCount}>{issues.filter((i) => i.status === status).length}</Text>
+          <Text style={styles.statLabel}>{label}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -76,11 +95,19 @@ export default function IssuesScreen({ token, user, onSelectIssue }) {
 
   const activeIssues = tab === 'assigned' ? assignedIssues : raisedIssues;
 
+  const allIssues = useMemo(() => {
+    const byId = new Map();
+    [...assignedIssues, ...raisedIssues].forEach((issue) => byId.set(issue.id, issue));
+    return Array.from(byId.values());
+  }, [assignedIssues, raisedIssues]);
+
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Issues</Text>
       </View>
+
+      {!loading && <StatsStrip issues={allIssues} />}
 
       {canBeAssignee && canRaise && (
         <View style={styles.tabRow}>
@@ -111,6 +138,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   header: { paddingTop: 56, paddingHorizontal: 24 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 10, marginBottom: 16 },
+  statBox: {
+    flex: 1, borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center',
+  },
+  statCount: { fontSize: 20, fontWeight: '700', color: COLORS.primaryDark },
+  statLabel: { fontSize: 11, color: '#666', marginTop: 2, fontWeight: '600' },
   tabRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 8, marginBottom: 8 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   tabActive: { backgroundColor: COLORS.primary },

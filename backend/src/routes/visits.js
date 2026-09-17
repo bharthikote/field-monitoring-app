@@ -4,6 +4,9 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { ASSIGNABLE_TARGETS, assignableUsersFor } from './issues.js';
+import { createNotification } from './notifications.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const visitsRouter = Router();
 
@@ -134,7 +137,7 @@ visitsRouter.get('/visits', requireAuth, async (req, res) => {
   res.json({ visits });
 });
 
-visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => {
+visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const { demoPlotId, actionPlan, comments, diseaseOther, pestOther } = req.body;
   const issueTypeIds = parseIdList(req.body.issueTypeIds);
@@ -150,8 +153,9 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
     return res.status(400).json({ error: 'One of the submitted ids is invalid' });
   }
 
-  const plotResult = await pool.query('select id from demo_plots where id = $1', [demoPlotId]);
+  const plotResult = await pool.query('select id, village_id from demo_plots where id = $1', [demoPlotId]);
   if (plotResult.rowCount === 0) return res.status(400).json({ error: 'No such demo plot' });
+  const plotVillageId = plotResult.rows[0].village_id;
 
   const overallPhoto = fileFor(files, 'overallPhoto');
   if (!overallPhoto) return res.status(400).json({ error: 'A photo of the visit is required' });
@@ -176,6 +180,28 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
     return res.status(400).json({ error: 'A photo is required for the Other pest entry' });
   }
 
+  // Every issue type ticked under "Issues Observed Today" now becomes a
+  // real, routed issue automatically - there's no separate manual raise-
+  // issue step any more (that duplicated this exact checklist and only
+  // confused which one was "the real" way to flag something). One
+  // deterministic auto-pick per visit (not per issue type - they all share
+  // the same plot/village): the first name-sorted candidate whose coverage
+  // reaches this village, same narrowing assignable-users-for-assign
+  // already does. No candidate (raiser's role has no clear target, e.g.
+  // Admin logging a visit, or nobody's coverage reaches this village at
+  // all) leaves the issue unassigned ('raised') rather than blocking the
+  // visit - it can still be assigned manually later from Issue Detail.
+  let autoAssignee = null;
+  if (issueTypeIds.length > 0 && ASSIGNABLE_TARGETS[req.user.role]) {
+    const candidates = await assignableUsersFor(req, plotVillageId);
+    autoAssignee = candidates[0] || null;
+  }
+  let issueTypeNames = new Map();
+  if (issueTypeIds.length > 0) {
+    const namesResult = await pool.query('select id, name from issue_types where id = any($1)', [issueTypeIds]);
+    issueTypeNames = new Map(namesResult.rows.map((r) => [r.id, r.name]));
+  }
+
   const client = await pool.connect();
   try {
     await client.query('begin');
@@ -190,6 +216,7 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
     );
     const visitId = visitResult.rows[0].id;
 
+    const createdIssueIds = [];
     for (const issueTypeId of issueTypeIds) {
       const photo = fileFor(files, `issuePhoto_${issueTypeId}`);
       const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
@@ -197,6 +224,17 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
         'insert into visit_issues (visit_id, issue_type_id, photo_url) values ($1, $2, $3)',
         [visitId, issueTypeId, photoUrl],
       );
+
+      const status = autoAssignee ? 'assigned' : 'raised';
+      const issueResult = await client.query(
+        `insert into issues (demo_plot_id, issue_type_id, photo_url, raised_by, assigned_to, status, assigned_at)
+         values ($1, $2, $3, $4, $5, $6, ${autoAssignee ? 'now()' : 'null'})
+         returning id`,
+        [demoPlotId, issueTypeId, photoUrl, req.user.userId, autoAssignee?.id || null, status],
+      );
+      if (autoAssignee) {
+        createdIssueIds.push({ id: issueResult.rows[0].id, typeName: issueTypeNames.get(issueTypeId) || 'issue' });
+      }
     }
     for (const goodThingId of goodThingIds) {
       const photo = fileFor(files, `goodThingPhoto_${goodThingId}`);
@@ -246,6 +284,11 @@ visitsRouter.post('/visits', requireAuth, handleFileUpload, async (req, res) => 
     }
 
     await client.query('commit');
+
+    for (const { id, typeName } of createdIssueIds) {
+      await createNotification(autoAssignee.id, id, 'issue_assigned', `You've been assigned a new issue: ${typeName}`);
+    }
+
     res.status(201).json({ visit: { id: visitId, createdAt: visitResult.rows[0].created_at } });
   } catch (err) {
     await client.query('rollback');

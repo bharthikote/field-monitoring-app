@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const tfoDemosRouter = Router();
 tfoDemosRouter.param('id', validateUuidParam);
@@ -169,7 +170,7 @@ function validateDemoFields({ farmerId, villageId, gpsLat, gpsLng, cycle, ownAre
 
 // Not coverage-restricted - matches demo_plots (POST /demo-plots), where
 // any authorized role can log a plot anywhere.
-tfoDemosRouter.post('/tfo-demos', requireAuth, async (req, res) => {
+tfoDemosRouter.post('/tfo-demos', requireAuth, requireLocation, async (req, res) => {
   const validationError = validateDemoFields(req.body);
   if (validationError) return res.status(400).json({ error: validationError });
   const { farmerId, villageId, gpsLat, gpsLng, cycle, ownArea, rentArea, soilPh, soilType, crops } = req.body;

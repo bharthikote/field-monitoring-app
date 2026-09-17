@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const tfoHomeGardensRouter = Router();
 tfoHomeGardensRouter.param('id', validateUuidParam);
@@ -72,7 +73,7 @@ tfoHomeGardensRouter.get('/tfo-home-gardens', requireAuth, async (req, res) => {
 
 // Not coverage-restricted, matching tfo_demos (POST /tfo-demos) - any
 // authorized role can log one anywhere.
-tfoHomeGardensRouter.post('/tfo-home-gardens', requireAuth, async (req, res) => {
+tfoHomeGardensRouter.post('/tfo-home-gardens', requireAuth, requireLocation, async (req, res) => {
   const { farmerId, villageId, gpsLat, gpsLng, cycle, area, landType, compost, irrigationSystem, soilType, crops } = req.body;
 
   if (!farmerId || !villageId || gpsLat === undefined || gpsLng === undefined || gpsLat === '' || gpsLng === '') {

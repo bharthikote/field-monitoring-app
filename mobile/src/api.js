@@ -253,7 +253,8 @@ export async function submitDataCollectionForm(token, formId, formData) {
 
 export const getMyProjects = (token) => request('/my-projects', { token });
 
-export const listAssignableUsers = (token) => request('/issues/assignable-users', { token });
+export const listAssignableUsers = (token, villageId) =>
+  request(`/issues/assignable-users${villageId ? `?villageId=${villageId}` : ''}`, { token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });
 export const getIssue = (token, issueId) => request(`/issues/${issueId}`, { token });
@@ -266,17 +267,9 @@ export const resolveIssue = (token, issueId, note) =>
 export const verifyIssue = (token, issueId, approved, note) =>
   request(`/issues/${issueId}/verify`, { method: 'POST', body: { approved, note }, token });
 
-// Raising an issue carries an optional photo, so this posts multipart/
-// form-data directly, same pattern as createVisit above.
-export async function raiseIssue(token, formData) {
-  const res = await fetch(`${API_BASE_URL}/issues`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Something went wrong');
-  }
-  return data;
-}
+export const listNotifications = (token) => request('/notifications', { token });
+export const getUnreadNotificationCount = (token) => request('/notifications/unread-count', { token });
+export const markNotificationRead = (token, notificationId) =>
+  request(`/notifications/${notificationId}/read`, { method: 'POST', body: {}, token });
+export const markAllNotificationsRead = (token) =>
+  request('/notifications/read-all', { method: 'POST', body: {}, token });

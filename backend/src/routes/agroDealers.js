@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds, attachLocationNames, isLocationCovered, resolveLocationPath } from '../db/locationHelpers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const agroDealersRouter = Router();
 agroDealersRouter.param('id', validateUuidParam);
@@ -55,7 +56,7 @@ agroDealersRouter.get('/agro-dealers/:id', requireAuth, async (req, res) => {
   res.json({ agroDealer });
 });
 
-agroDealersRouter.post('/agro-dealers', requireAuth, async (req, res) => {
+agroDealersRouter.post('/agro-dealers', requireAuth, requireLocation, async (req, res) => {
   const { name, locationLevel, locationId } = req.body;
   if (!name || !locationLevel || !locationId) {
     return res.status(400).json({ error: 'name, locationLevel, and locationId are all required' });

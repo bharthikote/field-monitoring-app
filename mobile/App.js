@@ -30,13 +30,13 @@ import TfoDemoDetailScreen from './src/screens/TfoDemoDetailScreen';
 import CreateHomeGardenScreen from './src/screens/CreateHomeGardenScreen';
 import HomeGardensListScreen from './src/screens/HomeGardensListScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
-import RaiseIssueScreen from './src/screens/RaiseIssueScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 import MessagingScreen from './src/screens/MessagingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomTabBar from './src/components/BottomTabBar';
-import { loadSession, saveActiveProjectId } from './src/session';
-import { getMyProjects } from './src/api';
+import { loadSession, saveActiveProjectId, areNotificationsEnabled } from './src/session';
+import { getMyProjects, getUnreadNotificationCount } from './src/api';
 
 // The five root screens the bottom tab bar switches between. The tab bar
 // always shows on these; every other drill-down screen hides it (except
@@ -59,7 +59,6 @@ const TAB_SCREENS = ['home', 'issues', 'farmers', 'messaging', 'profile'];
 const BACK_MAP = {
   lookup: 'home',
   create: 'lookup',
-  'raise-issue': 'plot-detail',
   'issue-detail': 'issues',
   'create-training': 'select-farmer',
   'create-field-day': 'select-farmer',
@@ -86,6 +85,7 @@ const BACK_MAP = {
   'tfo-select-farmer-for-homegarden': 'tfo-homegardens-list',
   // 'create-tfo-homegarden' isn't listed here either - same dynamic-origin
   // handling as 'create-tfo-demo', via homeGardenFormOrigin.
+  notifications: 'home',
 };
 
 export default function App() {
@@ -145,6 +145,8 @@ export default function App() {
   // with more than one active Project. Zero or one project never reaches
   // this state at all (skipped/auto-selected respectively), per spec.
   const [pendingProjects, setPendingProjects] = useState([]);
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Resolves whether a just-authenticated TFO needs the project-selection
   // step: fetches their active projects, auto-saves the choice and
@@ -168,6 +170,10 @@ export default function App() {
   }
 
   useEffect(() => {
+    areNotificationsEnabled().then(setNotificationsEnabledState).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     loadSession()
       .then(async (session) => {
         if (!session) {
@@ -189,6 +195,15 @@ export default function App() {
       })
       .catch(() => setScreen('login'));
   }, []);
+
+  // Refreshed on every visit to Home or back from the Notifications screen
+  // itself - no push/websocket channel exists, so a re-fetch on screen
+  // change is the only way this count can move without a manual pull.
+  useEffect(() => {
+    if (!token || !notificationsEnabled) return;
+    if (screen !== 'home' && screen !== 'notifications') return;
+    getUnreadNotificationCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
+  }, [token, notificationsEnabled, screen]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -280,6 +295,19 @@ export default function App() {
           onOpenDataCollection={() => setScreen('data-collection')}
           onCreateTfoDemo={() => setScreen('tfo-demos-list')}
           onCreateHomeGarden={() => setScreen('tfo-homegardens-list')}
+          notificationsEnabled={notificationsEnabled}
+          unreadNotificationCount={unreadCount}
+          onOpenNotifications={() => setScreen('notifications')}
+        />
+      )}
+      {screen === 'notifications' && user && (
+        <NotificationsScreen
+          token={token}
+          onBack={() => setScreen('home')}
+          onSelectIssue={(issueId) => {
+            setSelectedIssueId(issueId);
+            setScreen('issue-detail');
+          }}
         />
       )}
       {screen === 'tfo-demos-list' && (
@@ -551,13 +579,8 @@ export default function App() {
       {screen === 'plot-detail' && selectedPlot && (
         <DemoPlotDetailScreen
           token={token}
-          user={user}
           plot={selectedPlot}
           onBack={() => setScreen(plotDetailOrigin)}
-          onRaiseIssue={(plot) => {
-            setSelectedPlot(plot);
-            setScreen('raise-issue');
-          }}
         />
       )}
       {screen === 'farmers' && (
@@ -642,15 +665,6 @@ export default function App() {
           }}
         />
       )}
-      {screen === 'raise-issue' && selectedPlot && (
-        <RaiseIssueScreen
-          token={token}
-          user={user}
-          plot={selectedPlot}
-          onBack={() => setScreen('plot-detail')}
-          onSubmitted={() => setScreen('plot-detail')}
-        />
-      )}
       {screen === 'issues' && user && (
         <IssuesScreen
           token={token}
@@ -671,7 +685,12 @@ export default function App() {
       )}
       {screen === 'messaging' && <MessagingScreen />}
       {screen === 'profile' && user && (
-        <ProfileScreen user={user} onLoggedOut={() => setScreen('login')} />
+        <ProfileScreen
+          user={user}
+          onLoggedOut={() => setScreen('login')}
+          notificationsEnabled={notificationsEnabled}
+          onNotificationsEnabledChange={setNotificationsEnabledState}
+        />
       )}
       </View>
 

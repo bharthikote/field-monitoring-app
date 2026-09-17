@@ -1,6 +1,6 @@
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, Switch } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
-import { clearSession } from '../session';
+import { clearSession, setNotificationsEnabled } from '../session';
 import { ROLES } from '../roles';
 import { COLORS } from '../theme';
 
@@ -40,8 +40,13 @@ function Field({ icon, label, value, last }) {
   );
 }
 
-export default function ProfileScreen({ user, onLoggedOut }) {
+export default function ProfileScreen({ user, onLoggedOut, notificationsEnabled, onNotificationsEnabledChange }) {
   const roleLabel = ROLES.find((r) => r.value === user.role)?.label || user.role;
+
+  const handleToggleNotifications = async (value) => {
+    onNotificationsEnabledChange(value);
+    await setNotificationsEnabled(value);
+  };
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -74,6 +79,20 @@ export default function ProfileScreen({ user, onLoggedOut }) {
         <Field icon={<PhoneIcon color={COLORS.primary} />} label="Contact" value={user.mobileNumber || user.email} last />
       </View>
 
+      <View style={[styles.card, styles.settingsCard]}>
+        <View style={[styles.fieldRow, styles.fieldRowLast]}>
+          <View style={styles.fieldTextWrap}>
+            <Text style={styles.fieldLabel}>Notifications</Text>
+            <Text style={styles.fieldValue}>Issue assignments, resolutions & verifications</Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={handleToggleNotifications}
+            trackColor={{ true: COLORS.primary }}
+          />
+        </View>
+      </View>
+
       <Pressable style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Log Out</Text>
       </Pressable>
@@ -93,6 +112,7 @@ const styles = StyleSheet.create({
   roleBadge: { backgroundColor: COLORS.primarySoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4, marginTop: 8 },
   roleBadgeText: { color: COLORS.primaryDark, fontSize: 13, fontWeight: '600' },
   card: { borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10 },
+  settingsCard: { marginTop: 16 },
   fieldRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14,
     borderBottomWidth: 1, borderBottomColor: '#f1f5f9',

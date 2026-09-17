@@ -3,6 +3,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds, attachLocationNames, isLocationCovered, resolveLocationPath } from '../db/locationHelpers.js';
+import { requireLocation } from '../middleware/requireLocation.js';
 
 export const institutionsRouter = Router();
 institutionsRouter.param('id', validateUuidParam);
@@ -56,7 +57,7 @@ institutionsRouter.get('/institutions/:id', requireAuth, async (req, res) => {
   res.json({ institution });
 });
 
-institutionsRouter.post('/institutions', requireAuth, async (req, res) => {
+institutionsRouter.post('/institutions', requireAuth, requireLocation, async (req, res) => {
   const { name, orgType, orgTypeOther, locationLevel, locationId } = req.body;
   if (!name || !orgType || !locationLevel || !locationId) {
     return res.status(400).json({ error: 'name, orgType, locationLevel, and locationId are all required' });
