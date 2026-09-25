@@ -42,6 +42,12 @@
         }
       ],
       "expo-status-bar"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2e77c7b9-4b3a-44fd-b0c7-adcf4dc54e6d"
+      }
+    },
+    "owner": "bharthikotes-team"
   }
 }
