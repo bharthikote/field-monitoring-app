@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://field-monitoring.onrender.com",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://field-monitoring.onrender.com",
+        "EXPO_PUBLIC_USE_RN_FETCH": "1"
+      }
+    }
+  }
+}
