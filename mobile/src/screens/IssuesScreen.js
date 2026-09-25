@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
-import { listIssuesAssignedToMe, listIssuesRaisedByMe } from '../api';
+import { listIssuesAssignedToMe, listIssuesRaisedByMe, getIssueStats } from '../api';
 import { COLORS } from '../theme';
 
 const STATUS_LABELS = {
@@ -8,18 +8,26 @@ const STATUS_LABELS = {
   assigned: 'Assigned',
   in_progress: 'In Progress',
   pending_verification: 'Pending Verification',
+  disputed: 'Disputed',
   closed: 'Closed',
+  dismissed: 'Dismissed',
 };
 const STATUS_COLORS = {
   raised: { bg: '#f1f5f9', text: '#334155' },
   assigned: { bg: '#fef3c7', text: '#92400e' },
   in_progress: { bg: '#dbeafe', text: '#1e40af' },
   pending_verification: { bg: '#ede9fe', text: '#5b21b6' },
+  disputed: { bg: '#ffedd5', text: '#9a3412' },
   closed: { bg: '#dcfce7', text: '#166534' },
+  dismissed: { bg: '#f3f4f6', text: '#4b5563' },
 };
 
-const CAN_BE_ASSIGNEE = ['tfo', 'supervisor', 'team_lead'];
-const CAN_RAISE = ['country_manager', 'team_lead', 'supervisor'];
+// Flat routing now (any of these can raise straight to a TFO), and
+// reassignment/escalation means the assignee slot can land on any of these
+// roles too, not just the roles that used to sit below a raiser in the old
+// fixed chain.
+const CAN_BE_ASSIGNEE = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin', 'leadership', 'super_admin'];
+const CAN_RAISE = ['super_admin', 'admin', 'leadership', 'country_manager', 'team_lead', 'supervisor'];
 
 function StatusBadge({ status }) {
   const colors = STATUS_COLORS[status];
@@ -31,17 +39,24 @@ function StatusBadge({ status }) {
 }
 
 const STATS = [
-  { status: 'assigned', label: 'Assigned' },
-  { status: 'in_progress', label: 'In Progress' },
-  { status: 'closed', label: 'Closed' },
+  { key: 'assigned', label: 'Assigned' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'pending_verification', label: 'Pending Verification' },
+  { key: 'reassigned', label: 'Reassigned' },
+  { key: 'disputed', label: 'Disputed' },
+  { key: 'closed', label: 'Closed' },
 ];
 
-function StatsStrip({ issues }) {
+// Counts come from the server (GET /issues/stats) rather than being tallied
+// from the two lists on this screen - a TFO who disputes or reassigns an
+// issue no longer holds it, so it drops out of both lists but still needs
+// to count here.
+function StatsStrip({ stats }) {
   return (
     <View style={styles.statsRow}>
-      {STATS.map(({ status, label }) => (
-        <View key={status} style={styles.statBox}>
-          <Text style={styles.statCount}>{issues.filter((i) => i.status === status).length}</Text>
+      {STATS.map(({ key, label }) => (
+        <View key={key} style={styles.statBox}>
+          <Text style={styles.statCount}>{stats?.[key] ?? 0}</Text>
           <Text style={styles.statLabel}>{label}</Text>
         </View>
       ))}
@@ -65,12 +80,13 @@ function IssueCard({ issue, onPress }) {
   );
 }
 
-export default function IssuesScreen({ token, user, onSelectIssue }) {
+export default function IssuesScreen({ token, user, onSelectIssue, onOpenBulkVerify }) {
   const canBeAssignee = CAN_BE_ASSIGNEE.includes(user.role);
   const canRaise = CAN_RAISE.includes(user.role);
   const [tab, setTab] = useState(canBeAssignee ? 'assigned' : 'raised');
   const [assignedIssues, setAssignedIssues] = useState([]);
   const [raisedIssues, setRaisedIssues] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -78,7 +94,7 @@ export default function IssuesScreen({ token, user, onSelectIssue }) {
     setLoading(true);
     setError('');
     try {
-      const calls = [];
+      const calls = [getIssueStats(token).then((d) => setStats(d.stats))];
       if (canBeAssignee) calls.push(listIssuesAssignedToMe(token).then((d) => setAssignedIssues(d.issues)));
       if (canRaise) calls.push(listIssuesRaisedByMe(token).then((d) => setRaisedIssues(d.issues)));
       await Promise.all(calls);
@@ -94,12 +110,7 @@ export default function IssuesScreen({ token, user, onSelectIssue }) {
   }, [load]);
 
   const activeIssues = tab === 'assigned' ? assignedIssues : raisedIssues;
-
-  const allIssues = useMemo(() => {
-    const byId = new Map();
-    [...assignedIssues, ...raisedIssues].forEach((issue) => byId.set(issue.id, issue));
-    return Array.from(byId.values());
-  }, [assignedIssues, raisedIssues]);
+  const pendingVerificationCount = assignedIssues.filter((i) => i.status === 'pending_verification').length;
 
   return (
     <View style={styles.screen}>
@@ -107,7 +118,16 @@ export default function IssuesScreen({ token, user, onSelectIssue }) {
         <Text style={styles.title}>Issues</Text>
       </View>
 
-      {!loading && <StatsStrip issues={allIssues} />}
+      {!loading && <StatsStrip stats={stats} />}
+
+      {!loading && pendingVerificationCount > 0 && (
+        <Pressable style={styles.verifyBanner} onPress={onOpenBulkVerify}>
+          <Text style={styles.verifyBannerText}>
+            {pendingVerificationCount} resolved {pendingVerificationCount === 1 ? 'issue is' : 'issues are'} waiting for your verification
+          </Text>
+          <Text style={styles.verifyBannerAction}>Review & verify {'>'}</Text>
+        </Pressable>
+      )}
 
       {canBeAssignee && canRaise && (
         <View style={styles.tabRow}>
@@ -138,13 +158,19 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   header: { paddingTop: 56, paddingHorizontal: 24 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 12 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 10, marginBottom: 16 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 24, gap: 10, marginBottom: 16 },
   statBox: {
-    flex: 1, borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10,
-    paddingVertical: 12, alignItems: 'center',
+    width: '30%', flexGrow: 1, borderWidth: 1, borderColor: '#e2e2e2', borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center',
   },
+  verifyBanner: {
+    marginHorizontal: 24, marginBottom: 16, padding: 14, borderRadius: 10,
+    backgroundColor: '#ede9fe', borderWidth: 1, borderColor: '#c4b5fd',
+  },
+  verifyBannerText: { color: '#5b21b6', fontWeight: '700', fontSize: 14 },
+  verifyBannerAction: { color: '#5b21b6', fontSize: 13, marginTop: 4, fontWeight: '600' },
   statCount: { fontSize: 20, fontWeight: '700', color: COLORS.primaryDark },
-  statLabel: { fontSize: 11, color: '#666', marginTop: 2, fontWeight: '600' },
+  statLabel: { fontSize: 11, color: '#666', marginTop: 2, fontWeight: '600', textAlign: 'center' },
   tabRow: { flexDirection: 'row', paddingHorizontal: 24, gap: 8, marginBottom: 8 },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' },
   tabActive: { backgroundColor: COLORS.primary },

@@ -6,6 +6,7 @@ import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const fieldDaysRouter = Router();
 
@@ -97,6 +98,9 @@ fieldDaysRouter.post('/field-days', requireAuth, requireLocation, handleFileUplo
     return res.status(400).json({ error: 'expectedHarvestDate must be a valid date (YYYY-MM-DD)' });
   }
 
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
+
   const photo = fileFor(files, 'photo');
   if (!photo) return res.status(400).json({ error: 'A photo of the field day is required' });
 
@@ -134,12 +138,13 @@ fieldDaysRouter.post('/field-days', requireAuth, requireLocation, handleFileUplo
     const result = await pool.query(
       `insert into field_days (farmer_id, farmer_name, farmer_phone, village_id, fieldday_type,
          interaction_quality, roi_discussion, sales_team_attended, sales_person_name,
-         expected_harvest_date, remarks, photo_url, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         expected_harvest_date, remarks, photo_url, created_by, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        returning id, farmer_name, farmer_phone, created_at`,
       [
         farmerId, farmerName, phone, villageId, fielddayType, quality, roiDiscussion, attended,
         attended ? salesPersonName.trim() : null, expectedHarvestDate, remarks?.trim() || null, photoUrl, req.user.userId,
+        gps.lat, gps.lng, gps.accuracy,
       ],
     );
     res.status(201).json({ fieldDay: result.rows[0] });

@@ -46,7 +46,13 @@ process.on('uncaughtException', (err) => {
 
 const app = express();
 
-app.use(cors());
+// Behind Render's proxy every request arrives from the proxy's address unless
+// this is set - the login rate limit would otherwise treat all users as one.
+app.set('trust proxy', 1);
+// The web admin is served by this same app (same origin, no CORS involved) and
+// the phone app isn't a browser, so nothing legitimate needs cross-origin
+// access. Off unless ALLOWED_ORIGINS (comma-separated) is set.
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()) : false }));
 app.use(express.json());
 app.use(healthRouter);
 app.use(authRouter);
@@ -76,8 +82,11 @@ app.use(countriesRouter);
 app.use(notificationsRouter);
 app.use(express.static(publicDir));
 
-app.get('/admin', (_req, res) => {
-  res.sendFile(path.join(publicDir, 'admin.html'));
+app.get('/admin/dashboard', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'dashboard.html'));
+});
+app.get('/admin/home', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'home.html'));
 });
 app.get('/admin/locations', (_req, res) => {
   res.sendFile(path.join(publicDir, 'locations.html'));
@@ -102,6 +111,12 @@ app.get('/admin/reports/farmers', (_req, res) => {
 });
 app.get('/admin/reports/demos', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-demos.html'));
+});
+app.get('/admin/reports/issue-aging', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-issue-aging.html'));
+});
+app.get('/admin/reports/visit-compliance', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-visit-compliance.html'));
 });
 app.get('/admin/reports/master-list', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-master-list.html'));
@@ -143,5 +158,5 @@ app.get('/admin/countries/:id', (_req, res) => {
 const port = process.env.PORT || 4000;
 
 app.listen(port, () => {
-  console.log(`Backend listening on http://localhost:${port}`);
+  console.log(`Backend listening on port ${port} (http://localhost:${port} locally)`);
 });

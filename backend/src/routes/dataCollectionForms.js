@@ -6,6 +6,7 @@ import { validateUuidParam } from '../middleware/validateUuidParam.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { uploadPhoto } from '../storage.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const dataCollectionFormsRouter = Router();
 dataCollectionFormsRouter.param('id', validateUuidParam);
@@ -257,6 +258,8 @@ dataCollectionFormsRouter.post('/data-collection-forms/:id/submissions', require
 
   const { farmerId } = req.body;
   if (!farmerId) return res.status(400).json({ error: 'farmerId is required' });
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
 
   const farmerResult = await pool.query('select village_id from farmers where id = $1 and status = \'active\'', [farmerId]);
   if (farmerResult.rowCount === 0) return res.status(404).json({ error: 'No such farmer' });
@@ -305,9 +308,9 @@ dataCollectionFormsRouter.post('/data-collection-forms/:id/submissions', require
   }
 
   const result = await pool.query(
-    `insert into data_collection_submissions (form_id, farmer_id, village_id, submitted_by, values)
-     values ($1, $2, $3, $4, $5) returning id, created_at`,
-    [req.params.id, farmerId, villageId, req.user.userId, JSON.stringify(values)],
+    `insert into data_collection_submissions (form_id, farmer_id, village_id, submitted_by, values, gps_lat, gps_lng, gps_accuracy)
+     values ($1, $2, $3, $4, $5, $6, $7, $8) returning id, created_at`,
+    [req.params.id, farmerId, villageId, req.user.userId, JSON.stringify(values), gps.lat, gps.lng, gps.accuracy],
   );
   res.status(201).json({ submission: result.rows[0] });
 });

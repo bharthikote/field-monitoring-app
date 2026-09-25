@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Home</title>
+<link rel="stylesheet" href="/admin.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+<style>
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; }
+  #admin-nav { flex: none; }
+  /* z-index: 0 (not just position: relative) forces this to be a real
+     stacking-context boundary, so Leaflet's internal panes/controls - which
+     go up to z-index 1000 - stay contained inside the map and can never
+     leak out to paint over the nav bar's dropdowns. */
+  .map-page { position: relative; z-index: 0; flex: 1; min-height: 0; }
+  #map { position: absolute; inset: 0; }
+
+  /* Floating over the map, not inside the normal document flow, so the map
+     itself can use the full remaining screen regardless of toolbar size. */
+  .map-toolbar {
+    position: absolute; top: calc(16px + var(--kpi-bar-space, 0px)); right: 16px; z-index: 1001;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 12px 14px; max-width: min(212px, calc(100vw - 32px));
+    max-height: calc(100% - 32px); overflow-y: auto;
+  }
+  .map-toolbar.collapsed { max-height: none; max-width: none; overflow: visible; padding: 10px 14px; }
+  .map-toolbar.collapsed .toolbar-body { display: none; }
+  .toolbar-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .toolbar-header h1 { font-size: 1.05rem; margin: 0; }
+  .map-toolbar.collapsed .toolbar-header { margin-bottom: 0; }
+  .toolbar-toggle {
+    background: none; border: none; padding: 4px; margin: 0; cursor: pointer;
+    color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; flex-shrink: 0;
+  }
+  .toolbar-toggle:hover { background: var(--bg); color: var(--text); }
+  .toolbar-toggle svg { transition: transform 0.15s; }
+  .map-toolbar.collapsed .toolbar-toggle svg { transform: rotate(180deg); }
+  .map-toolbar .custom-select { width: 100%; }
+  .filter-stack { display: flex; flex-direction: column; gap: 8px; }
+  .layer-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .layer-list label { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; cursor: pointer; }
+  .layer-list label input { margin: 0; }
+  .layer-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .layer-dot.diamond { border-radius: 2px; transform: rotate(45deg); }
+  .toolbar-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 12px; line-height: 1.4; }
+  .toolbar-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  .plot-popup h4, .activity-popup h4 { margin: 0 0 4px; font-size: 0.95rem; }
+  .plot-popup p, .activity-popup p { margin: 2px 0; font-size: 0.82rem; color: #444; }
+  .popup-photo { width: 100%; max-width: 220px; border-radius: 6px; margin-top: 6px; display: block; }
+
+  /* KPI bar: visible by default, spanning the top of the map. Hides while
+     the user is actively panning/zooming (so it doesn't sit in the way of
+     whatever they're looking at), reappearing a couple of seconds after
+     they stop - same idea as the old idle-only version, just inverted:
+     shown at rest, hidden during interaction, instead of the other way
+     round. A single row with horizontal scroll rather than wrapping, so its
+     height stays fixed and predictable (the toolbar below it depends on
+     that height not changing shape). */
+  .kpi-bar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 1100;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    display: flex; align-items: stretch; gap: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .kpi-bar.hidden { opacity: 0; transform: translateY(-100%); pointer-events: none; }
+  .kpi-scroll {
+    flex: 1; display: flex; overflow-x: auto;
+    /* The strip auto-scrolls, so a scrollbar is just visual noise; wheel and
+       trackpad scrolling still work while hovering. */
+    scrollbar-width: none;
+  }
+  .kpi-scroll::-webkit-scrollbar { display: none; }
+  .kpi-tile {
+    flex: none; display: flex; flex-direction: column; justify-content: center;
+    padding: 10px 22px; border-right: 1px solid var(--border); min-width: 128px;
+  }
+  .kpi-value { font-size: 1.5rem; font-weight: 800; line-height: 1.1; }
+  .kpi-label { margin-top: 3px; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .kpi-toggle {
+    flex: none; background: none; border: none; border-left: 1px solid var(--border); padding: 0 14px;
+    cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .kpi-toggle-label { display: none; font-size: 0.85rem; font-weight: 600; color: var(--text); }
+  /* Collapsed: only the toggle remains (kpi-scroll is hidden), so it needs
+     its own label and border - otherwise it's just an unlabeled sliver at
+     the top of the screen, easy to miss entirely. */
+  .kpi-bar.collapsed .kpi-toggle { border-left: none; padding: 8px 16px; }
+  .kpi-bar.collapsed .kpi-toggle-label { display: inline; }
+  .kpi-toggle:hover { background: var(--bg); color: var(--text); }
+  .kpi-toggle svg { transition: transform 0.15s; }
+  .kpi-bar.collapsed .kpi-toggle svg { transform: rotate(180deg); }
+  .kpi-bar.collapsed .kpi-scroll { display: none; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="map-page">
+  <div id="map"></div>
+  <div class="map-toolbar collapsed" id="map-toolbar">
+    <div class="toolbar-header">
+      <h1>Coverage Map</h1>
+      <button type="button" class="toolbar-toggle" id="toolbar-toggle" title="Expand">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </button>
+    </div>
+    <div class="toolbar-body" id="toolbar-body">
+      <div class="filter-stack">
+        <select id="type-filter">
+          <option value="">All plot types</option>
+          <option value="demo">Demo</option>
+          <option value="adoption">Adoption</option>
+        </select>
+        <select id="status-filter">
+          <option value="">All statuses</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="completed">Completed</option>
+          <option value="terminated">Terminated</option>
+        </select>
+        <div class="search-wrap">
+          <input type="text" id="search-input" placeholder="Search farmer, village, crop..." />
+          <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        </div>
+      </div>
+
+      <div class="layer-list" id="issue-layer-list"></div>
+
+      <hr class="toolbar-divider" />
+
+      <div class="layer-list" id="plot-layer-list">
+        <label><input type="checkbox" id="layer-plots" checked /> Plots</label>
+      </div>
+      <div class="layer-list" style="margin-top:2px; padding-left:22px;">
+        <label><span class="layer-dot" style="background:#f97316"></span> Ongoing</label>
+        <label><span class="layer-dot" style="background:#166534"></span> Completed</label>
+        <label><span class="layer-dot" style="background:#991b1b"></span> Terminated</label>
+      </div>
+
+      <hr class="toolbar-divider" />
+
+      <div class="layer-list" id="activity-layer-list"></div>
+
+      <p class="toolbar-note" id="count-note"></p>
+    </div>
+  </div>
+
+  <div class="kpi-bar" id="kpi-bar">
+    <div class="kpi-scroll" id="kpi-scroll"></div>
+    <button type="button" class="kpi-toggle" id="kpi-toggle" title="Collapse">
+      <span class="kpi-toggle-label">KPIs</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="/admin-shared.js"></script>
+<script>
+const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
+const STATUS_DOT = { ongoing: '#f97316', completed: '#166534', terminated: '#991b1b' };
+const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
+const PLOT_CLUSTER_COLOR = '#57534e';
+
+// One distinct color per activity type, separate from plot-status colors so
+// the two families never look like they mean the same thing on the map.
+const ACTIVITY_TYPES = [
+  { type: 'visit', label: 'Plot Visits', color: '#2563eb' },
+  { type: 'training', label: 'Trainings', color: '#7c3aed' },
+  { type: 'field_day', label: 'Field Days', color: '#ea580c' },
+  { type: 'institution_visit', label: 'Institution Visits', color: '#0d9488' },
+  { type: 'agro_dealer_visit', label: 'Agro Dealer Visits', color: '#db2777' },
+  { type: 'data_collection', label: 'Data Collection', color: '#475569' },
+];
+const ACTIVITY_LABELS = Object.fromEntries(ACTIVITY_TYPES.map((a) => [a.type, a.label]));
+const ACTIVITY_COLORS = Object.fromEntries(ACTIVITY_TYPES.map((a) => [a.type, a.color]));
+
+// Same open/closed split the Issues tab already uses. Grouped, not shown by
+// raw status, because "is this still my problem or not" is what a manager
+// looks at the map to answer.
+const OPEN_ISSUE_STATUSES = ['raised', 'assigned', 'in_progress', 'pending_verification', 'disputed'];
+const RESOLVED_ISSUE_STATUSES = ['closed', 'dismissed'];
+const ISSUE_STATUS_LABELS = {
+  raised: 'Raised', assigned: 'Assigned', in_progress: 'In Progress', pending_verification: 'Pending Verification',
+  disputed: 'Disputed', closed: 'Closed', dismissed: 'Dismissed',
+};
+const ISSUE_GROUPS = [
+  { key: 'open', label: 'Open Issues', color: '#dc2626', glyph: '!', defaultChecked: true, statuses: OPEN_ISSUE_STATUSES },
+  { key: 'resolved', label: 'Resolved Issues', color: '#16a34a', glyph: '✓', defaultChecked: false, statuses: RESOLVED_ISSUE_STATUSES },
+];
+
+let allPlots = [];
+let totalPlotsInScope = 0;
+let allActivities = [];
+let allIssues = [];
+let map = null;
+let plotLayer = null;
+const activityLayers = {}; // type -> L.MarkerClusterGroup
+const issueLayers = {}; // key -> L.MarkerClusterGroup
+
+function plotIcon(status) {
+  const color = STATUS_DOT[status] || '#555';
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25)"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
+
+function activityIcon(type) {
+  const color = ACTIVITY_COLORS[type] || '#555';
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:10px;height:10px;background:${color};border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);transform:rotate(45deg)"></div>`,
+    iconSize: [10, 10],
+    iconAnchor: [5, 5],
+  });
+}
+
+function issueIcon(group) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${group.color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;line-height:1">${group.glyph}</div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+
+// Zoomed out, individual pins would be an unreadable pile - Leaflet's
+// clustering merges nearby ones into a count bubble that splits apart (and
+// eventually resolves to real pins) as the user zooms in. One colored
+// bubble style per layer, built fresh per cluster since the count changes.
+function clusterIconFactory(color) {
+  return (cluster) => {
+    const count = cluster.getChildCount();
+    const size = count < 10 ? 30 : count < 50 ? 38 : 46;
+    const fontSize = count < 100 ? 13 : 11;
+    return L.divIcon({
+      className: '',
+      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};opacity:0.88;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${fontSize}px;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.2)">${count}</div>`,
+      iconSize: [size, size],
+    });
+  };
+}
+
+function makeClusterGroup(color) {
+  return L.markerClusterGroup({ iconCreateFunction: clusterIconFactory(color), showCoverageOnHover: false, maxClusterRadius: 60 });
+}
+
+function photoHtml(url) {
+  if (!url) return '';
+  const safe = escapeHtml(url);
+  return `<a href="${safe}" target="_blank" rel="noopener"><img class="popup-photo" src="${safe}" /></a>`;
+}
+
+function plotPopupHtml(p) {
+  const breadcrumb = [p.village_name, p.block_name, p.district_name, p.state_name, p.country_name].join(', ');
+  const lastVisit = p.last_visit_at ? `Last visited ${new Date(p.last_visit_at).toLocaleDateString()}` : 'No visits yet';
+  return `
+    <div class="plot-popup">
+      <h4>${escapeHtml(p.farmer_name)}</h4>
+      <p>${escapeHtml(p.farmer_phone)}</p>
+      <p>${escapeHtml(p.crop_name)} — ${escapeHtml(p.variety_name)} (${PLOT_TYPE_LABELS[p.plot_type] || p.plot_type})</p>
+      <p>${escapeHtml(breadcrumb)}</p>
+      <p><span class="status-badge status-${p.demo_status}">${STATUS_LABELS[p.demo_status] || p.demo_status}</span></p>
+      <p>${lastVisit}</p>
+    </div>
+  `;
+}
+
+function activityPopupHtml(a) {
+  return `
+    <div class="activity-popup">
+      <h4>${escapeHtml(a.title)}</h4>
+      <p>${ACTIVITY_LABELS[a.type] || a.type}</p>
+      <p>By ${escapeHtml(a.by_name)}</p>
+      <p>${new Date(a.created_at).toLocaleString()}</p>
+      ${photoHtml(a.photo_url)}
+    </div>
+  `;
+}
+
+function issuePopupHtml(i) {
+  const resolved = RESOLVED_ISSUE_STATUSES.includes(i.status);
+  return `
+    <div class="activity-popup">
+      <h4>${escapeHtml(i.issue_type_name)}</h4>
+      <p>${escapeHtml(i.farmer_name)}</p>
+      <p><span class="status-badge status-${resolved ? 'completed' : 'ongoing'}">${escapeHtml(ISSUE_STATUS_LABELS[i.status] || i.status)}</span></p>
+      <p>${new Date(i.created_at).toLocaleString()}</p>
+      ${photoHtml(i.photo_url)}
+    </div>
+  `;
+}
+
+function getVisiblePlots() {
+  const type = document.getElementById('type-filter').value;
+  const status = document.getElementById('status-filter').value;
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  return allPlots.filter((p) => {
+    if (type && p.plot_type !== type) return false;
+    if (status && p.demo_status !== status) return false;
+    if (q) {
+      const haystack = [p.farmer_name, p.farmer_phone, p.village_name, p.crop_name, p.variety_name].join(' ').toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function getVisibleIssuesForGroup(group) {
+  return allIssues.filter((i) => group.statuses.includes(i.status));
+}
+
+function renderPlots() {
+  plotLayer.clearLayers();
+  const visible = document.getElementById('layer-plots').checked ? getVisiblePlots() : [];
+  visible.forEach((p) => {
+    L.marker([Number(p.gps_lat), Number(p.gps_lng)], { icon: plotIcon(p.demo_status) })
+      .bindPopup(plotPopupHtml(p))
+      .addTo(plotLayer);
+  });
+  return visible;
+}
+
+function renderActivities() {
+  ACTIVITY_TYPES.forEach(({ type }) => {
+    activityLayers[type].clearLayers();
+    if (!document.getElementById(`layer-activity-${type}`).checked) return;
+    allActivities.filter((a) => a.type === type).forEach((a) => {
+      L.marker([Number(a.gps_lat), Number(a.gps_lng)], { icon: activityIcon(type) })
+        .bindPopup(activityPopupHtml(a))
+        .addTo(activityLayers[type]);
+    });
+  });
+}
+
+function renderIssues() {
+  ISSUE_GROUPS.forEach((group) => {
+    issueLayers[group.key].clearLayers();
+    if (!document.getElementById(`layer-issue-${group.key}`).checked) return;
+    getVisibleIssuesForGroup(group).forEach((i) => {
+      L.marker([Number(i.gps_lat), Number(i.gps_lng)], { icon: issueIcon(group) })
+        .bindPopup(issuePopupHtml(i))
+        .addTo(issueLayers[group.key]);
+    });
+  });
+}
+
+function updateCountNote(visiblePlotCount) {
+  const missingGps = totalPlotsInScope - allPlots.length;
+  const activeActivityCount = ACTIVITY_TYPES.reduce(
+    (sum, { type }) => sum + (document.getElementById(`layer-activity-${type}`).checked
+      ? allActivities.filter((a) => a.type === type).length : 0),
+    0,
+  );
+  const activeIssueCount = ISSUE_GROUPS.reduce(
+    (sum, group) => sum + (document.getElementById(`layer-issue-${group.key}`).checked
+      ? getVisibleIssuesForGroup(group).length : 0),
+    0,
+  );
+  document.getElementById('count-note').innerHTML = [
+    `${visiblePlotCount} of ${allPlots.length} located plots`,
+    missingGps > 0 ? `${missingGps} with no GPS yet` : null,
+    `${activeIssueCount} issues`,
+    `${activeActivityCount} activities`,
+  ].filter(Boolean).map((line) => escapeHtml(line)).join('<br>');
+}
+
+function render() {
+  const visiblePlots = renderPlots();
+  renderActivities();
+  renderIssues();
+  updateCountNote(visiblePlots.length);
+}
+
+async function loadData() {
+  const [plotsRes, activitiesRes, issuesRes] = await Promise.all([
+    authedFetch('/reports/map-points'),
+    authedFetch('/reports/map-activities'),
+    authedFetch('/reports/map-issues'),
+  ]);
+  const plotsData = await plotsRes.json();
+  if (!plotsRes.ok) throw new Error(plotsData.error || 'Failed to load plot locations');
+  const activitiesData = await activitiesRes.json();
+  if (!activitiesRes.ok) throw new Error(activitiesData.error || 'Failed to load activity locations');
+  const issuesData = await issuesRes.json();
+  if (!issuesRes.ok) throw new Error(issuesData.error || 'Failed to load issue locations');
+
+  allPlots = plotsData.plots;
+  totalPlotsInScope = plotsData.totalInScope;
+  allActivities = activitiesData.activities;
+  allIssues = issuesData.issues;
+}
+
+// --- KPI bar ---
+// Visible by default at the top of the map, showing every headline number
+// at once (not a rotating slideshow) - hides itself while the user is
+// actively panning/zooming, since that's when it's most in the way, and
+// comes back a couple of seconds after they stop. Independently,
+// collapsing it down to a thin strip is a manual, sticky choice (the
+// toggle button), same as the Coverage Map panel's own collapse.
+const KPI_SHOW_DELAY_MS = 2000;
+
+// Colors reuse the exact hex values already used elsewhere on this map
+// (plot status dots, activity diamonds) so a number here means the same
+// thing visually as its pin does: amber = still open/in progress, green =
+// done, red = disputed, blue = an activity/visit.
+const KPI_TILES = [
+  { key: 'issuesRaisedTotal', label: 'Issues Raised' },
+  { key: 'issuesResolvedTotal', label: 'Issues Resolved', color: '#166534' },
+  { key: 'issuesOpenTotal', label: 'Issues Open', color: '#92400e' },
+  { key: 'issuesClosedTotal', label: 'Issues Closed', color: '#166534' },
+  { key: 'issuesClosedPercent', label: 'Close %', color: '#166534', suffix: '%' },
+  { key: 'issuesDisputed', label: 'Disputed', color: '#991b1b' },
+  { key: 'issuesPendingVerification', label: 'Pending Verification', color: '#92400e' },
+  { key: 'avgResolutionDays', label: 'Avg Resolution (Days)' },
+  { key: 'issuesRaisedThisYear', label: 'Raised This Year' },
+  { key: 'issuesResolvedLast30Days', label: 'Resolved (30 Days)', color: '#166534' },
+  { key: 'higherOfficialActivities', label: 'Oversight Activities', color: '#2563eb' },
+  { key: 'visitsThisMonth', label: 'Visits This Month', color: '#2563eb' },
+  { key: 'teamLeadVisits', label: 'Team Lead Visits', color: '#2563eb' },
+  { key: 'ongoingPlots', label: 'Ongoing Plots', color: '#f97316' },
+  { key: 'completedPlots', label: 'Completed Plots', color: '#166534' },
+  { key: 'totalFarmers', label: 'Farmers Reached' },
+];
+
+let analyticsSummary = null;
+let kpiManuallyCollapsed = false;
+let kpiShowTimeout = null;
+
+async function loadAnalyticsSummary() {
+  try {
+    const res = await authedFetch('/reports/analytics-summary');
+    if (res.ok) analyticsSummary = await res.json();
+  } catch {
+    // The bar just shows dashes if this fails - not worth surfacing an
+    // error over something this secondary to the map itself.
+  }
+}
+
+function buildKpiBar() {
+  const tilesHtml = KPI_TILES.map((tile) => {
+    const value = analyticsSummary?.[tile.key];
+    const text = typeof value === 'number' ? value.toLocaleString() + (tile.suffix || '') : '—';
+    return `
+      <div class="kpi-tile">
+        <div class="kpi-value" style="color:${tile.color || 'var(--text)'}">${text}</div>
+        <div class="kpi-label">${tile.label}</div>
+      </div>
+    `;
+  }).join('');
+  // Rendered twice back to back so the ticker can loop seamlessly - once
+  // scrolled a full copy's width, scrollLeft jumps back by exactly that
+  // much, which is invisible since the second copy is identical to the
+  // first.
+  document.getElementById('kpi-scroll').innerHTML = tilesHtml + tilesHtml;
+}
+
+// Slow, continuous auto-scroll so every KPI is seen without the user having
+// to scroll manually - pauses the instant the cursor is over the strip (to
+// read or click one), and also while the bar itself is hidden (mid map
+// interaction) or manually collapsed, so it isn't animating unseen.
+// setInterval, not requestAnimationFrame - rAF is tied to the browser's
+// actual paint/compositor cycle and gets throttled or skipped entirely in
+// a background or otherwise-not-actively-compositing tab, which silently
+// stops the ticker dead with no error. A timer keeps running regardless.
+const KPI_TICKER_INTERVAL_MS = 40;
+const KPI_TICKER_PIXELS_PER_TICK = 0.5;
+let kpiTickerPaused = false;
+let kpiTickerLoopWidth = 0;
+
+function startKpiTicker() {
+  const scroll = document.getElementById('kpi-scroll');
+  const bar = document.getElementById('kpi-bar');
+  scroll.addEventListener('mouseenter', () => { kpiTickerPaused = true; });
+  scroll.addEventListener('mouseleave', () => { kpiTickerPaused = false; });
+
+  setInterval(() => {
+    // Measured lazily on every tick rather than once up front - reading it
+    // right as the bar first renders can catch layout before scrollWidth
+    // reflects the (just-set) doubled content, permanently leaving it at 0.
+    // scrollWidth is cheap to re-read and this self-corrects the moment a
+    // real width is available.
+    if (kpiTickerLoopWidth <= 0) kpiTickerLoopWidth = scroll.scrollWidth / 2;
+    const needsTicker = kpiTickerLoopWidth > scroll.clientWidth;
+    const running = needsTicker && !kpiTickerPaused && !bar.classList.contains('hidden') && !bar.classList.contains('collapsed');
+    if (running) {
+      scroll.scrollLeft += KPI_TICKER_PIXELS_PER_TICK;
+      if (scroll.scrollLeft >= kpiTickerLoopWidth) scroll.scrollLeft -= kpiTickerLoopWidth;
+    }
+  }, KPI_TICKER_INTERVAL_MS);
+}
+
+// The Coverage Map toolbar sits below this bar (see --kpi-bar-space in the
+// CSS) - recomputed whenever the bar's own height changes (collapsed vs
+// full), not on every temporary auto-hide, so the toolbar doesn't jump
+// around while the user is just panning the map.
+function updateKpiBarSpace() {
+  const height = document.getElementById('kpi-bar').getBoundingClientRect().height;
+  document.querySelector('.map-page').style.setProperty('--kpi-bar-space', `${height}px`);
+}
+
+function setKpiBarHidden(hidden) {
+  document.getElementById('kpi-bar').classList.toggle('hidden', hidden);
+}
+
+function scheduleKpiBarShow() {
+  clearTimeout(kpiShowTimeout);
+  kpiShowTimeout = setTimeout(() => setKpiBarHidden(false), KPI_SHOW_DELAY_MS);
+}
+
+function buildIssueLegend() {
+  const list = document.getElementById('issue-layer-list');
+  list.innerHTML = ISSUE_GROUPS.map((g) => `
+    <label>
+      <input type="checkbox" id="layer-issue-${g.key}" ${g.defaultChecked ? 'checked' : ''} />
+      <span class="layer-dot" style="background:${g.color}"></span> ${g.label}
+    </label>
+  `).join('');
+  ISSUE_GROUPS.forEach((g) => {
+    issueLayers[g.key] = makeClusterGroup(g.color).addTo(map);
+    document.getElementById(`layer-issue-${g.key}`).addEventListener('change', render);
+  });
+}
+
+function buildActivityLegend() {
+  const list = document.getElementById('activity-layer-list');
+  list.innerHTML = ACTIVITY_TYPES.map(({ type, label, color }) => `
+    <label>
+      <input type="checkbox" id="layer-activity-${type}" />
+      <span class="layer-dot diamond" style="background:${color}"></span> ${label}
+    </label>
+  `).join('');
+  ACTIVITY_TYPES.forEach(({ type, color }) => {
+    activityLayers[type] = makeClusterGroup(color).addTo(map);
+    document.getElementById(`layer-activity-${type}`).addEventListener('change', render);
+  });
+}
+
+// The company's operating region - West Africa through the Philippines -
+// generous enough to hold every seeded country with room to spare. This is
+// both the hard pan/zoom limit (maxBounds) and the default/reset framing,
+// so "locked to our region" and "what you see on login" are the same box.
+// Sized to the actual plot data (roughly Ghana at -1/-6 to the Philippines
+// at 122/28, plus a small margin) rather than a rough guess at the
+// region's outline - a tighter box fits the same countries at a noticeably
+// closer zoom, which is the whole point of tightening it.
+const REGION_BOUNDS = L.latLngBounds([-10, -6], [32, 126]);
+// How much screen edge to keep clear on each side when framing the region -
+// symmetric on all four sides (not just reserved under the legend panel) so
+// this one padding value is safe to reuse for both the zoom-out floor and
+// the actual default view, which must never disagree with each other.
+// Capped well below the map's own size so it can never eat the whole
+// viewport and break the fit (Leaflet produces a nonsense zoom if the
+// padded area leaves no room at all).
+// Padding is applied to BOTH sides of an axis (left and right, top and
+// bottom), so it's capped well under half the container on each axis - on
+// a narrow window, an uncapped toolbar-sized reservation on both sides
+// could exceed the container entirely, which is what briefly regressed
+// this to zoom 0 (worse than the original bug: the whole globe, wrapping).
+function kpiBarHeight() {
+  return document.getElementById('kpi-bar').getBoundingClientRect().height || 0;
+}
+
+// A cluster bubble is drawn centered on its coordinate but can be up to
+// ~46px across (see clusterIconFactory) - reserving only down to the exact
+// coordinate still lets half the bubble hang off the edge, unreadable. This
+// margin is added on every side on top of whatever else needs reserving.
+const MARKER_RADIUS_MARGIN = 30;
+
+function regionPadding() {
+  const toolbarWidth = document.getElementById('map-toolbar').getBoundingClientRect().width || 360;
+  const size = map.getSize();
+  const x = Math.min(toolbarWidth + 30 + MARKER_RADIUS_MARGIN, size.x * 0.2);
+  // The KPI bar covers a strip across the top of the actual map, which
+  // getBoundsZoom/fitBounds have no way to know about on their own - without
+  // this, the region "fits" mathematically while its northern edge (Nepal)
+  // sits physically behind the bar. Only the top needs it, but this value
+  // is also used as a plain (symmetric) padding for the zoom-floor
+  // calculation below, where reserving it on the bottom too is harmless.
+  const y = Math.min(kpiBarHeight() + MARKER_RADIUS_MARGIN, size.y * 0.35);
+  return L.point(x, y);
+}
+
+// The zoom this map opens at, and the one "reset view" returns to, and the
+// floor beneath which the user can't zoom out further, are all the same
+// number: the zoom at which the whole region (Africa to the Philippines)
+// just fits on screen, margin included. Earlier this tried sitting one
+// step closer in for richer terrain colors and only falling back to this
+// floor if a country's edge crossed a small tolerance - in practice that
+// tolerance was still cropping real content (Ghana/the Philippines), so
+// showing every country in full is worth more than the extra color detail.
+// Redone on resize since the fit depends on the viewport's own size.
+function updateMinZoom() {
+  const fitZoom = map.getBoundsZoom(REGION_BOUNDS, false, regionPadding());
+  map.setMinZoom(Math.max(2, fitZoom));
+}
+
+function resetView() {
+  map.setView(REGION_BOUNDS.getCenter(), map.getMinZoom(), { animate: false });
+}
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+
+  // maxBounds+maxBoundsViscosity locks panning to the region below instead
+  // of letting it drag into duplicate copies of the world either side, and
+  // noWrap on the tile layer stops the tiles themselves from repeating.
+  map = L.map('map', {
+    maxBounds: REGION_BOUNDS,
+    maxBoundsViscosity: 1.0,
+    // A whole zoom step roughly doubles the space needed to show the same
+    // area - too coarse for "slightly" more zoomed in on a region already
+    // sized to just fit. Fractional zoom (also smooths out scroll-wheel
+    // zooming generally) lets the default view move in by a fraction of
+    // a step instead.
+    zoomSnap: 0.25,
+    zoomDelta: 0.25,
+  }).setView(REGION_BOUNDS.getCenter(), 4);
+  // The legend/filter panel lives top-right, so the zoom control moves to
+  // bottom-left instead of Leaflet's default top-left, where it would sit
+  // underneath that panel.
+  map.zoomControl.setPosition('bottomleft');
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+    noWrap: true,
+  }).addTo(map);
+
+  // A third button under the zoom in/out pair, in the same corner, that
+  // snaps back to the default region view - the map has no other way back
+  // once the user has panned or zoomed around.
+  const ResetControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd() {
+      const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+      const link = L.DomUtil.create('a', '', container);
+      link.href = '#';
+      link.title = 'Reset view';
+      link.setAttribute('role', 'button');
+      // Leaflet's own .leaflet-bar a rule centers a text glyph via
+      // line-height + text-align, which doesn't center a block-level SVG
+      // vertically - flex overrides that (inline style wins on specificity)
+      // so the icon actually sits in the middle of the button, not the top.
+      link.style.display = 'flex';
+      link.style.alignItems = 'center';
+      link.style.justifyContent = 'center';
+      link.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>';
+      L.DomEvent.on(link, 'click', L.DomEvent.stop).on(link, 'click', resetView);
+      return container;
+    },
+  });
+  map.addControl(new ResetControl());
+
+  // Rendered now (with placeholder dashes - the real numbers arrive later,
+  // asynchronously) purely so the bar has its true final height before the
+  // fit calculations below read it. Built empty, its height would collapse
+  // to almost nothing, under-reserving the space it actually needs and
+  // letting the region's northern edge (Nepal) end up hidden behind it
+  // once the real content arrives and the bar grows.
+  buildKpiBar();
+
+  // The container's layout is driven by flex/CSS, so its size should be
+  // real immediately - but invalidateSize forces Leaflet to re-measure it
+  // rather than trust whatever size it read at construction time, which
+  // matters because a stale/zero read here throws off every zoom
+  // calculation that follows (getBoundsZoom, fitBounds).
+  map.invalidateSize();
+  updateMinZoom();
+  resetView();
+  plotLayer = makeClusterGroup(PLOT_CLUSTER_COLOR).addTo(map);
+  buildIssueLegend();
+  buildActivityLegend();
+
+  const toolbar = document.getElementById('map-toolbar');
+  document.getElementById('toolbar-toggle').addEventListener('click', () => {
+    const collapsing = !toolbar.classList.contains('collapsed');
+    toolbar.classList.toggle('collapsed', collapsing);
+    document.getElementById('toolbar-toggle').title = collapsing ? 'Expand' : 'Collapse';
+  });
+
+  // The map's own size never changes, but the space available to it does
+  // (nav can wrap to two lines on a narrow screen) - ResizeObserver catches
+  // that even though no window "resize" event fires. minZoom depends on the
+  // viewport size too (a smaller screen needs less zoom to fill with the
+  // same region), so it's recomputed alongside invalidateSize.
+  new ResizeObserver(() => { map.invalidateSize(); updateMinZoom(); }).observe(document.getElementById('map'));
+
+  try {
+    await loadData();
+    render();
+  } catch (err) {
+    document.getElementById('count-note').textContent = 'Failed to load map data: ' + err.message;
+  }
+  await loadAnalyticsSummary();
+  buildKpiBar();
+  updateKpiBarSpace();
+  startKpiTicker();
+
+  enhanceSelect(document.getElementById('type-filter'));
+  enhanceSelect(document.getElementById('status-filter'));
+  ['type-filter', 'status-filter'].forEach((id) => document.getElementById(id).addEventListener('change', render));
+  document.getElementById('search-input').addEventListener('input', render);
+  document.getElementById('layer-plots').addEventListener('change', render);
+
+  document.getElementById('kpi-toggle').addEventListener('click', () => {
+    kpiManuallyCollapsed = !kpiManuallyCollapsed;
+    const bar = document.getElementById('kpi-bar');
+    bar.classList.toggle('collapsed', kpiManuallyCollapsed);
+    document.getElementById('kpi-toggle').title = kpiManuallyCollapsed ? 'Expand' : 'Collapse';
+    updateKpiBarSpace();
+  });
+
+  // Hides the moment the user starts actually working the map (panning or
+  // zooming), and comes back a couple of seconds after they stop - it's the
+  // map they wanted to look at right then, not the numbers.
+  map.on('movestart zoomstart', () => { clearTimeout(kpiShowTimeout); setKpiBarHidden(true); });
+  map.on('moveend zoomend', scheduleKpiBarShow);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicat
 import Svg, { Circle, Line } from 'react-native-svg';
 import { searchDemoPlots, listDemoPlots } from '../api';
 import { COLORS } from '../theme';
+import { cycleLabel } from '../cycle';
 
 // Same lens icon used in the web admin panel's search bars.
 function SearchIcon({ color }) {
@@ -181,7 +182,7 @@ export default function DemoPlotLookupScreen({ token, plotType = 'demo', initial
             </View>
             <Text style={styles.cardLine}>{plot.farmer_phone}</Text>
             <View style={styles.cardRow}>
-              <Text style={styles.cardCrop}>{plot.crop_name} — {plot.variety_name}</Text>
+              <Text style={styles.cardCrop}>{plot.crop_name} — {plot.variety_name}{plot.cycle ? ` · ${cycleLabel(plot.cycle)}` : ''}</Text>
               <Text style={styles.cardVillage}>{plot.village_name}</Text>
             </View>
           </Pressable>

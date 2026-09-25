@@ -3,10 +3,11 @@ import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
-import { getCoveredVillageIds } from '../db/locationHelpers.js';
-import { ASSIGNABLE_TARGETS, assignableUsersFor } from './issues.js';
-import { createNotification } from './notifications.js';
+import { getCoveredVillageIds, requireVillageInCoverage } from '../db/locationHelpers.js';
+import { findResponsible, ROUTING_LADDER, ACK_LADDER } from './issues.js';
+import { createNotifications } from './notifications.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const visitsRouter = Router();
 
@@ -41,6 +42,7 @@ function parseIdList(raw) {
 
 const SELECT_VISITS = `
   select v.id, v.demo_plot_id, v.action_plan, v.comments, v.overall_photo_url, v.created_at,
+    v.gps_lat, v.gps_lng, v.gps_accuracy,
     u.name as visited_by_name
   from visits v
   join users u on u.id = v.visited_by
@@ -156,6 +158,13 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
   const plotResult = await pool.query('select id, village_id from demo_plots where id = $1', [demoPlotId]);
   if (plotResult.rowCount === 0) return res.status(400).json({ error: 'No such demo plot' });
   const plotVillageId = plotResult.rows[0].village_id;
+  // Logging a visit needs the plot to be in the caller's own coverage - the
+  // mobile list only shows covered plots, but the endpoint itself never
+  // checked, so anyone holding a plot id could log against it.
+  if (!(await requireVillageInCoverage(req, res, plotVillageId))) return;
+
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
 
   const overallPhoto = fileFor(files, 'overallPhoto');
   if (!overallPhoto) return res.status(400).json({ error: 'A photo of the visit is required' });
@@ -183,23 +192,40 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
   // Every issue type ticked under "Issues Observed Today" now becomes a
   // real, routed issue automatically - there's no separate manual raise-
   // issue step any more (that duplicated this exact checklist and only
-  // confused which one was "the real" way to flag something). One
-  // deterministic auto-pick per visit (not per issue type - they all share
-  // the same plot/village): the first name-sorted candidate whose coverage
-  // reaches this village, same narrowing assignable-users-for-assign
-  // already does. No candidate (raiser's role has no clear target, e.g.
-  // Admin logging a visit, or nobody's coverage reaches this village at
-  // all) leaves the issue unassigned ('raised') rather than blocking the
-  // visit - it can still be assigned manually later from Issue Detail.
-  let autoAssignee = null;
-  if (issueTypeIds.length > 0 && ASSIGNABLE_TARGETS[req.user.role]) {
-    const candidates = await assignableUsersFor(req, plotVillageId);
-    autoAssignee = candidates[0] || null;
-  }
-  let issueTypeNames = new Map();
+  // confused which one was "the real" way to flag something). Routing is
+  // flat: whoever logs the visit (Super Admin/Admin/Leadership/Country
+  // Manager/Team Lead/Supervisor), it goes straight to the TFO who covers
+  // this village. Nobody at TFO level covers it -> it climbs the ladder to
+  // the first level that does (Supervisor, Team Lead, ... Super Admin), who
+  // can reassign it. Acknowledge-only types (a fact about the site that can't
+  // be fixed, e.g. plot not visible from the main road) start at the Team
+  // Lead level instead, and closing them is just acknowledging - or, if a
+  // Team Lead is the one raising it, they close immediately, since raising
+  // it is already the acknowledgement. The raiser is never picked as the
+  // person to act on their own issue.
+  let issueTypes = new Map();
   if (issueTypeIds.length > 0) {
-    const namesResult = await pool.query('select id, name from issue_types where id = any($1)', [issueTypeIds]);
-    issueTypeNames = new Map(namesResult.rows.map((r) => [r.id, r.name]));
+    const typesResult = await pool.query('select id, name, acknowledge_only from issue_types where id = any($1)', [issueTypeIds]);
+    issueTypes = new Map(typesResult.rows.map((r) => [r.id, r]));
+  }
+  const needsTfo = issueTypeIds.some((id) => !issueTypes.get(id)?.acknowledge_only);
+  const needsTeamLead = issueTypeIds.some((id) => issueTypes.get(id)?.acknowledge_only) && req.user.role !== 'team_lead';
+  const tfoAssignee = needsTfo ? await findResponsible(plotVillageId, ROUTING_LADDER, req.user.userId) : null;
+  const teamLeadAssignee = needsTeamLead ? await findResponsible(plotVillageId, ACK_LADDER, req.user.userId) : null;
+
+  // An issue type that's already open on this plot isn't raised a second
+  // time - the visit still records it as observed, but the visitor is told
+  // it's already with someone (and who) instead of a duplicate being created.
+  const skippedIssues = [];
+  const alreadyOpen = new Map();
+  if (issueTypeIds.length > 0) {
+    const openResult = await pool.query(
+      `select i.issue_type_id, i.status, au.name as holder_name
+       from issues i left join users au on au.id = i.assigned_to
+       where i.demo_plot_id = $1 and i.issue_type_id = any($2) and i.status not in ('closed', 'dismissed')`,
+      [demoPlotId, issueTypeIds],
+    );
+    for (const row of openResult.rows) alreadyOpen.set(row.issue_type_id, row);
   }
 
   const client = await pool.connect();
@@ -209,14 +235,14 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
     const overallPhotoUrl = await uploadPhoto(overallPhoto.buffer, overallPhoto.originalname, overallPhoto.mimetype);
 
     const visitResult = await client.query(
-      `insert into visits (demo_plot_id, visited_by, action_plan, comments, overall_photo_url)
-       values ($1, $2, $3, $4, $5)
+      `insert into visits (demo_plot_id, visited_by, action_plan, comments, overall_photo_url, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning id, created_at`,
-      [demoPlotId, req.user.userId, actionPlan.trim(), comments.trim(), overallPhotoUrl],
+      [demoPlotId, req.user.userId, actionPlan.trim(), comments.trim(), overallPhotoUrl, gps.lat, gps.lng, gps.accuracy],
     );
     const visitId = visitResult.rows[0].id;
 
-    const createdIssueIds = [];
+    const pendingNotifications = [];
     for (const issueTypeId of issueTypeIds) {
       const photo = fileFor(files, `issuePhoto_${issueTypeId}`);
       const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
@@ -225,15 +251,41 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
         [visitId, issueTypeId, photoUrl],
       );
 
-      const status = autoAssignee ? 'assigned' : 'raised';
+      const issueType = issueTypes.get(issueTypeId);
+      const typeName = issueType?.name || 'issue';
+
+      if (alreadyOpen.has(issueTypeId)) {
+        const open = alreadyOpen.get(issueTypeId);
+        skippedIssues.push({ issueType: typeName, status: open.status, holder: open.holder_name });
+        continue;
+      }
+
+      if (issueType?.acknowledge_only && req.user.role === 'team_lead') {
+        await client.query(
+          `insert into issues (demo_plot_id, issue_type_id, photo_url, raised_by, assigned_to, status,
+             assigned_at, resolved_at, closed_at, resolved_by, verified_by)
+           values ($1, $2, $3, $4, $4, 'closed', now(), now(), now(), $4, $4)`,
+          [demoPlotId, issueTypeId, photoUrl, req.user.userId],
+        );
+        continue;
+      }
+
+      const assignee = issueType?.acknowledge_only ? teamLeadAssignee : tfoAssignee;
       const issueResult = await client.query(
         `insert into issues (demo_plot_id, issue_type_id, photo_url, raised_by, assigned_to, status, assigned_at)
-         values ($1, $2, $3, $4, $5, $6, ${autoAssignee ? 'now()' : 'null'})
+         values ($1, $2, $3, $4, $5, $6, ${assignee ? 'now()' : 'null'})
          returning id`,
-        [demoPlotId, issueTypeId, photoUrl, req.user.userId, autoAssignee?.id || null, status],
+        [demoPlotId, issueTypeId, photoUrl, req.user.userId, assignee?.id || null, assignee ? 'assigned' : 'raised'],
       );
-      if (autoAssignee) {
-        createdIssueIds.push({ id: issueResult.rows[0].id, typeName: issueTypeNames.get(issueTypeId) || 'issue' });
+      if (assignee) {
+        pendingNotifications.push({
+          userId: assignee.id,
+          issueId: issueResult.rows[0].id,
+          type: 'issue_assigned',
+          message: issueType?.acknowledge_only
+            ? `${typeName} needs your acknowledgement`
+            : `You've been assigned a new issue: ${typeName}`,
+        });
       }
     }
     for (const goodThingId of goodThingIds) {
@@ -285,11 +337,9 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
 
     await client.query('commit');
 
-    for (const { id, typeName } of createdIssueIds) {
-      await createNotification(autoAssignee.id, id, 'issue_assigned', `You've been assigned a new issue: ${typeName}`);
-    }
+    await createNotifications(pendingNotifications);
 
-    res.status(201).json({ visit: { id: visitId, createdAt: visitResult.rows[0].created_at } });
+    res.status(201).json({ visit: { id: visitId, createdAt: visitResult.rows[0].created_at }, skippedIssues });
   } catch (err) {
     await client.query('rollback');
     if (err.code === '23503') return res.status(400).json({ error: 'One of the selected issues/good-things/techniques/disease/pest no longer exists' });

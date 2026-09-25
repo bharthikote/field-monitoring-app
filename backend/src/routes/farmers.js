@@ -3,7 +3,7 @@ import multer from 'multer';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
-import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { getCoveredVillageIds, requireVillageInCoverage } from '../db/locationHelpers.js';
 import { uploadPhoto } from '../storage.js';
 import { requireLocation } from '../middleware/requireLocation.js';
 import { SELECT_DEMO_PLOTS } from './demoPlots.js';
@@ -175,6 +175,7 @@ farmersRouter.post('/farmers', requireAuth, requireLocation, handleFileUpload, a
   if (!name || !phone || !villageId) {
     return res.status(400).json({ error: 'name, phone, and villageId are all required' });
   }
+  if (!(await requireVillageInCoverage(req, res, villageId))) return;
   const validationError = validateFarmerDetailFields({ farmerType, gender, age, educationLevel, literacy, phoneType, socialMedia, email });
   if (validationError) return res.status(400).json({ error: validationError });
   const ageNum = age !== undefined && age !== '' ? Number(age) : null;
@@ -195,7 +196,19 @@ farmersRouter.post('/farmers', requireAuth, requireLocation, handleFileUpload, a
     );
     res.status(201).json({ farmer: result.rows[0] });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'A farmer with this phone number is already registered' });
+    if (err.code === '23505') {
+      // Tell the client whose profile it is, so it can offer to open it
+      // instead of just showing an error.
+      const existing = await pool.query(`select id, name from farmers where phone = $1 and status = 'active'`, [phone]);
+      return res.status(409).json({
+        error: existing.rows[0]
+          ? `${existing.rows[0].name} is already registered with this phone number.`
+          : 'A farmer with this phone number is already registered',
+        code: 'duplicate_phone',
+        existingFarmerId: existing.rows[0]?.id,
+        existingFarmerName: existing.rows[0]?.name,
+      });
+    }
     if (err.code === '23503') return res.status(400).json({ error: 'No such village' });
     res.status(500).json({ error: err.message });
   }
@@ -294,7 +307,9 @@ farmersRouter.get('/farmers/:id/activities', requireAuth, async (req, res) => {
   if (!(await requireCoverage(req, res, farmerResult.rows[0].village_id))) return;
 
   const [plotsResult, trainingsResult, fieldDaysResult, tfoDemoCropsResult, tfoHomeGardenCropsResult] = await Promise.all([
-    pool.query(`${SELECT_DEMO_PLOTS} where dp.farmer_id = $1 order by dp.created_at desc`, [req.params.id]),
+    // Plots linked to a TFO demo are the same demo shown again below via
+    // tfoDemoCropsResult (with its richer detail) - leave them out here.
+    pool.query(`${SELECT_DEMO_PLOTS} where dp.farmer_id = $1 and dp.tfo_demo_id is null order by dp.created_at desc`, [req.params.id]),
     pool.query(`${SELECT_TRAININGS} where tr.farmer_id = $1 order by tr.created_at desc`, [req.params.id]),
     pool.query(`${SELECT_FIELD_DAYS} where fd.farmer_id = $1 order by fd.created_at desc`, [req.params.id]),
     pool.query(`${SELECT_TFO_DEMO_CROPS} where td.farmer_id = $1 order by tdc.created_at desc`, [req.params.id]),

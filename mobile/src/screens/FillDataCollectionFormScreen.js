@@ -5,6 +5,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import MultiSelectField from '../components/MultiSelectField';
 import DatePickerField from '../components/DatePickerField';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
 import { COLORS } from '../theme';
 
 function toOptionList(options) {
@@ -67,6 +69,7 @@ export default function FillDataCollectionFormScreen({ token, form, farmer, onBa
   const [values, setValues] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const gps = useGps();
 
   useEffect(() => {
     getDataCollectionForm(token, form.id)
@@ -94,6 +97,7 @@ export default function FillDataCollectionFormScreen({ token, form, farmer, onBa
     try {
       const body = new FormData();
       body.append('farmerId', farmer.id);
+      appendGps(body, await gps.getForSubmit());
       for (const field of fields) {
         const value = values[field.id];
         if (value === undefined || value === null) continue;
@@ -138,6 +142,7 @@ export default function FillDataCollectionFormScreen({ token, form, farmer, onBa
                 <FieldInput field={field} value={values[field.id]} onChange={(v) => setFieldValue(field.id, v)} />
               </View>
             ))}
+            <GpsStatus gps={gps} label="Location" />
           </ScrollView>
 
           <View style={styles.footer}>

@@ -1,0 +1,25 @@
+# Render Blueprint - one web service running the Express backend, which also
+# serves the web admin (backend/public). The database and photo storage stay
+# on Supabase. Secrets are declared here but never given a value: set them in
+# the Render dashboard (sync: false).
+services:
+  - type: web
+    name: field-monitoring
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

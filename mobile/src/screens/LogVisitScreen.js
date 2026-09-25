@@ -1,9 +1,27 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
-import { listIssueTypes, listGoodThings, listDiseases, listPests, listTechniques, createVisit } from '../api';
+import { listIssueTypes, listGoodThings, listDiseases, listPests, listTechniques, createVisit, listOpenIssuesForPlot } from '../api';
 import { COLORS } from '../theme';
 import MultiSelectField from '../components/MultiSelectField';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
+
+const OPEN_STATUS_LABELS = {
+  raised: 'unassigned',
+  assigned: 'assigned',
+  in_progress: 'in progress',
+  pending_verification: 'waiting for verification',
+  disputed: 'disputed',
+};
+
+// "Crop Board Missing - with Ravi (in progress)" - who has an already-open
+// issue right now, for both the heads-up on this screen and the message
+// after saving.
+function describeOpenIssue(issueTypeName, status, holderName) {
+  const state = OPEN_STATUS_LABELS[status] || status;
+  return holderName ? `${issueTypeName} - with ${holderName} (${state})` : `${issueTypeName} - ${state}`;
+}
 
 const DISEASE_TRIGGER = 'Demo Plot Infested by Disease';
 const PEST_TRIGGER = 'Demo Plot Infested by Pests';
@@ -38,6 +56,12 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [openIssues, setOpenIssues] = useState([]);
+  const gps = useGps();
+
+  useEffect(() => {
+    listOpenIssuesForPlot(token, plot.id).then((d) => setOpenIssues(d.issues)).catch(() => {});
+  }, [token, plot.id]);
 
   useEffect(() => {
     (async () => {
@@ -111,6 +135,7 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
       form.append('goodThingIds', JSON.stringify(selectedGoodThings));
       if (isAdoptionPlot) form.append('techniqueIds', JSON.stringify(selectedTechniques));
       form.append('overallPhoto', assetToFormFile(overallPhoto));
+      appendGps(form, await gps.getForSubmit());
 
       if (showDiseaseSection) {
         const realDiseaseIds = selectedDiseases.filter((id) => id !== OTHER_VALUE);
@@ -141,8 +166,15 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
         if (selectedGoodThings.includes(goodThingId)) form.append(`goodThingPhoto_${goodThingId}`, assetToFormFile(asset));
       }
 
-      await createVisit(token, form);
-      Alert.alert('Visit logged', '', [{ text: 'OK', onPress: onSubmitted }]);
+      const result = await createVisit(token, form);
+      const skipped = result.skippedIssues || [];
+      Alert.alert(
+        'Visit logged',
+        skipped.length > 0
+          ? `Not raised again - already open:\n${skipped.map((s) => `- ${describeOpenIssue(s.issueType, s.status, s.holder)}`).join('\n')}`
+          : '',
+        [{ text: 'OK', onPress: onSubmitted }],
+      );
     } catch (err) {
       setError(err.message);
     } finally {
@@ -161,6 +193,18 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView contentContainerStyle={styles.container}>
+      {openIssues.length > 0 && (
+        <View style={styles.openIssuesBox}>
+          <Text style={styles.openIssuesTitle}>Already open on this plot</Text>
+          {openIssues.map((o) => (
+            <Text key={`${o.issue_type_id}-${o.status}`} style={styles.openIssuesLine}>
+              {`• ${describeOpenIssue(o.issue_type_name, o.status, o.holder_name)}`}
+            </Text>
+          ))}
+          <Text style={styles.openIssuesHint}>Ticking one of these again won't raise a second copy.</Text>
+        </View>
+      )}
+
       <MultiSelectField
         label="Issues Observed Today"
         placeholder="-- select issues observed --"
@@ -262,6 +306,8 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
             <Text style={styles.photoBtnText}>+ Photo of the Plot (required)</Text>
           </Pressable>
         )}
+
+        <GpsStatus gps={gps} label="Visit Location" />
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -277,6 +323,13 @@ export default function LogVisitScreen({ token, plot, onSubmitted }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#fff' },
   container: { padding: 24, paddingBottom: 60 },
+  openIssuesBox: {
+    backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#fcd34d', borderRadius: 10,
+    padding: 14, marginBottom: 16,
+  },
+  openIssuesTitle: { color: '#92400e', fontWeight: '700', fontSize: 14, marginBottom: 6 },
+  openIssuesLine: { color: '#78350f', fontSize: 13, marginTop: 2 },
+  openIssuesHint: { color: '#92400e', fontSize: 12, marginTop: 8, fontStyle: 'italic' },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   section: { marginTop: 24 },
   sectionLabel: { fontSize: 13, color: '#555', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },

@@ -3,6 +3,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndic
 import { createAgroDealerVisit } from '../api';
 import MultiSelectField from '../components/MultiSelectField';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
 import { COLORS } from '../theme';
 
 // Unlike Institutional Visit's Purpose of Visit, the Kobo form has no
@@ -23,6 +25,7 @@ export default function CreateAgroDealerVisitScreen({ token, dealer, onBack, onC
   const [selectedPurposes, setSelectedPurposes] = useState([]);
   const [observations, setObservations] = useState('');
   const [photo, setPhoto] = useState(null);
+  const gps = useGps();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +43,7 @@ export default function CreateAgroDealerVisitScreen({ token, dealer, onBack, onC
       form.append('purposes', JSON.stringify(selectedPurposes));
       form.append('observations', observations);
       form.append('photo', assetToFormFile(photo));
+      appendGps(form, await gps.getForSubmit());
 
       await createAgroDealerVisit(token, form);
       Alert.alert('Visit logged', '', [{ text: 'OK', onPress: onCreated }]);
@@ -89,6 +93,8 @@ export default function CreateAgroDealerVisitScreen({ token, dealer, onBack, onC
             <Text style={styles.photoBtnText}>+ Photo of the Visit (required)</Text>
           </Pressable>
         )}
+
+        <GpsStatus gps={gps} label="Visit Location" />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

@@ -6,6 +6,7 @@ import { uploadPhoto } from '../storage.js';
 import { getCoveredVillageIds } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const trainingsRouter = Router();
 
@@ -93,6 +94,9 @@ trainingsRouter.post('/trainings', requireAuth, requireLocation, handleFileUploa
     return res.status(400).json({ error: 'interactionQuality must be an integer between 1 and 5' });
   }
 
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
+
   const photo = fileFor(files, 'photo');
   if (!photo) return res.status(400).json({ error: 'A photo of the training is required' });
 
@@ -129,10 +133,10 @@ trainingsRouter.post('/trainings', requireAuth, requireLocation, handleFileUploa
     const photoUrl = await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype);
     const result = await pool.query(
       `insert into trainings (farmer_id, farmer_name, farmer_phone, village_id, training_type, ext_material_used,
-         interaction_quality, gender_interaction, seating, remarks, photo_url, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         interaction_quality, gender_interaction, seating, remarks, photo_url, created_by, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        returning id, farmer_name, farmer_phone, created_at`,
-      [farmerId, farmerName, phone, villageId, trainingType, extMaterialUsed, quality, genderInteraction, seating, remarks?.trim() || null, photoUrl, req.user.userId],
+      [farmerId, farmerName, phone, villageId, trainingType, extMaterialUsed, quality, genderInteraction, seating, remarks?.trim() || null, photoUrl, req.user.userId, gps.lat, gps.lng, gps.accuracy],
     );
     res.status(201).json({ training: result.rows[0] });
   } catch (err) {

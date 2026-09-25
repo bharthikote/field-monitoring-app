@@ -18,7 +18,13 @@
 
 <div class="page page-wide">
 <div class="panel">
-<h1>All Users</h1>
+<h1>Users</h1>
+<div class="tab-bar" style="margin: 14px 0 18px;">
+  <button type="button" class="tab-btn active" data-tab="all-users">All Users</button>
+  <button type="button" class="tab-btn" data-tab="pending">Pending Approvals<span class="tab-badge" id="pending-badge" style="display:none"></span></button>
+</div>
+
+<div id="tab-all-users">
 <div class="inline-form" style="margin-bottom: 4px;">
   <div class="search-wrap">
     <input type="text" id="search-input" placeholder="Search by name, contact, role, status, location..." />
@@ -43,9 +49,24 @@
 </div>
 
 <div class="save-bar" id="save-bar">
-  <span class="scope-note" id="pending-count"></span>
+  <span class="scope-note" id="pending-changes-count"></span>
   <button id="discard-btn" style="background:var(--surface);border:1px solid var(--border-strong);color:var(--text)">Discard</button>
   <button id="save-all-btn" class="primary">Save Changes</button>
+</div>
+</div>
+
+<div id="tab-pending" style="display:none">
+  <p class="scope-note" style="margin-top:0">A user needs at least one location assigned before they can be approved (Leadership is exempt - they see all countries). Use Preview to assign one first if needed.</p>
+  <p id="pending-status" class="empty">Loading...</p>
+  <p class="error" id="pending-action-error" style="display:none"></p>
+  <div class="table-scroll">
+  <table id="pending-table" style="display:none">
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Contact</th><th>Role</th><th>Requested</th><th>Action</th></tr>
+    </thead>
+    <tbody id="pending-rows"></tbody>
+  </table>
+  </div>
 </div>
 </div>
 
@@ -69,6 +90,8 @@ const STATUS_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rej
 const STATUSES = ['pending', 'approved', 'rejected', 'deactivated'];
 
 const EYE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const CHECK_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const X_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 
 let currentUser = null;
 let allUsers = [];
@@ -115,7 +138,7 @@ function updateSaveBar() {
   const bar = document.getElementById('save-bar');
   const count = pendingChanges.size;
   bar.style.display = count > 0 ? 'flex' : 'none';
-  document.getElementById('pending-count').textContent = count === 1 ? '1 unsaved change' : `${count} unsaved changes`;
+  document.getElementById('pending-changes-count').textContent = count === 1 ? '1 unsaved change' : `${count} unsaved changes`;
 }
 
 async function loadUsers() {
@@ -273,13 +296,114 @@ document.getElementById('save-all-btn').addEventListener('click', async () => {
   if (errors.length) alert('Some changes failed:\n' + errors.join('\n'));
 });
 
+// --- Pending Approvals tab ---
+
+async function loadPending() {
+  const statusEl = document.getElementById('pending-status');
+  const table = document.getElementById('pending-table');
+  const rows = document.getElementById('pending-rows');
+  const badge = document.getElementById('pending-badge');
+
+  try {
+    const res = await authedFetch('/admin/users/pending');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load pending users');
+
+    badge.style.display = data.users.length > 0 ? 'inline-flex' : 'none';
+    badge.textContent = data.users.length;
+
+    if (!data.users.length) {
+      statusEl.textContent = 'No pending users right now.';
+      statusEl.className = 'empty';
+      statusEl.style.display = 'block';
+      table.style.display = 'none';
+      return;
+    }
+
+    statusEl.style.display = 'none';
+    table.style.display = 'table';
+    rows.innerHTML = '';
+
+    for (const user of data.users) {
+      const tr = document.createElement('tr');
+      const contact = user.email || user.mobile_number;
+      const requested = new Date(user.created_at).toLocaleString();
+      const roleOptions = ASSIGNABLE_ROLES
+        .map((value) => `<option value="${value}" ${value === user.role ? 'selected' : ''}>${ROLE_LABELS[value]}</option>`)
+        .join('');
+      tr.innerHTML = `
+        <td><code>${escapeHtml(user.user_code)}</code></td>
+        <td>${escapeHtml(user.name)}</td>
+        <td>${escapeHtml(contact)}</td>
+        <td><select class="pending-role-select" data-user-id="${user.id}">${roleOptions}</select></td>
+        <td>${requested}</td>
+        <td><div class="actions-cell">
+          <a href="/admin/user-profile/${user.id}" class="btn edit-btn">${EYE_ICON} Preview</a>
+          <button class="approve" data-id="${user.id}" data-action="approve">${CHECK_ICON} Approve</button>
+          <button class="reject" data-id="${user.id}" data-action="reject">${X_ICON} Reject</button>
+        </div></td>
+      `;
+      rows.appendChild(tr);
+    }
+    enhanceAllSelects(rows);
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = 'Failed to load pending users: ' + err.message;
+    statusEl.className = 'error';
+    statusEl.style.display = 'block';
+  }
+}
+
+document.getElementById('pending-rows').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const { id, action } = btn.dataset;
+  const errorEl = document.getElementById('pending-action-error');
+  errorEl.style.display = 'none';
+  btn.disabled = true;
+  try {
+    const body = {};
+    if (action === 'approve') {
+      const select = document.querySelector(`.pending-role-select[data-user-id="${id}"]`);
+      if (select) body.role = select.value;
+    }
+    const res = await authedFetch(`/admin/users/${id}/${action}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      errorEl.textContent = data.error || res.statusText;
+      errorEl.style.display = 'block';
+      btn.disabled = false;
+      return;
+    }
+    await Promise.all([loadPending(), loadUsers()]);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+    btn.disabled = false;
+  }
+});
+
+// --- Tabs ---
+
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-all-users').style.display = btn.dataset.tab === 'all-users' ? 'block' : 'none';
+    document.getElementById('tab-pending').style.display = btn.dataset.tab === 'pending' ? 'block' : 'none';
+  });
+});
+
 async function init() {
   currentUser = await initAdminPage();
   if (!currentUser) return;
   if (currentUser.role === 'super_admin') {
     document.getElementById('create-user-fab').style.display = 'flex';
   }
-  await loadUsers();
+  await Promise.all([loadUsers(), loadPending()]);
 }
 
 init();

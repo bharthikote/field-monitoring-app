@@ -5,6 +5,8 @@ import RatingSelect from '../components/RatingSelect';
 import SearchableSelect from '../components/SearchableSelect';
 import DatePickerField from '../components/DatePickerField';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
 import { COLORS } from '../theme';
 
 // {id, name} - SearchableSelect's shape (see CreateTrainingScreen for the
@@ -41,6 +43,7 @@ export default function CreateFieldDayScreen({ token, farmer, onBack, onCreated 
   const [expectedHarvestDate, setExpectedHarvestDate] = useState('');
   const [remarks, setRemarks] = useState('');
   const [photo, setPhoto] = useState(null);
+  const gps = useGps();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -75,6 +78,7 @@ export default function CreateFieldDayScreen({ token, farmer, onBack, onCreated 
       form.append('expectedHarvestDate', expectedHarvestDate);
       form.append('remarks', remarks);
       form.append('photo', assetToFormFile(photo));
+      appendGps(form, await gps.getForSubmit());
 
       await createFieldDay(token, form);
       Alert.alert('Field Day logged', '', [{ text: 'OK', onPress: onCreated }]);
@@ -134,6 +138,8 @@ export default function CreateFieldDayScreen({ token, farmer, onBack, onCreated 
             <Text style={styles.photoBtnText}>+ Photo of the Field Day (required)</Text>
           </Pressable>
         )}
+
+        <GpsStatus gps={gps} label="Field Day Location" />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

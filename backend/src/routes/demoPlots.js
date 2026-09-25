@@ -1,18 +1,24 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
-import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { getCoveredVillageIds, requireVillageInCoverage } from '../db/locationHelpers.js';
 import { findFarmerByPhone } from '../db/farmers.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const demoPlotsRouter = Router();
 
 const STATUSES = ['ongoing', 'completed', 'terminated'];
 
 const PLOT_TYPES = ['demo', 'adoption'];
+const CYCLES = [
+  'demo_1', 'demo_2', 'demo_3', 'demo_4',
+  'adoption_1', 'adoption_2', 'adoption_3', 'adoption_4',
+];
 
 export const SELECT_DEMO_PLOTS = `
-  select dp.id, dp.farmer_id, dp.farmer_name, dp.farmer_phone, dp.demo_status, dp.plot_type, dp.created_at,
+  select dp.id, dp.farmer_id, dp.farmer_name, dp.farmer_phone, dp.demo_status, dp.plot_type, dp.cycle, dp.created_at,
+    dp.gps_lat, dp.gps_lng,
     c.name as crop_name, v.name as variety_name,
     dp.village_id, vi.name as village_name, b.name as block_name, di.name as district_name,
     s.name as state_name, co.name as country_name
@@ -84,7 +90,7 @@ demoPlotsRouter.get('/demo-plots/search', requireAuth, async (req, res) => {
 });
 
 demoPlotsRouter.post('/demo-plots', requireAuth, requireLocation, async (req, res) => {
-  const { farmerName, phone, cropId, varietyId, villageId, demoStatus, plotType } = req.body;
+  const { farmerName, phone, cropId, varietyId, villageId, demoStatus, plotType, cycle } = req.body;
 
   if (!farmerName || !phone || !cropId || !varietyId || !villageId) {
     return res.status(400).json({ error: 'farmerName, phone, cropId, varietyId, and villageId are all required' });
@@ -94,6 +100,22 @@ demoPlotsRouter.post('/demo-plots', requireAuth, requireLocation, async (req, re
     return res.status(400).json({ error: `demoStatus must be one of: ${STATUSES.join(', ')}` });
   }
   const type = PLOT_TYPES.includes(plotType) ? plotType : 'demo';
+  // Optional - lets the same farmer have the same crop+variety again in a
+  // later cycle (TFO demos always carry one). Has to agree with the plot
+  // type so a "demo" plot can't claim an adoption cycle.
+  if (cycle && !(CYCLES.includes(cycle) && cycle.startsWith(type))) {
+    return res.status(400).json({ error: `cycle must be one of ${CYCLES.filter((c) => c.startsWith(type)).join(', ')}` });
+  }
+  if (!(await requireVillageInCoverage(req, res, villageId))) return;
+
+  // The plot's own location is recorded once, at creation, so later visits
+  // can be checked against it. Standing at the plot is the point, so a plot
+  // can't be created without a fix.
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
+  if (gps.lat === null) {
+    return res.status(400).json({ error: "The plot's GPS location is required - capture it while standing at the plot." });
+  }
 
   // Phone number is the farmer's key identifier (PRD Section 5) - resolved
   // against the farmers master table (backend/src/db/farmers.js) rather than
@@ -127,26 +149,31 @@ demoPlotsRouter.post('/demo-plots', requireAuth, requireLocation, async (req, re
     farmerId = created.rows[0].id;
   }
 
-  // Never the exact same crop+variety twice within the same plot type for
-  // the same farmer (a demo plot and an adoption plot for the same crop are
-  // legitimately different records, not a duplicate).
+  // Never the exact same crop+variety twice within the same plot type and
+  // cycle for the same farmer (a demo plot and an adoption plot for the same
+  // crop, or the same crop in a different cycle, are legitimately different
+  // records, not a duplicate). No cycle counts as its own value, so plots
+  // entered without one still can't be repeated.
   const exactDuplicate = await pool.query(
-    'select id from demo_plots where farmer_id = $1 and crop_id = $2 and variety_id = $3 and plot_type = $4',
-    [farmerId, cropId, varietyId, type],
+    `select id from demo_plots
+     where farmer_id = $1 and crop_id = $2 and variety_id = $3 and plot_type = $4 and cycle is not distinct from $5`,
+    [farmerId, cropId, varietyId, type, cycle || null],
   );
   if (exactDuplicate.rowCount > 0) {
     return res.status(409).json({
-      error: 'This demo plot already exists - same farmer, crop, and variety.',
+      error: cycle
+        ? 'This demo plot already exists - same farmer, crop, variety, and cycle.'
+        : 'This demo plot already exists - same farmer, crop, and variety.',
       code: 'duplicate_plot',
     });
   }
 
   try {
     const result = await pool.query(
-      `insert into demo_plots (farmer_id, farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, plot_type, created_by)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       returning id, farmer_name, farmer_phone, demo_status, plot_type, created_at`,
-      [farmerId, farmerName, phone, cropId, varietyId, villageId, status, type, req.user.userId],
+      `insert into demo_plots (farmer_id, farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, plot_type, cycle, created_by, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       returning id, farmer_name, farmer_phone, demo_status, plot_type, cycle, created_at, gps_lat, gps_lng`,
+      [farmerId, farmerName, phone, cropId, varietyId, villageId, status, type, cycle || null, req.user.userId, gps.lat, gps.lng, gps.accuracy],
     );
     res.status(201).json({ demoPlot: result.rows[0] });
   } catch (err) {

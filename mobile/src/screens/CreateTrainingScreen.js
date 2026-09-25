@@ -4,6 +4,8 @@ import { createTraining } from '../api';
 import RatingSelect from '../components/RatingSelect';
 import SearchableSelect from '../components/SearchableSelect';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
 import { COLORS } from '../theme';
 
 // {id, name} rather than {value, label} - SearchableSelect (the same
@@ -45,6 +47,7 @@ export default function CreateTrainingScreen({ token, farmer, onBack, onCreated 
   const [seating, setSeating] = useState(SEATING_OPTIONS[0].id);
   const [remarks, setRemarks] = useState('');
   const [photo, setPhoto] = useState(null);
+  const gps = useGps();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +71,7 @@ export default function CreateTrainingScreen({ token, farmer, onBack, onCreated 
       form.append('seating', seating);
       form.append('remarks', remarks);
       form.append('photo', assetToFormFile(photo));
+      appendGps(form, await gps.getForSubmit());
 
       await createTraining(token, form);
       Alert.alert('Training logged', '', [{ text: 'OK', onPress: onCreated }]);
@@ -120,6 +124,8 @@ export default function CreateTrainingScreen({ token, farmer, onBack, onCreated 
             <Text style={styles.photoBtnText}>+ Photo of the Training (required)</Text>
           </Pressable>
         )}
+
+        <GpsStatus gps={gps} label="Training Location" />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

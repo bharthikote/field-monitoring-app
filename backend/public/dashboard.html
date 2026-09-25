@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Dashboard</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .dash-head h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .dash-sub { color: var(--text-muted); font-size: 0.9rem; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .scope-chip { background: var(--accent-soft); color: var(--accent-hover); border-radius: 999px; padding: 2px 10px; font-size: 0.78rem; font-weight: 600; }
+  .dash-links { display: flex; gap: 8px; flex-wrap: wrap; }
+  .dash-links a { margin: 0; }
+
+  .grid { display: grid; gap: 14px; }
+  .grid-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .grid-trends { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin-top: 14px; }
+  .grid-two { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); margin-top: 14px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .card h2 { margin: 0 0 12px; font-size: 0.95rem; }
+  .card h2 .h-note { font-weight: 400; color: var(--text-muted); font-size: 0.8rem; margin-left: 6px; }
+  .section-title { margin: 26px 0 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+
+  .stat-value { font-size: 1.9rem; font-weight: 800; line-height: 1.1; }
+  .stat-label { margin-top: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+
+  .trend-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .trend-value { font-size: 1.6rem; font-weight: 800; }
+  .trend-delta { font-size: 0.78rem; font-weight: 600; }
+  .trend-delta.up { color: #166534; }
+  .trend-delta.down { color: #991b1b; }
+  .trend-delta.flat { color: var(--text-muted); }
+  .trend-label { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin-bottom: 6px; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 56px; margin-top: 10px; }
+  .bar { flex: 1; background: var(--accent-soft); border-radius: 4px 4px 0 0; min-height: 3px; }
+  .bar.current { background: var(--accent); }
+  .bar-labels { display: flex; gap: 6px; margin-top: 4px; }
+  .bar-labels span { flex: 1; text-align: center; font-size: 0.66rem; color: var(--text-muted); }
+
+  .queue { display: flex; gap: 10px; flex-wrap: wrap; }
+  .queue-item { flex: 1; min-width: 130px; background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px; }
+  .queue-item .stat-value { font-size: 1.5rem; }
+
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.86rem; }
+  .list li:last-child { border-bottom: none; }
+  .list .li-main { font-weight: 600; }
+  .list .li-sub { color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+  .list .li-side { text-align: right; white-space: nowrap; font-size: 0.8rem; color: var(--text-muted); }
+  .list .li-side.warn { color: #92400e; font-weight: 600; }
+  .list .li-side.bad { color: #991b1b; font-weight: 600; }
+
+  .empty-note { color: var(--text-muted); font-size: 0.86rem; padding: 6px 0; }
+  .dash-table { margin-top: 0; }
+  .dash-table th, .dash-table td { padding: 10px 12px; }
+  .dash-table td.num, .dash-table th.num { text-align: right; }
+  .streak-big { font-size: 2.6rem; font-weight: 800; color: var(--accent-hover); line-height: 1; }
+  #dash-status { margin-top: 24px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+  <div class="dash-head">
+    <div>
+      <h1 id="dash-title">Dashboard</h1>
+      <div class="dash-sub" id="dash-sub"></div>
+    </div>
+    <div class="dash-links" id="dash-links"></div>
+  </div>
+
+  <p id="dash-status" class="empty">Loading...</p>
+  <div id="dash-body" style="display:none"></div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const ROLE_LABELS = {
+  tfo: 'Extension Agent (TFO)', supervisor: 'Supervisor', team_lead: 'Team Lead', country_manager: 'Country Manager',
+  admin: 'Admin', super_admin: 'Super Admin', leadership: 'Leadership', data_enumerator: 'Data Enumerator',
+};
+
+const HEADLINES = [
+  { key: 'issuesRaisedTotal', label: 'Issues Raised' },
+  { key: 'issuesOpenTotal', label: 'Issues Open', color: '#92400e' },
+  { key: 'issuesClosedPercent', label: 'Close %', color: '#166534', suffix: '%' },
+  { key: 'ongoingPlots', label: 'Ongoing Plots', color: '#f97316' },
+  { key: 'totalFarmers', label: 'Farmers Reached' },
+  { key: 'visitsThisMonth', label: 'Visits This Month', color: '#2563eb' },
+];
+
+const TRENDS = [
+  { key: 'visits', label: 'Visits', color: '#2563eb' },
+  { key: 'issues', label: 'Issues Raised' },
+  { key: 'plots', label: 'New Plots' },
+  { key: 'farmers', label: 'New Farmers' },
+];
+
+const fmt = (n) => (typeof n === 'number' ? n.toLocaleString() : '—');
+const monthShort = (ym) => new Date(`${ym}-01T00:00:00`).toLocaleString('en', { month: 'short' });
+
+// Calendar days, not 24-hour blocks - something from 11pm last night is
+// "1 day ago" this morning, not "Today".
+function daysSince(iso) {
+  if (!iso) return null;
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((startOfDay(new Date()) - startOfDay(new Date(iso))) / 86400000);
+}
+function agoText(iso, neverText = 'Never visited') {
+  const d = daysSince(iso);
+  if (d === null) return neverText;
+  if (d <= 0) return 'Today';
+  return d === 1 ? '1 day ago' : `${d} days ago`;
+}
+
+function headlineCards(summary) {
+  return `<div class="grid grid-stats">${HEADLINES.map((h) => `
+    <div class="card">
+      <div class="stat-value" style="color:${h.color || 'var(--text)'}">${typeof summary[h.key] === 'number' ? fmt(summary[h.key]) + (h.suffix || '') : '—'}</div>
+      <div class="stat-label">${h.label}</div>
+    </div>`).join('')}</div>`;
+}
+
+function trendCards(trends) {
+  return `<div class="grid grid-trends">${TRENDS.map((t) => {
+    const series = trends[t.key];
+    const max = Math.max(...series, 1);
+    const current = series[series.length - 1];
+    const previous = series[series.length - 2] ?? 0;
+    const diff = current - previous;
+    const deltaClass = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+    const deltaText = diff === 0 ? 'no change' : `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff)} vs last month`;
+    return `
+      <div class="card">
+        <div class="trend-label">${t.label}</div>
+        <div class="trend-top">
+          <div class="trend-value" style="color:${t.color || 'var(--text)'}">${fmt(current)}</div>
+          <div class="trend-delta ${deltaClass}">${deltaText}</div>
+        </div>
+        <div class="bars">${series.map((v, i) => `<div class="bar ${i === series.length - 1 ? 'current' : ''}" style="height:${Math.max(6, (v / max) * 100)}%" title="${monthShort(trends.months[i])}: ${v}"></div>`).join('')}</div>
+        <div class="bar-labels">${trends.months.map((m) => `<span>${monthShort(m)}</span>`).join('')}</div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+function queueCard(queue) {
+  const items = [
+    { label: 'Assigned to you', value: queue.assigned, color: '#92400e' },
+    { label: 'Waiting for your verification', value: queue.pendingVerification, color: '#2563eb' },
+    { label: 'Disputes to review', value: queue.disputed, color: '#991b1b' },
+  ];
+  return `
+    <div class="card">
+      <h2>Waiting on you <span class="h-note">handle these in the mobile app</span></h2>
+      <div class="queue">${items.map((i) => `
+        <div class="queue-item"><div class="stat-value" style="color:${i.value > 0 ? i.color : 'var(--text-muted)'}">${fmt(i.value)}</div><div class="stat-label">${i.label}</div></div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function statusPill(overdue) {
+  if (overdue === 0) return '<span class="status-badge status-completed">On track</span>';
+  if (overdue <= 3) return '<span class="status-badge status-ongoing">Needs attention</span>';
+  return '<span class="status-badge status-terminated">Behind</span>';
+}
+
+function tfoTable(rows, mode) {
+  const sorted = [...rows].sort(mode === 'team'
+    ? (a, b) => b.overduePlots - a.overduePlots || b.openAssigned - a.openAssigned || a.name.localeCompare(b.name)
+    : (a, b) => b.visitsLast30 - a.visitsLast30 || b.issuesResolved - a.issuesResolved || a.name.localeCompare(b.name));
+  if (sorted.length === 0) return '<p class="empty-note">No TFOs cover your area yet.</p>';
+  return `
+    <div class="table-scroll">
+    <table class="dash-table">
+      <thead><tr>
+        <th>TFO</th><th class="num">Visits (30d)</th><th class="num">Visits total</th><th>Last visit</th>
+        <th class="num">Issues resolved</th><th class="num">Avg resolution (days)</th>
+        <th class="num">Open issues</th><th class="num">Overdue plots</th><th>Status</th>
+      </tr></thead>
+      <tbody>${sorted.map((t) => `<tr>
+        <td><strong>${escapeHtml(t.name)}</strong></td>
+        <td class="num">${fmt(t.visitsLast30)}</td>
+        <td class="num">${fmt(t.visitsTotal)}</td>
+        <td>${escapeHtml(agoText(t.lastVisitAt, 'Never'))}</td>
+        <td class="num">${fmt(t.issuesResolved)}</td>
+        <td class="num">${t.avgResolutionDays === null ? '—' : t.avgResolutionDays}</td>
+        <td class="num">${fmt(t.openAssigned)}</td>
+        <td class="num">${fmt(t.overduePlots)}</td>
+        <td>${statusPill(t.overduePlots)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    </div>`;
+}
+
+function countryTable(rows) {
+  if (rows.length === 0) return '<p class="empty-note">No activity in any country yet.</p>';
+  return `
+    <div class="table-scroll">
+    <table class="dash-table">
+      <thead><tr>
+        <th>Country</th><th class="num">Farmers</th><th class="num">Plots</th><th class="num">Visits</th>
+        <th class="num">Open issues</th><th class="num">Closed issues</th><th class="num">Close %</th>
+      </tr></thead>
+      <tbody>${rows.map((c) => `<tr>
+        <td><strong>${escapeHtml(c.country)}</strong></td>
+        <td class="num">${fmt(c.farmers)}</td><td class="num">${fmt(c.plots)}</td><td class="num">${fmt(c.visits)}</td>
+        <td class="num">${fmt(c.openIssues)}</td><td class="num">${fmt(c.closedIssues)}</td>
+        <td class="num">${c.closePercent === null ? '—' : c.closePercent + '%'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    </div>`;
+}
+
+function tfoOwnSections(v) {
+  const dueList = v.plotsDue.length === 0
+    ? '<p class="empty-note">No ongoing plots in your area.</p>'
+    : `<ul class="list">${v.plotsDue.map((p) => {
+      const d = daysSince(p.lastVisitAt);
+      const cls = d === null || d >= 30 ? 'bad' : d >= 14 ? 'warn' : '';
+      return `<li>
+        <div><div class="li-main">${escapeHtml(p.farmerName)}</div><div class="li-sub">${escapeHtml(p.cropName)} · ${escapeHtml(p.villageName)}</div></div>
+        <div class="li-side ${cls}">${escapeHtml(agoText(p.lastVisitAt))}</div></li>`;
+    }).join('')}</ul>`;
+
+  const issueList = v.openIssues.length === 0
+    ? '<p class="empty-note">Nothing assigned to you right now.</p>'
+    : `<ul class="list">${v.openIssues.map((i) => {
+      const d = daysSince(i.since);
+      return `<li>
+        <div><div class="li-main">${escapeHtml(i.issueTypeName)}</div><div class="li-sub">${escapeHtml(i.farmerName)}</div></div>
+        <div class="li-side ${d >= 7 ? 'bad' : d >= 3 ? 'warn' : ''}">${d <= 0 ? 'Today' : d + (d === 1 ? ' day' : ' days')} open</div></li>`;
+    }).join('')}</ul>`;
+
+  return `
+    <div class="section-title">Your work</div>
+    <div class="grid grid-stats">
+      <div class="card"><div class="streak-big">${fmt(v.streakDays)}</div><div class="stat-label">Day streak of visits</div></div>
+      <div class="card"><div class="stat-value" style="color:#2563eb">${fmt(v.visitsThisMonth)}</div><div class="stat-label">Your visits this month</div></div>
+      <div class="card"><div class="stat-value">${fmt(v.visitsTotal)}</div><div class="stat-label">Your visits in total</div></div>
+      <div class="card"><div class="stat-value" style="color:${v.overdueTotal > 0 ? '#991b1b' : '#166534'}">${fmt(v.overdueTotal)}</div><div class="stat-label">Plots overdue (30+ days)</div></div>
+      <div class="card"><div class="stat-value" style="color:${v.openIssuesTotal > 0 ? '#92400e' : '#166534'}">${fmt(v.openIssuesTotal)}</div><div class="stat-label">Issues open with you</div></div>
+    </div>
+    <div class="grid grid-two">
+      <div class="card"><h2>Plots due for a visit <span class="h-note">longest since last visit first</span></h2>${dueList}</div>
+      <div class="card"><h2>Your open issues <span class="h-note">oldest first</span></h2>${issueList}</div>
+    </div>`;
+}
+
+function linksFor(user) {
+  const links = [
+    { href: '/admin/home', label: 'Open the map' },
+    { href: '/admin/reports/farmers', label: 'Farmers report' },
+    { href: '/admin/reports/demos', label: 'Demos report' },
+  ];
+  if (['admin', 'super_admin'].includes(user.role)) links.push({ href: '/admin/manage-users', label: 'Users' });
+  return links.map((l, i) => `<a href="${l.href}" class="btn ${i === 0 ? 'primary' : 'edit-btn'}">${l.label}</a>`).join('');
+}
+
+function render(user, dash, summary) {
+  document.getElementById('dash-title').textContent = `Welcome back, ${user.name.split(' ')[0]}`;
+  const scopeChips = dash.scope.global
+    ? '<span class="scope-chip">All countries</span>'
+    : dash.scope.countries.length
+      ? dash.scope.countries.map((c) => `<span class="scope-chip">${escapeHtml(c)}</span>`).join('')
+      : '<span class="scope-chip">No coverage assigned</span>';
+  document.getElementById('dash-sub').innerHTML = `${escapeHtml(ROLE_LABELS[user.role] || user.role)} ${scopeChips}`;
+  document.getElementById('dash-links').innerHTML = linksFor(user);
+
+  let html = headlineCards(summary);
+  html += `<div class="section-title">Last 6 months</div>${trendCards(dash.trends)}`;
+
+  if (dash.view === 'global') {
+    html += `<div class="section-title">By country</div><div class="card">${countryTable(dash.countryBreakdown)}</div>`;
+  }
+  if (dash.view === 'country' || dash.view === 'team') {
+    html += `<div class="section-title">${dash.view === 'team' ? 'Your team' : 'TFO leaderboard'}</div>`;
+    html += `<div class="grid" style="margin-bottom:14px">${queueCard(dash.myQueue)}</div>`;
+    html += `<div class="card"><h2>${dash.view === 'team' ? 'Team compliance' : 'TFO performance'}
+      <span class="h-note">${dash.view === 'team' ? 'most overdue first · overdue = ongoing plot with no visit in 30 days' : 'most active in the last 30 days first'}</span></h2>${tfoTable(dash.tfoStats, dash.view)}</div>`;
+  }
+  if (dash.view === 'tfo') html += tfoOwnSections(dash.tfoView);
+
+  document.getElementById('dash-body').innerHTML = html;
+  document.getElementById('dash-body').style.display = 'block';
+  document.getElementById('dash-status').style.display = 'none';
+}
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  const statusEl = document.getElementById('dash-status');
+  try {
+    const [dashRes, summaryRes] = await Promise.all([authedFetch('/reports/dashboard'), authedFetch('/reports/analytics-summary')]);
+    const dash = await dashRes.json();
+    const summary = await summaryRes.json();
+    if (!dashRes.ok) throw new Error(dash.error || 'Failed to load the dashboard');
+    if (!summaryRes.ok) throw new Error(summary.error || 'Failed to load the summary');
+    render(user, dash, summary);
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

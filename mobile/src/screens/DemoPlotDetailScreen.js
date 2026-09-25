@@ -2,7 +2,26 @@ import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { listVisits } from '../api';
 import { COLORS } from '../theme';
+import { cycleLabel } from '../cycle';
+import { distanceMeters } from '../gps';
 import LogVisitScreen from './LogVisitScreen';
+
+function formatDistance(m) {
+  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+}
+
+// "Visited 40 m from the plot" - the visit's own GPS against the plot's
+// recorded location. Far-away visits are flagged, since that's the whole
+// point of capturing it.
+function visitLocationLine(visit, plot) {
+  if (visit.gps_lat == null) return { text: 'Location not recorded', far: false };
+  const visitPoint = { lat: Number(visit.gps_lat), lng: Number(visit.gps_lng) };
+  if (plot.gps_lat == null) {
+    return { text: `${visitPoint.lat.toFixed(5)}, ${visitPoint.lng.toFixed(5)}`, far: false };
+  }
+  const meters = distanceMeters(visitPoint, { lat: Number(plot.gps_lat), lng: Number(plot.gps_lng) });
+  return { text: `${formatDistance(meters)} from the plot`, far: meters > 500 };
+}
 
 const STATUS_LABELS = { ongoing: 'Ongoing', completed: 'Completed', terminated: 'Terminated' };
 const STATUS_COLORS = {
@@ -19,13 +38,15 @@ function Chip({ label }) {
   );
 }
 
-function VisitCard({ visit }) {
+function VisitCard({ visit, plot }) {
+  const location = visitLocationLine(visit, plot);
   return (
     <View style={styles.visitCard}>
       <View style={styles.visitHeaderRow}>
         <Text style={styles.visitDate}>{new Date(visit.created_at).toLocaleString()}</Text>
         <Text style={styles.visitBy}>{visit.visited_by_name}</Text>
       </View>
+      <Text style={[styles.visitLocation, location.far && styles.visitLocationFar]}>{location.text}</Text>
 
       {visit.issues.length > 0 && (
         <>
@@ -127,8 +148,13 @@ export default function DemoPlotDetailScreen({ token, plot, onBack }) {
             </View>
           </View>
           <Text style={styles.subLine}>{plot.farmer_phone}</Text>
+          <Text style={styles.subLine}>
+            {plot.gps_lat != null
+              ? `Plot GPS: ${Number(plot.gps_lat).toFixed(5)}, ${Number(plot.gps_lng).toFixed(5)}`
+              : 'Plot GPS: not recorded'}
+          </Text>
           <View style={styles.bottomRow}>
-            <Text style={styles.cropLine}>{plot.crop_name} — {plot.variety_name}</Text>
+            <Text style={styles.cropLine}>{plot.crop_name} — {plot.variety_name}{plot.cycle ? ` · ${cycleLabel(plot.cycle)}` : ''}</Text>
             <Text style={styles.villageLine}>{plot.village_name}</Text>
           </View>
         </View>
@@ -154,7 +180,7 @@ export default function DemoPlotDetailScreen({ token, plot, onBack }) {
           {!loading && visits && visits.length === 0 && (
             <Text style={styles.empty}>No visits logged yet.</Text>
           )}
-          {visits && visits.map((v) => <VisitCard key={v.id} visit={v} />)}
+          {visits && visits.map((v) => <VisitCard key={v.id} visit={v} plot={plot} />)}
         </ScrollView>
       )}
     </View>
@@ -187,6 +213,8 @@ const styles = StyleSheet.create({
   visitHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   visitDate: { fontWeight: '700', fontSize: 14, flex: 1, marginRight: 8 },
   visitBy: { color: '#888', fontSize: 12, textAlign: 'right' },
+  visitLocation: { color: '#166534', fontSize: 12, marginBottom: 4 },
+  visitLocationFar: { color: '#b91c1c', fontWeight: '700' },
   visitSectionLabel: { fontSize: 11, color: '#888', fontWeight: '700', textTransform: 'uppercase', marginTop: 8 },
   visitLine: { color: '#333', marginTop: 2 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },

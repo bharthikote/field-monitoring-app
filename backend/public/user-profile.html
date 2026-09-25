@@ -76,6 +76,18 @@
     <div class="inline-form" id="status-actions"></div>
     <p class="error" id="status-error" style="display:none"></p>
 
+    <div id="password-section" style="display:none">
+      <div class="section-title">Reset Password</div>
+      <p class="scope-note" style="margin-top:0">Set a new password for this user and share it with them directly. Use Generate for a random one. Anyone already logged in stays logged in until they log out - this changes their next login.</p>
+      <div class="inline-form">
+        <input type="text" id="new-password" placeholder="New password (min 6 characters)" autocomplete="off" />
+        <button id="generate-password-btn" class="edit-btn small" type="button">Generate</button>
+        <button id="reset-password-btn" class="primary" type="button">Reset Password</button>
+      </div>
+      <p class="error" id="password-error" style="display:none"></p>
+      <p id="password-done" style="display:none; color: var(--accent-hover); font-size:0.9rem;"></p>
+    </div>
+
     <div id="danger-zone-section">
       <div class="section-title">Danger Zone</div>
       <div class="danger-zone">
@@ -153,6 +165,7 @@ function renderPreview() {
   // Deleting your own account mid-session is never something you meant
   // to do - just hide the option entirely rather than trust a confirm dialog.
   document.getElementById('danger-zone-section').style.display = isSelf ? 'none' : 'block';
+  document.getElementById('password-section').style.display = currentUser.role === 'super_admin' ? 'block' : 'none';
   // Edit/status/location writes are still Admin/Super Admin only on the
   // backend - a role that's merely viewing itself (Leadership) shouldn't
   // see controls that would just 403 on click.
@@ -512,6 +525,44 @@ document.getElementById('status-actions').addEventListener('click', async (e) =>
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';
+  }
+});
+
+// Same look-alike-free character set as user codes (no 0/O, 1/l/I).
+const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+document.getElementById('generate-password-btn').addEventListener('click', () => {
+  const bytes = crypto.getRandomValues(new Uint32Array(10));
+  document.getElementById('new-password').value = Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join('');
+});
+
+document.getElementById('reset-password-btn').addEventListener('click', async () => {
+  const errorEl = document.getElementById('password-error');
+  const doneEl = document.getElementById('password-done');
+  errorEl.style.display = 'none';
+  doneEl.style.display = 'none';
+  const newPassword = document.getElementById('new-password').value;
+  if (newPassword.length < 6) {
+    errorEl.textContent = 'Password must be at least 6 characters.';
+    errorEl.style.display = 'block';
+    return;
+  }
+  const btn = document.getElementById('reset-password-btn');
+  btn.disabled = true;
+  try {
+    const res = await authedFetch(`/admin/users/${userId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to reset password');
+    doneEl.textContent = `Password reset for ${profile.name}. Share this with them: ${newPassword}`;
+    doneEl.style.display = 'block';
+    document.getElementById('new-password').value = '';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
   }
 });
 

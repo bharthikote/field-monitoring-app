@@ -17,6 +17,22 @@ export async function createNotification(userId, issueId, type, message) {
   }
 }
 
+// One round trip for many notifications (bulk verify can close dozens of
+// issues at once - a query per notification would take a minute over a
+// slow connection). Same never-break-the-caller rule as createNotification.
+export async function createNotifications(rows) {
+  if (rows.length === 0) return;
+  try {
+    await pool.query(
+      `insert into notifications (user_id, issue_id, type, message)
+       select * from unnest($1::uuid[], $2::uuid[], $3::text[], $4::text[])`,
+      [rows.map((r) => r.userId), rows.map((r) => r.issueId), rows.map((r) => r.type), rows.map((r) => r.message)],
+    );
+  } catch (err) {
+    console.error('Failed to create notifications:', err);
+  }
+}
+
 notificationsRouter.get('/notifications', requireAuth, async (req, res) => {
   const result = await pool.query(
     `select id, issue_id, type, message, read, created_at

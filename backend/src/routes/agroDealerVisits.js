@@ -4,6 +4,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const agroDealerVisitsRouter = Router();
 
@@ -47,6 +48,9 @@ agroDealerVisitsRouter.post('/agro-dealer-visits', requireAuth, requireLocation,
   const dealer = await pool.query('select id from agro_dealers where id = $1', [dealerId]);
   if (dealer.rowCount === 0) return res.status(400).json({ error: 'No such agro dealer' });
 
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
+
   const photo = fileFor(files, 'photo');
   if (!photo) return res.status(400).json({ error: 'A photo of the visit is required' });
 
@@ -55,10 +59,10 @@ agroDealerVisitsRouter.post('/agro-dealer-visits', requireAuth, requireLocation,
     await client.query('begin');
     const photoUrl = await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype);
     const visitResult = await client.query(
-      `insert into agro_dealer_visits (dealer_id, observations, photo_url, created_by)
-       values ($1, $2, $3, $4)
+      `insert into agro_dealer_visits (dealer_id, observations, photo_url, created_by, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id, created_at`,
-      [dealerId, observations?.trim() || null, photoUrl, req.user.userId],
+      [dealerId, observations?.trim() || null, photoUrl, req.user.userId, gps.lat, gps.lng, gps.accuracy],
     );
     const visitId = visitResult.rows[0].id;
     for (const purpose of purposes) {

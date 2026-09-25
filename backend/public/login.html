@@ -22,7 +22,7 @@
     <a href="#" id="forgot-password" style="color:var(--text-muted); font-size:0.85rem;">Forgot password?</a>
   </p>
   <p id="forgot-password-note" style="display:none; color:var(--text-muted); font-size:0.85rem; text-align:center; margin-top:8px;">
-    Password reset is coming soon.
+    Ask a Super Admin to reset your password.
   </p>
 </div>
 </div>
@@ -30,7 +30,7 @@
 <script src="/admin-shared.js"></script>
 <script>
 if (getToken()) {
-  window.location.href = '/admin';
+  window.location.href = '/admin/dashboard';
 }
 
 document.getElementById('forgot-password').addEventListener('click', (e) => {
@@ -58,11 +58,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       throw new Error('This account does not have web access - please use the mobile app instead.');
     }
     setToken(data.token);
-    // Only Admin/Super Admin can approve anything, so landing on Pending
-    // Approvals is a dead end for everyone else - send them straight to
-    // Reports instead.
-    const canApprove = data.user.role === 'admin' || data.user.role === 'super_admin';
-    window.location.href = canApprove ? '/admin' : '/admin/reports/demos';
+    window.location.href = '/admin/dashboard';
   } catch (err) {
     errorEl.textContent = err.message;
     errorEl.style.display = 'block';

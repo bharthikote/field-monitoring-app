@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { validateUuidParam } from '../middleware/validateUuidParam.js';
-import { getCoveredVillageIds } from '../db/locationHelpers.js';
+import { getCoveredVillageIds, requireVillageInCoverage } from '../db/locationHelpers.js';
 import { requireLocation } from '../middleware/requireLocation.js';
 
 export const tfoDemosRouter = Router();
@@ -168,12 +168,65 @@ function validateDemoFields({ farmerId, villageId, gpsLat, gpsLng, cycle, ownAre
   return null;
 }
 
-// Not coverage-restricted - matches demo_plots (POST /demo-plots), where
-// any authorized role can log a plot anywhere.
+// Every crop in a TFO demo also exists as a demo_plots row, so higher
+// officials can visit it and raise issues on it like on any other plot (see
+// migration 048). One plot per (demo, crop, variety), created or refreshed
+// here in the same transaction as the demo itself. Crops dropped by an edit
+// lose their plot if it has no visits/issues, otherwise it's kept but marked
+// terminated - never deleted out from under existing history.
+async function syncDemoPlots(client, demoId) {
+  const demoResult = await client.query(
+    `select td.id, td.farmer_id, td.village_id, td.cycle, td.status, td.created_by, td.gps_lat, td.gps_lng,
+       f.name as farmer_name, f.phone as farmer_phone
+     from tfo_demos td join farmers f on f.id = td.farmer_id where td.id = $1`,
+    [demoId],
+  );
+  const demo = demoResult.rows[0];
+  const plotType = demo.cycle.startsWith('adoption') ? 'adoption' : 'demo';
+  const cropsResult = await client.query(
+    'select distinct crop_id, variety_id from tfo_demo_crops where demo_id = $1',
+    [demoId],
+  );
+
+  for (const crop of cropsResult.rows) {
+    await client.query(
+      `insert into demo_plots
+         (farmer_id, farmer_name, farmer_phone, crop_id, variety_id, village_id, demo_status, plot_type, cycle, created_by, tfo_demo_id, gps_lat, gps_lng)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       on conflict (tfo_demo_id, crop_id, variety_id) where tfo_demo_id is not null
+       do update set farmer_id = excluded.farmer_id, farmer_name = excluded.farmer_name,
+         farmer_phone = excluded.farmer_phone, village_id = excluded.village_id,
+         demo_status = excluded.demo_status, plot_type = excluded.plot_type,
+         cycle = excluded.cycle, gps_lat = excluded.gps_lat, gps_lng = excluded.gps_lng, updated_at = now()`,
+      [
+        demo.farmer_id, demo.farmer_name, demo.farmer_phone, crop.crop_id, crop.variety_id,
+        demo.village_id, demo.status, plotType, demo.cycle, demo.created_by, demoId, demo.gps_lat, demo.gps_lng,
+      ],
+    );
+  }
+
+  const noLongerInDemo = `dp.tfo_demo_id = $1 and not exists (
+    select 1 from tfo_demo_crops c where c.demo_id = $1 and c.crop_id = dp.crop_id and c.variety_id = dp.variety_id
+  )`;
+  await client.query(
+    `delete from demo_plots dp where ${noLongerInDemo}
+       and not exists (select 1 from visits v where v.demo_plot_id = dp.id)
+       and not exists (select 1 from issues i where i.demo_plot_id = dp.id)`,
+    [demoId],
+  );
+  await client.query(
+    `update demo_plots dp set demo_status = 'terminated', updated_at = now() where ${noLongerInDemo}`,
+    [demoId],
+  );
+}
+
+// TFOs are limited to villages they cover, same as every other role - a
+// demo they couldn't see afterwards is never useful.
 tfoDemosRouter.post('/tfo-demos', requireAuth, requireLocation, async (req, res) => {
   const validationError = validateDemoFields(req.body);
   if (validationError) return res.status(400).json({ error: validationError });
   const { farmerId, villageId, gpsLat, gpsLng, cycle, ownArea, rentArea, soilPh, soilType, crops } = req.body;
+  if (!(await requireVillageInCoverage(req, res, villageId))) return;
 
   const client = await pool.connect();
   try {
@@ -186,6 +239,7 @@ tfoDemosRouter.post('/tfo-demos', requireAuth, requireLocation, async (req, res)
     );
     const demoId = demoResult.rows[0].id;
     await insertCrops(client, demoId, crops);
+    await syncDemoPlots(client, demoId);
     await client.query('commit');
     res.status(201).json({ demo: { id: demoId, created_at: demoResult.rows[0].created_at } });
   } catch (err) {
@@ -228,6 +282,7 @@ tfoDemosRouter.patch('/tfo-demos/:id', requireAuth, async (req, res) => {
   const validationError = validateDemoFields(req.body);
   if (validationError) return res.status(400).json({ error: validationError });
   const { farmerId, villageId, gpsLat, gpsLng, cycle, ownArea, rentArea, soilPh, soilType, crops } = req.body;
+  if (!(await requireVillageInCoverage(req, res, villageId))) return;
 
   const client = await pool.connect();
   try {
@@ -244,6 +299,7 @@ tfoDemosRouter.patch('/tfo-demos/:id', requireAuth, async (req, res) => {
     // a tfo_demo_crops row by id).
     await client.query('delete from tfo_demo_crops where demo_id = $1', [req.params.id]);
     await insertCrops(client, req.params.id, crops);
+    await syncDemoPlots(client, req.params.id);
     await client.query('commit');
     res.json({ ok: true });
   } catch (err) {
@@ -276,6 +332,7 @@ tfoDemosRouter.post('/tfo-demos/:id/status', requireAuth, async (req, res) => {
   }
 
   const result = await pool.query('update tfo_demos set status = $1 where id = $2 returning id, status', [status, req.params.id]);
+  await pool.query('update demo_plots set demo_status = $1, updated_at = now() where tfo_demo_id = $2', [status, req.params.id]);
   res.json({ demo: result.rows[0] });
 });
 

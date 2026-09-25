@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Issue Aging</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .summary .chip { background: var(--bg); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 0.82rem; color: var(--text-muted); }
+  .summary .chip strong { display: block; font-size: 1.3rem; color: var(--text); }
+  .summary .chip.bad strong { color: #991b1b; }
+  .summary .chip.warn strong { color: #92400e; }
+  h2.sec { margin: 30px 0 4px; font-size: 1rem; }
+  .sec-note { color: var(--text-muted); font-size: 0.82rem; margin: 0 0 8px; }
+  td.num, th.num { text-align: right; }
+  td.heat { text-align: center; font-weight: 600; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0 6px; }
+  .filters .search-wrap { max-width: 340px; min-width: 220px; }
+  .tab-row { margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Issue Aging</h1>
+    <p class="scope-note" style="margin-top:0">How long open issues have been sitting, with whom, and how fast and how cleanly issues get resolved.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="summary" id="summary"></div>
+<p id="status" class="empty">Loading...</p>
+
+<div id="content" style="display:none">
+  <h2 class="sec">Where open issues are sitting</h2>
+  <p class="sec-note">Open issues by who holds them now, and how long they have been at that stage (since assigned, started, resolved, disputed or last reassigned).</p>
+  <div class="table-scroll"><table id="matrix"></table></div>
+
+  <h2 class="sec">Resolution speed and disputes</h2>
+  <div class="tab-row tab-bar">
+    <button type="button" class="tab-btn active" data-tab="country">By country</button>
+    <button type="button" class="tab-btn" data-tab="person">By person</button>
+  </div>
+  <p class="sec-note" id="group-note" style="margin-top:10px"></p>
+  <div class="table-scroll"><table id="group-table"></table></div>
+
+  <h2 class="sec">Open issues</h2>
+  <p class="sec-note">Oldest first.</p>
+  <div class="filters">
+    <select id="role-filter"><option value="">Held by anyone</option></select>
+    <div class="search-wrap">
+      <input type="text" id="search-input" placeholder="Search issue, farmer, village, country, holder..." />
+      <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+    </div>
+  </div>
+  <p id="detail-empty" class="empty" style="display:none">No open issues match.</p>
+  <div class="table-scroll">
+  <table id="detail-table">
+    <thead><tr>
+      <th>Issue</th><th>Farmer</th><th>Country</th><th>Village</th><th>Status</th><th>Held by</th>
+      <th class="num">Days at stage</th><th class="num">Total age (days)</th><th class="num">Reassigned</th><th class="num">Reopened</th>
+    </tr></thead>
+    <tbody id="detail-rows"></tbody>
+  </table>
+  </div>
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export open issues (CSV)`;
+
+const ROLE_LABELS = {
+  tfo: 'TFO', supervisor: 'Supervisor', team_lead: 'Team Lead', country_manager: 'Country Manager',
+  admin: 'Admin', super_admin: 'Super Admin', leadership: 'Leadership',
+};
+const ROLE_ORDER = ['tfo', 'supervisor', 'team_lead', 'country_manager', 'admin', 'leadership', 'super_admin'];
+const STATUS_LABELS = { raised: 'Unassigned', assigned: 'Assigned', in_progress: 'In progress', pending_verification: 'Pending verification', disputed: 'Disputed' };
+const BUCKETS = [
+  { label: '0-2 days', max: 2 }, { label: '3-7 days', max: 7 }, { label: '8-14 days', max: 14 },
+  { label: '15-30 days', max: 30 }, { label: '30+ days', max: Infinity },
+];
+
+let data = null;
+let openIssues = [];
+let activeTab = 'country';
+
+function calendarDaysSince(iso) {
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.max(0, Math.round((startOfDay(new Date()) - startOfDay(new Date(iso))) / 86400000));
+}
+const bucketIndex = (days) => BUCKETS.findIndex((b) => days <= b.max);
+const pct = (num, den) => (den > 0 ? Math.round((num / den) * 100) + '%' : '—');
+const days1 = (v) => (v === null || v === undefined ? '—' : v);
+
+function renderSummary() {
+  const avgStage = openIssues.length ? Math.round(openIssues.reduce((s, i) => s + i.daysAtStage, 0) / openIssues.length * 10) / 10 : null;
+  const oldest = openIssues.length ? Math.max(...openIssues.map((i) => i.totalAge)) : null;
+  const raised = data.byCountry.reduce((s, c) => s + c.raised, 0);
+  const disputed = data.byCountry.reduce((s, c) => s + c.disputed, 0);
+  const resolvedTotal = data.byCountry.reduce((s, c) => s + c.resolved, 0);
+  const avgRes = resolvedTotal
+    ? Math.round(data.byCountry.reduce((s, c) => s + (c.avgResolutionDays || 0) * c.resolved, 0) / resolvedTotal * 10) / 10
+    : null;
+  const stuck = openIssues.filter((i) => i.daysAtStage > 14).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="chip"><strong>${openIssues.length}</strong>open issues</div>
+    <div class="chip ${stuck ? 'warn' : ''}"><strong>${stuck}</strong>stuck 15+ days at their stage</div>
+    <div class="chip"><strong>${days1(avgStage)}</strong>avg days at current stage</div>
+    <div class="chip ${oldest > 30 ? 'bad' : ''}"><strong>${oldest === null ? '—' : oldest}</strong>oldest open (days)</div>
+    <div class="chip"><strong>${days1(avgRes)}</strong>avg days to resolve</div>
+    <div class="chip"><strong>${pct(disputed, raised)}</strong>of issues ever disputed</div>`;
+}
+
+function renderMatrix() {
+  const roles = ROLE_ORDER.filter((r) => openIssues.some((i) => i.holder_role === r));
+  const unassigned = openIssues.some((i) => !i.holder_role);
+  const rows = [...roles.map((r) => ({ key: r, label: ROLE_LABELS[r] })), ...(unassigned ? [{ key: null, label: 'Nobody (unassigned)' }] : [])];
+  if (!rows.length) { document.getElementById('matrix').innerHTML = '<tbody><tr><td class="empty">No open issues.</td></tr></tbody>'; return; }
+  const counts = rows.map((row) => {
+    const c = BUCKETS.map(() => 0);
+    openIssues.filter((i) => (i.holder_role || null) === row.key).forEach((i) => { c[bucketIndex(i.daysAtStage)]++; });
+    return c;
+  });
+  const max = Math.max(1, ...counts.flat());
+  const shade = (n, col) => (n === 0 ? '' : `background:rgba(${col >= 3 ? '192,57,43' : '217,119,6'},${0.12 + (n / max) * 0.45})`);
+  document.getElementById('matrix').innerHTML = `
+    <thead><tr><th>Held by</th>${BUCKETS.map((b) => `<th class="num">${b.label}</th>`).join('')}<th class="num">Total</th></tr></thead>
+    <tbody>${rows.map((row, ri) => `<tr>
+      <td><strong>${row.label}</strong></td>
+      ${counts[ri].map((n, ci) => `<td class="heat" style="${shade(n, ci)}">${n || '·'}</td>`).join('')}
+      <td class="num"><strong>${counts[ri].reduce((a, b) => a + b, 0)}</strong></td></tr>`).join('')}</tbody>`;
+}
+
+function renderGroup() {
+  const note = document.getElementById('group-note');
+  const table = document.getElementById('group-table');
+  if (activeTab === 'country') {
+    note.textContent = 'Dispute rate = issues that were ever disputed, out of all issues raised in that country. Dismissed = disputed and found not genuine.';
+    if (!data.byCountry.length) { table.innerHTML = '<tbody><tr><td class="empty">No issues yet.</td></tr></tbody>'; return; }
+    table.innerHTML = `
+      <thead><tr><th>Country</th><th class="num">Raised</th><th class="num">Open</th><th class="num">Closed</th><th class="num">Close %</th>
+        <th class="num">Avg days to resolve</th><th class="num">Disputed</th><th class="num">Dispute rate</th><th class="num">Dismissed</th></tr></thead>
+      <tbody>${data.byCountry.map((c) => `<tr>
+        <td><strong>${escapeHtml(c.country)}</strong></td><td class="num">${c.raised}</td><td class="num">${c.open}</td><td class="num">${c.closed}</td>
+        <td class="num">${pct(c.closed, c.raised)}</td><td class="num">${days1(c.avgResolutionDays)}</td>
+        <td class="num">${c.disputed}</td><td class="num">${pct(c.disputed, c.raised)}</td><td class="num">${c.dismissed}</td></tr>`).join('')}</tbody>`;
+  } else {
+    note.textContent = 'Dispute rate = issues this person disputed, out of everything they resolved or disputed. A high rate can mean careful checking or a habit of pushing work back.';
+    const people = [...data.byPerson].sort((a, b) => b.holding - a.holding || b.resolved - a.resolved || a.name.localeCompare(b.name));
+    if (!people.length) { table.innerHTML = '<tbody><tr><td class="empty">No activity yet.</td></tr></tbody>'; return; }
+    table.innerHTML = `
+      <thead><tr><th>Person</th><th>Role</th><th class="num">Holding now</th><th class="num">Resolved</th>
+        <th class="num">Avg days to resolve</th><th class="num">Disputed</th><th class="num">Dispute rate</th></tr></thead>
+      <tbody>${people.map((p) => `<tr>
+        <td><strong>${escapeHtml(p.name)}</strong></td><td>${escapeHtml(ROLE_LABELS[p.role] || p.role)}</td>
+        <td class="num">${p.holding}</td><td class="num">${p.resolved}</td><td class="num">${days1(p.avgResolutionDays)}</td>
+        <td class="num">${p.disputed}</td><td class="num">${pct(p.disputed, p.resolved + p.disputed)}</td></tr>`).join('')}</tbody>`;
+  }
+}
+
+function getVisibleOpen() {
+  const role = document.getElementById('role-filter').value;
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  return openIssues.filter((i) => (!role || (role === '__none' ? !i.holder_role : i.holder_role === role)))
+    .filter((i) => !q || [i.issue_type_name, i.farmer_name, i.village_name, i.country_name, i.holder_name, STATUS_LABELS[i.status]].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => b.daysAtStage - a.daysAtStage || b.totalAge - a.totalAge);
+}
+
+function renderDetail() {
+  const visible = getVisibleOpen();
+  document.getElementById('detail-empty').style.display = visible.length ? 'none' : 'block';
+  document.getElementById('detail-table').style.display = visible.length ? 'table' : 'none';
+  document.getElementById('detail-rows').innerHTML = visible.map((i) => `<tr>
+    <td>${escapeHtml(i.issue_type_name)}</td><td>${escapeHtml(i.farmer_name)}</td><td>${escapeHtml(i.country_name)}</td><td>${escapeHtml(i.village_name)}</td>
+    <td><span class="status-badge ${i.status === 'disputed' ? 'status-terminated' : 'status-ongoing'}">${STATUS_LABELS[i.status] || i.status}</span></td>
+    <td>${i.holder_name ? `${escapeHtml(i.holder_name)} <span style="color:var(--text-muted)">(${escapeHtml(ROLE_LABELS[i.holder_role] || i.holder_role)})</span>` : '—'}</td>
+    <td class="num" style="${i.daysAtStage > 14 ? 'color:#991b1b;font-weight:700' : ''}">${i.daysAtStage}</td>
+    <td class="num">${i.totalAge}</td><td class="num">${i.reassignments}</td><td class="num">${i.reopened_count}</td></tr>`).join('');
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const headers = ['Issue', 'Farmer', 'Country', 'Village', 'Status', 'Held by', 'Holder role', 'Days at current stage', 'Total age (days)', 'Times reassigned', 'Times reopened'];
+  exportToCsv('issue-aging-open.csv', headers, getVisibleOpen().map((i) => [
+    i.issue_type_name, i.farmer_name, i.country_name, i.village_name, STATUS_LABELS[i.status] || i.status,
+    i.holder_name || '', ROLE_LABELS[i.holder_role] || '', i.daysAtStage, i.totalAge, i.reassignments, i.reopened_count,
+  ]));
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  const statusEl = document.getElementById('status');
+  try {
+    const res = await authedFetch('/reports/issue-aging');
+    data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load the report');
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = err.message; statusEl.className = 'error';
+    return;
+  }
+  openIssues = data.openIssues.map((i) => ({ ...i, daysAtStage: calendarDaysSince(i.stage_since), totalAge: calendarDaysSince(i.created_at) }));
+
+  const roleSelect = document.getElementById('role-filter');
+  ROLE_ORDER.filter((r) => openIssues.some((i) => i.holder_role === r)).forEach((r) => {
+    roleSelect.insertAdjacentHTML('beforeend', `<option value="${r}">Held by ${ROLE_LABELS[r]}</option>`);
+  });
+  if (openIssues.some((i) => !i.holder_role)) roleSelect.insertAdjacentHTML('beforeend', '<option value="__none">Unassigned</option>');
+  enhanceSelect(roleSelect);
+  roleSelect.addEventListener('change', renderDetail);
+  document.getElementById('search-input').addEventListener('input', renderDetail);
+  document.querySelectorAll('.tab-btn').forEach((btn) => btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTab = btn.dataset.tab;
+    renderGroup();
+  }));
+
+  statusEl.style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  renderSummary(); renderMatrix(); renderGroup(); renderDetail();
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Visit Compliance</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0 6px; }
+  .filters .search-wrap { max-width: 340px; min-width: 220px; }
+  .summary { display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0 4px; }
+  .summary .chip { background: var(--bg); border-radius: var(--radius-sm); padding: 8px 14px; font-size: 0.82rem; color: var(--text-muted); }
+  .summary .chip strong { display: block; font-size: 1.3rem; color: var(--text); }
+  .summary .chip.bad strong { color: #991b1b; }
+  .summary .chip.warn strong { color: #92400e; }
+  td.num, th.num { text-align: right; }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Visit Compliance</h1>
+    <p class="scope-note" style="margin-top:0">Ongoing plots with no visit in the chosen number of days - a plot never visited is measured from when it was created.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="filters">
+  <select id="days-filter">
+    <option value="7">No visit in 7+ days</option>
+    <option value="14">No visit in 14+ days</option>
+    <option value="30" selected>No visit in 30+ days</option>
+    <option value="60">No visit in 60+ days</option>
+    <option value="90">No visit in 90+ days</option>
+  </select>
+  <select id="show-filter">
+    <option value="overdue" selected>Overdue plots only</option>
+    <option value="all">All ongoing plots</option>
+  </select>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search farmer, village, country, crop, TFO..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Farmer</th><th>Phone</th><th>Country</th><th>Village</th><th>Crop</th><th>Type</th>
+      <th>Responsible TFO</th><th>Last visit</th><th class="num">Days</th><th>Last visited by</th><th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
+let allPlots = [];
+
+// Calendar days, so a visit at 11pm last night is "1", not "0".
+function calendarDaysSince(iso) {
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return Math.round((startOfDay(new Date()) - startOfDay(new Date(iso))) / 86400000);
+}
+
+function decorate(p) {
+  const neverVisited = !p.last_visit_at;
+  return { ...p, neverVisited, days: calendarDaysSince(p.last_visit_at || p.created_at) };
+}
+
+function getVisibleRows() {
+  const threshold = Number(document.getElementById('days-filter').value);
+  const overdueOnly = document.getElementById('show-filter').value === 'overdue';
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  return allPlots
+    .filter((p) => !overdueOnly || p.days >= threshold)
+    .filter((p) => {
+      if (!q) return true;
+      return [p.farmer_name, p.farmer_phone, p.village_name, p.country_name, p.crop_name, p.responsible_tfos.join(' '), p.last_visited_by]
+        .join(' ').toLowerCase().includes(q);
+    })
+    .sort((a, b) => b.days - a.days);
+}
+
+// A plot is in exactly one of four states. "Awaiting first visit" is kept
+// apart from "On track": a brand-new plot nobody has visited yet is not
+// compliant, it just isn't late yet - counting it as compliant would let a
+// pile of unvisited plots read as 100%.
+function stateOf(p, threshold) {
+  if (p.days >= threshold) return p.neverVisited ? 'never' : 'overdue';
+  return p.neverVisited ? 'awaiting' : 'ontrack';
+}
+
+function statusBadge(p, threshold) {
+  return {
+    ontrack: '<span class="status-badge status-completed">On track</span>',
+    awaiting: '<span class="status-badge" style="background:var(--bg);color:var(--text-muted)">Awaiting first visit</span>',
+    overdue: '<span class="status-badge status-ongoing">Overdue</span>',
+    never: '<span class="status-badge status-terminated">Never visited</span>',
+  }[stateOf(p, threshold)];
+}
+
+function renderSummary() {
+  const threshold = Number(document.getElementById('days-filter').value);
+  const counts = { ontrack: 0, awaiting: 0, overdue: 0, never: 0 };
+  allPlots.forEach((p) => { counts[stateOf(p, threshold)]++; });
+  const late = counts.overdue + counts.never;
+  document.getElementById('summary').innerHTML = `
+    <div class="chip"><strong>${allPlots.length}</strong>ongoing plots</div>
+    <div class="chip ${late ? 'warn' : ''}"><strong>${late}</strong>overdue (${threshold}+ days)</div>
+    <div class="chip ${counts.never ? 'bad' : ''}"><strong>${counts.never}</strong>never visited, past ${threshold} days</div>
+    <div class="chip"><strong>${counts.awaiting}</strong>awaiting first visit (newer than ${threshold} days)</div>
+    <div class="chip"><strong>${allPlots.length ? Math.round((counts.ontrack / allPlots.length) * 100) : 0}%</strong>visited within ${threshold} days</div>`;
+}
+
+function render() {
+  const threshold = Number(document.getElementById('days-filter').value);
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const visible = getVisibleRows();
+  renderSummary();
+
+  if (!allPlots.length) {
+    statusEl.textContent = 'No ongoing plots in your coverage yet.';
+    statusEl.style.display = 'block'; table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = document.getElementById('show-filter').value === 'overdue' && !document.getElementById('search-input').value.trim()
+      ? `Nothing is overdue by ${threshold}+ days - every ongoing plot has been visited recently.`
+      : 'No plots match.';
+    statusEl.style.display = 'block'; table.style.display = 'none';
+    return;
+  }
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  document.getElementById('rows').innerHTML = visible.map((p) => `
+    <tr>
+      <td>${escapeHtml(p.farmer_name)}</td>
+      <td>${escapeHtml(p.farmer_phone)}</td>
+      <td>${escapeHtml(p.country_name)}</td>
+      <td>${escapeHtml(p.village_name)}</td>
+      <td>${escapeHtml(p.crop_name)}</td>
+      <td>${PLOT_TYPE_LABELS[p.plot_type] || escapeHtml(p.plot_type)}</td>
+      <td>${p.responsible_tfos.length ? escapeHtml(p.responsible_tfos.join(', ')) : '<span style="color:var(--text-muted)">No TFO covers this village</span>'}</td>
+      <td>${p.neverVisited ? '—' : new Date(p.last_visit_at).toLocaleDateString()}</td>
+      <td class="num">${p.days}</td>
+      <td>${p.last_visited_by ? escapeHtml(p.last_visited_by) : '—'}</td>
+      <td>${statusBadge(p, threshold)}</td>
+    </tr>`).join('');
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const threshold = Number(document.getElementById('days-filter').value);
+  const headers = ['Farmer', 'Phone', 'Country', 'State', 'District', 'Block', 'Village', 'Crop', 'Type', 'Cycle', 'Responsible TFO', 'Last visit', 'Days since last visit (or since creation if never visited)', 'Last visited by', 'Status'];
+  const rows = getVisibleRows().map((p) => [
+    p.farmer_name, p.farmer_phone, p.country_name, p.state_name, p.district_name, p.block_name, p.village_name,
+    p.crop_name, PLOT_TYPE_LABELS[p.plot_type] || p.plot_type, p.cycle || '', p.responsible_tfos.join('; '),
+    p.neverVisited ? '' : new Date(p.last_visit_at).toLocaleDateString(), p.days, p.last_visited_by || '',
+    { ontrack: 'On track', awaiting: 'Awaiting first visit', overdue: 'Overdue', never: 'Never visited' }[stateOf(p, threshold)],
+  ]);
+  exportToCsv('visit-compliance.csv', headers, rows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  enhanceSelect(document.getElementById('days-filter'));
+  enhanceSelect(document.getElementById('show-filter'));
+  ['days-filter', 'show-filter'].forEach((id) => document.getElementById(id).addEventListener('change', render));
+  document.getElementById('search-input').addEventListener('input', render);
+  try {
+    const res = await authedFetch('/reports/visit-compliance');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load the report');
+    allPlots = data.plots.map(decorate);
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

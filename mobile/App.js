@@ -31,12 +31,13 @@ import CreateHomeGardenScreen from './src/screens/CreateHomeGardenScreen';
 import HomeGardensListScreen from './src/screens/HomeGardensListScreen';
 import IssuesScreen from './src/screens/IssuesScreen';
 import IssueDetailScreen from './src/screens/IssueDetailScreen';
+import BulkVerifyScreen from './src/screens/BulkVerifyScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import MessagingScreen from './src/screens/MessagingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import BottomTabBar from './src/components/BottomTabBar';
 import { loadSession, saveActiveProjectId, areNotificationsEnabled } from './src/session';
-import { getMyProjects, getUnreadNotificationCount } from './src/api';
+import { getMyProjects, getUnreadNotificationCount, getIssueStats } from './src/api';
 
 // The five root screens the bottom tab bar switches between. The tab bar
 // always shows on these; every other drill-down screen hides it (except
@@ -60,6 +61,7 @@ const BACK_MAP = {
   lookup: 'home',
   create: 'lookup',
   'issue-detail': 'issues',
+  'bulk-verify': 'issues',
   'create-training': 'select-farmer',
   'create-field-day': 'select-farmer',
   'create-farmer': 'farmers',
@@ -147,6 +149,7 @@ export default function App() {
   const [pendingProjects, setPendingProjects] = useState([]);
   const [notificationsEnabled, setNotificationsEnabledState] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [issueBadge, setIssueBadge] = useState(0);
 
   // Resolves whether a just-authenticated TFO needs the project-selection
   // step: fetches their active projects, auto-saves the choice and
@@ -204,6 +207,18 @@ export default function App() {
     if (screen !== 'home' && screen !== 'notifications') return;
     getUnreadNotificationCount(token).then((d) => setUnreadCount(d.count)).catch(() => {});
   }, [token, notificationsEnabled, screen]);
+
+  // Issues tab badge: issues assigned to this user or waiting on their
+  // decision (verify / dispute review). Re-fetched each time the user lands
+  // on a tab screen, so it updates after acting on an issue and returning.
+  useEffect(() => {
+    if (!token) {
+      setIssueBadge(0);
+      return;
+    }
+    if (!TAB_SCREENS.includes(screen)) return;
+    getIssueStats(token).then((d) => setIssueBadge(d.stats.needs_action)).catch(() => {});
+  }, [token, screen]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -598,6 +613,10 @@ export default function App() {
           token={token}
           onBack={() => setScreen('farmers')}
           onCreated={() => setScreen('farmers')}
+          onOpenExisting={(farmer) => {
+            setSelectedFarmer(farmer);
+            setScreen('farmer-detail');
+          }}
         />
       )}
       {screen === 'create-farmer' && user.role !== 'tfo' && (
@@ -610,6 +629,17 @@ export default function App() {
               setScreen(pendingActivityType === 'training' ? 'create-training' : 'create-field-day');
             } else {
               setScreen('farmers');
+            }
+          }}
+          onOpenExisting={(farmer) => {
+            // Mid-activity (Training/Field Day) the existing farmer simply
+            // becomes the one being logged for; otherwise open their profile.
+            if (pendingActivityType) {
+              setSelectedFarmerForActivity(farmer);
+              setScreen(pendingActivityType === 'training' ? 'create-training' : 'create-field-day');
+            } else {
+              setSelectedFarmer(farmer);
+              setScreen('farmer-detail');
             }
           }}
         />
@@ -673,6 +703,17 @@ export default function App() {
             setSelectedIssueId(issueId);
             setScreen('issue-detail');
           }}
+          onOpenBulkVerify={() => setScreen('bulk-verify')}
+        />
+      )}
+      {screen === 'bulk-verify' && user && (
+        <BulkVerifyScreen
+          token={token}
+          onBack={() => setScreen('issues')}
+          onOpenIssue={(issueId) => {
+            setSelectedIssueId(issueId);
+            setScreen('issue-detail');
+          }}
         />
       )}
       {screen === 'issue-detail' && selectedIssueId && (
@@ -695,7 +736,7 @@ export default function App() {
       </View>
 
       {user && (TAB_SCREENS.includes(screen) || (screen === 'lookup' && lookupTabBarVisible)) && (
-        <BottomTabBar active={TAB_SCREENS.includes(screen) ? screen : 'home'} onChange={setScreen} />
+        <BottomTabBar active={TAB_SCREENS.includes(screen) ? screen : 'home'} onChange={setScreen} badges={{ issues: issueBadge }} />
       )}
       <StatusBar style="auto" />
     </View>

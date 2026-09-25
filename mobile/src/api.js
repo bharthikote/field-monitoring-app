@@ -100,6 +100,7 @@ export async function createFarmer(token, formData) {
   if (!res.ok) {
     const err = new Error(data.error || 'Something went wrong');
     err.code = data.code;
+    err.existingFarmerId = data.existingFarmerId;
     throw err;
   }
   return data;
@@ -253,8 +254,10 @@ export async function submitDataCollectionForm(token, formId, formData) {
 
 export const getMyProjects = (token) => request('/my-projects', { token });
 
-export const listAssignableUsers = (token, villageId) =>
-  request(`/issues/assignable-users${villageId ? `?villageId=${villageId}` : ''}`, { token });
+export const listAssignableUsers = (token, villageId, issueId) =>
+  request(`/issues/assignable-users?villageId=${villageId}${issueId ? `&issueId=${issueId}` : ''}`, { token });
+export const acknowledgeIssue = (token, issueId, note) =>
+  request(`/issues/${issueId}/acknowledge`, { method: 'POST', body: { note }, token });
 export const listIssuesAssignedToMe = (token) => request('/issues/assigned-to-me', { token });
 export const listIssuesRaisedByMe = (token) => request('/issues/raised-by-me', { token });
 export const getIssue = (token, issueId) => request(`/issues/${issueId}`, { token });
@@ -266,6 +269,21 @@ export const resolveIssue = (token, issueId, note) =>
   request(`/issues/${issueId}/resolve`, { method: 'POST', body: { note }, token });
 export const verifyIssue = (token, issueId, approved, note) =>
   request(`/issues/${issueId}/verify`, { method: 'POST', body: { approved, note }, token });
+export const disputeIssue = (token, issueId, note) =>
+  request(`/issues/${issueId}/dispute`, { method: 'POST', body: { note }, token });
+export const reviewDispute = (token, issueId, genuine, note) =>
+  request(`/issues/${issueId}/dispute-review`, { method: 'POST', body: { genuine, note }, token });
+export const listReassignableUsers = (token, villageId) =>
+  request(`/issues/reassignable-users?villageId=${villageId}`, { token });
+export const reassignIssue = (token, issueId, assignedTo, comment) =>
+  request(`/issues/${issueId}/reassign`, { method: 'POST', body: { assignedTo, comment }, token });
+export const listReassignments = (token, issueId) =>
+  request(`/issues/${issueId}/reassignments`, { token });
+export const getIssueStats = (token) => request('/issues/stats', { token });
+export const listOpenIssuesForPlot = (token, demoPlotId) =>
+  request(`/issues/open-for-plot?demoPlotId=${demoPlotId}`, { token });
+export const bulkVerifyIssues = (token, issueIds) =>
+  request('/issues/bulk-verify', { method: 'POST', body: { issueIds }, token });
 
 export const listNotifications = (token) => request('/notifications', { token });
 export const getUnreadNotificationCount = (token) => request('/notifications/unread-count', { token });

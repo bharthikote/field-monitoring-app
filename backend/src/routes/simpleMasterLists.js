@@ -35,7 +35,9 @@ for (const list of SIMPLE_LISTS) {
   // Units alone carries a `category` column (Country Settings' Area/Weight/
   // Liquid/Time/Distance classification, migration 043) - included here
   // rather than duplicating the Unit Master with a second endpoint.
-  const extraColumns = list.table === 'units' ? ', category' : '';
+  // Issue types alone carry `acknowledge_only` (migration 047) - types that
+  // are acknowledged by a Team Lead rather than resolved.
+  const extraColumns = list.table === 'units' ? ', category' : list.table === 'issue_types' ? ', acknowledge_only' : '';
 
   simpleMasterListsRouter.get(`/master/${list.path}`, requireAuth, async (req, res) => {
     if (req.user.role === 'super_admin') {
@@ -67,12 +69,20 @@ for (const list of SIMPLE_LISTS) {
   });
 
   simpleMasterListsRouter.patch(`/master/${list.path}/:id`, requireAdmin, requireSuperAdmin, async (req, res) => {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'name is required' });
+    const { name, acknowledgeOnly } = req.body;
+    const canFlag = list.table === 'issue_types';
+    const hasFlag = canFlag && typeof acknowledgeOnly === 'boolean';
+    if (!name && !hasFlag) return res.status(400).json({ error: 'name is required' });
     try {
+      const params = [req.params.id, name || null];
+      let setClause = 'name = coalesce($2, name)';
+      if (canFlag) {
+        params.push(hasFlag ? acknowledgeOnly : null);
+        setClause += ', acknowledge_only = coalesce($3, acknowledge_only)';
+      }
       const result = await pool.query(
-        `update ${list.table} set name = $2 where id = $1 returning id, name`,
-        [req.params.id, name],
+        `update ${list.table} set ${setClause} where id = $1 returning id, name`,
+        params,
       );
       if (result.rowCount === 0) return res.status(404).json({ error: 'No such item' });
       res.json({ item: result.rows[0] });

@@ -5,7 +5,10 @@ import LocationPicker from '../components/LocationPicker';
 import CropVarietyPicker from '../components/CropVarietyPicker';
 import SearchableSelect from '../components/SearchableSelect';
 import ContactPhoneField from '../components/ContactPhoneField';
+import GpsStatus from '../components/GpsStatus';
+import { useGps, gpsPayload } from '../gps';
 import { COLORS } from '../theme';
+import { cycleLabel } from '../cycle';
 
 // {id, name} - SearchableSelect's shape, replacing the native Picker which
 // rendered as the plain Android dropdown instead of matching the app's UI.
@@ -28,9 +31,11 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
   const [varietyId, setVarietyId] = useState(null);
   const [villageId, setVillageId] = useState(null);
   const [status, setStatus] = useState('ongoing');
+  const [cycle, setCycle] = useState('');
   const [loading, setLoading] = useState(false);
   const [existingFarmer, setExistingFarmer] = useState(null);
   const [existingPlots, setExistingPlots] = useState([]);
+  const gps = useGps();
 
   // Phone number is the farmer's key identifier (PRD Section 5) - as soon
   // as a full number is typed, look up whether it belongs to a registered
@@ -65,7 +70,12 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
     const finalName = nameOverride ?? farmerName;
     setLoading(true);
     try {
-      await createDemoPlot(token, { farmerName: finalName, phone, cropId, varietyId, villageId, demoStatus: status, plotType });
+      const fix = await gps.getForSubmit();
+      if (!fix) {
+        Alert.alert('Location needed', "The plot's GPS location is required. Stand at the plot, make sure your phone's location is on, then tap Try again under GPS Location.");
+        return;
+      }
+      await createDemoPlot(token, { farmerName: finalName, phone, cropId, varietyId, villageId, demoStatus: status, plotType, cycle: cycle || undefined, ...gpsPayload(fix) });
       Alert.alert('Demo plot created', '', [{ text: 'OK', onPress: () => onCreated(phone) }]);
     } catch (err) {
       if (err.code === 'duplicate_plot') {
@@ -131,7 +141,7 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
           </Text>
           {existingPlots.map((p) => (
             <Text key={p.id} style={styles.existingBannerLine}>
-              • {p.crop_name} — {PLOT_TYPE_LABELS[p.plot_type]} ({STATUS_LABELS[p.demo_status]}), {p.village_name}
+              • {p.crop_name} — {PLOT_TYPE_LABELS[p.plot_type]}{p.cycle ? ` ${p.cycle.split('_')[1]}` : ''} ({STATUS_LABELS[p.demo_status]}), {p.village_name}
             </Text>
           ))}
         </View>
@@ -147,7 +157,19 @@ export default function CreateDemoPlotScreen({ token, plotType = 'demo', initial
 
       <LocationPicker token={token} onVillageChange={setVillageId} lockedVillage={lockedVillage} />
 
+      <GpsStatus gps={gps} label="Plot GPS Location" required />
+
       <SearchableSelect label="Status" options={STATUSES} value={status} onChange={setStatus} />
+
+      <SearchableSelect
+        label="Cycle (optional)"
+        options={[
+          { id: '', name: 'Not specified' },
+          ...[1, 2, 3, 4].map((n) => ({ id: `${plotType}_${n}`, name: cycleLabel(`${plotType}_${n}`) })),
+        ]}
+        value={cycle}
+        onChange={setCycle}
+      />
 
       <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{BUTTON_LABELS[plotType]}</Text>}

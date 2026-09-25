@@ -161,6 +161,26 @@ export async function isLocationCovered(level, id, coveredVillageIds) {
   return villageIds.some((vid) => coveredVillageIds.includes(vid));
 }
 
+// Roles that work across every country regardless of assigned locations
+// (Leadership by PRD - "all countries"; Super Admin by design). Handled
+// inside getCoveredVillageIds's single query so every existing list/detail
+// route picks it up without a per-route special case or an extra round trip.
+export const GLOBAL_SCOPE_ROLES = ['super_admin', 'leadership'];
+
+// Guard for creating data in a village: it has to be one the caller covers,
+// or they'd save something they could never see again (creating used to
+// require only that the user had *some* location, not that this village was
+// theirs). Sends the 403 itself; returns whether to continue.
+export async function requireVillageInCoverage(req, res, villageId) {
+  if (GLOBAL_SCOPE_ROLES.includes(req.user.role)) return true;
+  const covered = await getCoveredVillageIds(req.user.userId);
+  if (!covered.includes(villageId)) {
+    res.status(403).json({ error: "That village isn't in your coverage. You can only add data for villages you're assigned to." });
+    return false;
+  }
+  return true;
+}
+
 // A user's effective village coverage: union of everything under every
 // 'include' assignment, minus everything under every 'exclude' assignment
 // (an exclude nested inside a broader include carves those villages back
@@ -193,8 +213,11 @@ export async function getCoveredVillageIds(userId) {
      select v.id as village_id, ul.mode from user_locations ul
        join countries c on c.id = ul.location_id join states s on s.country_id = c.id
        join districts d on d.state_id = s.id join blocks b on b.district_id = d.id join villages v on v.block_id = b.id
-       where ul.user_id = $1 and ul.level = 'country'`,
-    [userId],
+       where ul.user_id = $1 and ul.level = 'country'
+     union all
+     select v.id as village_id, 'include' as mode from villages v
+       where exists (select 1 from users where id = $1 and role = any($2))`,
+    [userId, GLOBAL_SCOPE_ROLES],
   );
   const included = new Set();
   const excluded = new Set();

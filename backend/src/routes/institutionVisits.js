@@ -4,6 +4,7 @@ import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { uploadPhoto } from '../storage.js';
 import { requireLocation } from '../middleware/requireLocation.js';
+import { parseGps } from '../gps.js';
 
 export const institutionVisitsRouter = Router();
 
@@ -47,6 +48,9 @@ institutionVisitsRouter.post('/institution-visits', requireAuth, requireLocation
   const institution = await pool.query('select id from institutions where id = $1', [institutionId]);
   if (institution.rowCount === 0) return res.status(400).json({ error: 'No such institution' });
 
+  const gps = parseGps(req.body);
+  if (gps.error) return res.status(400).json({ error: gps.error });
+
   const photo = fileFor(files, 'photo');
   if (!photo) return res.status(400).json({ error: 'A photo of the visit is required' });
 
@@ -55,10 +59,10 @@ institutionVisitsRouter.post('/institution-visits', requireAuth, requireLocation
     await client.query('begin');
     const photoUrl = await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype);
     const visitResult = await client.query(
-      `insert into institution_visits (institution_id, observations, photo_url, created_by)
-       values ($1, $2, $3, $4)
+      `insert into institution_visits (institution_id, observations, photo_url, created_by, gps_lat, gps_lng, gps_accuracy)
+       values ($1, $2, $3, $4, $5, $6, $7)
        returning id, created_at`,
-      [institutionId, observations?.trim() || null, photoUrl, req.user.userId],
+      [institutionId, observations?.trim() || null, photoUrl, req.user.userId, gps.lat, gps.lng, gps.accuracy],
     );
     const visitId = visitResult.rows[0].id;
     for (const purpose of purposes) {

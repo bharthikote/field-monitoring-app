@@ -345,6 +345,20 @@ button.small, .btn.small { padding: 4px 10px; font-size: 0.76rem; margin-right: 
 .custom-select-option:hover { background: var(--bg); }
 .custom-select-option.selected { background: var(--accent-soft); color: var(--accent-hover); font-weight: 600; }
 
+/* Tabs, e.g. All Users / Pending Approvals on the Users page */
+.tab-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+.tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+  margin: 0; padding: 10px 4px; margin-right: 22px; font-size: 0.9rem; color: var(--text-muted);
+  cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 8px;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent-hover); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-badge {
+  background: var(--danger); color: #fff; font-size: 0.72rem; font-weight: 700;
+  border-radius: 999px; padding: 1px 7px; line-height: 1.5;
+}
+
 /* Standard success/error toast - see showToast() in admin-shared.js */
 #toast-container {
   position: fixed;

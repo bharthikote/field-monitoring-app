@@ -38,7 +38,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Allow Field Monitoring to access your location to capture the GPS coordinates of a demo plot."
+          "locationWhenInUsePermission": "Allow Field Monitoring to access your location to record where plots are and where your visits and activities happen."
         }
       ],
       "expo-status-bar"

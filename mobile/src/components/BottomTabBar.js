@@ -59,15 +59,24 @@ const TABS = [
   { key: 'profile', icon: 'profile', label: 'Profile' },
 ];
 
-export default function BottomTabBar({ active, onChange }) {
+// badges: { [tabKey]: number } - a red count on that tab's icon when > 0.
+export default function BottomTabBar({ active, onChange, badges = {} }) {
   return (
     <View style={styles.bar}>
       {TABS.map((tab) => {
         const isActive = tab.key === active;
         const color = isActive ? ACTIVE_COLOR : INACTIVE_COLOR;
+        const count = badges[tab.key] || 0;
         return (
           <Pressable key={tab.key} style={styles.tab} onPress={() => onChange(tab.key)}>
-            <Icon name={tab.icon} color={color} />
+            <View>
+              <Icon name={tab.icon} color={color} />
+              {count > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.label, { color }]}>{tab.label}</Text>
           </Pressable>
         );
@@ -82,5 +91,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', paddingTop: 8, paddingBottom: 20,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  badge: {
+    position: 'absolute', top: -6, right: -10, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: COLORS.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
+  },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   label: { fontSize: 11, marginTop: 3, fontWeight: '600' },
 });

@@ -3,6 +3,8 @@ import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, ActivityIndic
 import { createInstitutionVisit } from '../api';
 import MultiSelectField from '../components/MultiSelectField';
 import { pickPhoto, assetToFormFile } from '../photo';
+import { useGps, appendGps } from '../gps';
+import GpsStatus from '../components/GpsStatus';
 import { COLORS } from '../theme';
 
 const ORG_TYPE_LABELS = {
@@ -28,6 +30,7 @@ export default function CreateInstitutionVisitScreen({ token, institution, onBac
   const [purposeOther, setPurposeOther] = useState('');
   const [observations, setObservations] = useState('');
   const [photo, setPhoto] = useState(null);
+  const gps = useGps();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -53,6 +56,7 @@ export default function CreateInstitutionVisitScreen({ token, institution, onBac
       form.append('purposes', JSON.stringify(purposes));
       form.append('observations', observations);
       form.append('photo', assetToFormFile(photo));
+      appendGps(form, await gps.getForSubmit());
 
       await createInstitutionVisit(token, form);
       Alert.alert('Visit logged', '', [{ text: 'OK', onPress: onCreated }]);
@@ -110,6 +114,8 @@ export default function CreateInstitutionVisitScreen({ token, institution, onBac
             <Text style={styles.photoBtnText}>+ Photo of the Visit (required)</Text>
           </Pressable>
         )}
+
+        <GpsStatus gps={gps} label="Visit Location" />
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 

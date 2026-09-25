@@ -57,7 +57,7 @@ function pad2(n) {
   return String(n).padStart(2, '0');
 }
 
-export default function CreateFarmerDetailedScreen({ token, onBack, onCreated }) {
+export default function CreateFarmerDetailedScreen({ token, onBack, onCreated, onOpenExisting }) {
   const [photo, setPhoto] = useState(null);
   const [name, setName] = useState('');
   const [farmerType, setFarmerType] = useState(null);
@@ -133,9 +133,27 @@ export default function CreateFarmerDetailedScreen({ token, onBack, onCreated })
       const full = await getFarmer(token, created.farmer.id);
       Alert.alert('Farmer registered', '', [{ text: 'OK', onPress: () => onCreated(full.farmer) }]);
     } catch (err) {
-      setError(err.message);
+      if (err.code === 'duplicate_phone' && err.existingFarmerId && onOpenExisting) {
+        offerExistingProfile(err);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // The phone is already registered - offer to open that profile instead of
+  // just showing an error (only fetchable if it's in the user's coverage).
+  const offerExistingProfile = async (err) => {
+    try {
+      const existing = await getFarmer(token, err.existingFarmerId);
+      Alert.alert('Already registered', err.message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open profile', onPress: () => onOpenExisting(existing.farmer) },
+      ]);
+    } catch {
+      setError(err.message);
     }
   };
 

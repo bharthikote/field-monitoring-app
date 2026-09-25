@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db/pool.js';
 import { SELF_REGISTER_ROLES as ROLES } from '../roles.js';
 import { generateUniqueUserCode } from '../db/userCode.js';
+import { loginRateLimit } from '../middleware/loginRateLimit.js';
 
 export const authRouter = Router();
 
@@ -47,7 +48,7 @@ authRouter.post('/auth/register', async (req, res) => {
   res.status(500).json({ error: 'Could not generate a unique user code, please try again' });
 });
 
-authRouter.post('/auth/login', async (req, res) => {
+authRouter.post('/auth/login', loginRateLimit, async (req, res) => {
   const { identifier, password } = req.body;
   if (!identifier || !password) {
     return res.status(400).json({ error: 'identifier and password are required' });
