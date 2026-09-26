@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Farmer & Plot Register</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Farmer &amp; Plot Register</h1>
+    <p class="scope-note" style="margin-top:0">Every plot in your coverage with its farmer, crop, variety, cycle and status - plus farmers who have no plot yet. Export the full list to CSV.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="filters">
+  <select id="show-filter">
+    <option value="all">Plots and farmers</option>
+    <option value="plots">Plots only</option>
+    <option value="nofplot">Farmers with no plot</option>
+  </select>
+  <select id="type-filter">
+    <option value="">All plot types</option>
+    <option value="demo">Demo</option>
+    <option value="adoption">Adoption</option>
+  </select>
+  <select id="status-filter">
+    <option value="">All statuses</option>
+    <option value="ongoing">Ongoing</option>
+    <option value="completed">Completed</option>
+    <option value="terminated">Terminated</option>
+  </select>
+  <select id="country-filter"><option value="">All countries</option></select>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search farmer, phone, village, crop, variety..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Farmer</th><th>Phone</th><th>Country</th><th>Village</th><th>Plot type</th><th>Crop</th><th>Variety</th><th>Cycle</th>
+      <th>Status</th><th class="num">Visits</th><th>Last visit</th><th class="num">Open issues</th><th>GPS</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+<p id="limit-note" class="scope-note" style="display:none"></p>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+const PLOT_TYPE_LABELS = { demo: 'Demo', adoption: 'Adoption' };
+const STATUS_CLASS = { ongoing: 'status-ongoing', completed: 'status-completed', terminated: 'status-terminated' };
+const DISPLAY_CAP = 500;
+let allRows = [];
+
+function getVisibleRows() {
+  const show = document.getElementById('show-filter').value;
+  const type = document.getElementById('type-filter').value;
+  const status = document.getElementById('status-filter').value;
+  const country = document.getElementById('country-filter').value;
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  return allRows.filter((r) => {
+    if (show === 'plots' && r.kind !== 'plot') return false;
+    if (show === 'nofplot' && r.kind !== 'farmer') return false;
+    if (type && r.plot_type !== type) return false;
+    if (status && r.demo_status !== status) return false;
+    if (country && r.country_name !== country) return false;
+    if (!q) return true;
+    return [r.farmer_name, r.farmer_phone, r.village_name, r.crop_name, r.variety_name, r.country_name].join(' ').toLowerCase().includes(q);
+  });
+}
+
+function renderSummary() {
+  const plots = allRows.filter((r) => r.kind === 'plot');
+  const farmers = new Set(allRows.map((r) => r.farmer_phone));
+  const withGps = plots.filter((r) => r.has_gps).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="chip"><strong>${farmers.size}</strong>farmers</div>
+    <div class="chip"><strong>${plots.length}</strong>plots</div>
+    <div class="chip"><strong>${plots.filter((r) => r.demo_status === 'ongoing').length}</strong>ongoing plots</div>
+    <div class="chip"><strong>${allRows.length - plots.length}</strong>farmers with no plot yet</div>
+    <div class="chip"><strong>${plots.length ? Math.round((withGps / plots.length) * 100) : 0}%</strong>of plots have GPS</div>`;
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const note = document.getElementById('limit-note');
+  const visible = getVisibleRows();
+  if (!allRows.length) {
+    statusEl.textContent = 'No farmers or plots in your coverage yet.';
+    statusEl.style.display = 'block'; table.style.display = 'none'; note.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'Nothing matches these filters.';
+    statusEl.style.display = 'block'; table.style.display = 'none'; note.style.display = 'none';
+    return;
+  }
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  document.getElementById('rows').innerHTML = visible.slice(0, DISPLAY_CAP).map((r) => `
+    <tr>
+      <td>${escapeHtml(r.farmer_name)}</td>
+      <td>${escapeHtml(r.farmer_phone)}</td>
+      <td>${escapeHtml(r.country_name)}</td>
+      <td>${escapeHtml(r.village_name)}</td>
+      <td>${r.kind === 'plot' ? (PLOT_TYPE_LABELS[r.plot_type] || escapeHtml(r.plot_type)) : '<span style="color:var(--text-muted)">No plot yet</span>'}</td>
+      <td>${escapeHtml(r.crop_name || '')}</td>
+      <td>${escapeHtml(r.variety_name || '')}</td>
+      <td>${escapeHtml(r.cycle || '')}</td>
+      <td>${r.kind === 'plot' ? `<span class="status-badge ${STATUS_CLASS[r.demo_status] || ''}">${escapeHtml(r.demo_status)}</span>` : ''}</td>
+      <td class="num">${r.kind === 'plot' ? r.visit_count : ''}</td>
+      <td>${r.last_visit_at ? new Date(r.last_visit_at).toLocaleDateString() : (r.kind === 'plot' ? 'Never' : '')}</td>
+      <td class="num">${r.kind === 'plot' ? r.open_issues : ''}</td>
+      <td>${r.kind === 'plot' ? (r.has_gps ? 'Yes' : '<span style="color:var(--text-muted)">No</span>') : ''}</td>
+    </tr>`).join('');
+  note.style.display = visible.length > DISPLAY_CAP ? 'block' : 'none';
+  note.textContent = `Showing the first ${DISPLAY_CAP} of ${visible.length} rows. Narrow the filters, or export to CSV to get every row.`;
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const headers = ['Farmer', 'Phone', 'Gender', 'Farmer status', 'Country', 'State', 'District', 'Block', 'Village', 'Plot type', 'Crop', 'Variety', 'Cycle', 'Plot status', 'Visits', 'Last visit', 'Open issues', 'GPS captured', 'Registered'];
+  const rows = getVisibleRows().map((r) => [
+    r.farmer_name, r.farmer_phone, r.gender || '', r.farmer_status || '', r.country_name, r.state_name, r.district_name, r.block_name, r.village_name,
+    r.kind === 'plot' ? (PLOT_TYPE_LABELS[r.plot_type] || r.plot_type) : 'No plot yet', r.crop_name || '', r.variety_name || '', r.cycle || '',
+    r.demo_status || '', r.kind === 'plot' ? r.visit_count : '', r.last_visit_at ? new Date(r.last_visit_at).toLocaleDateString() : '',
+    r.kind === 'plot' ? r.open_issues : '', r.kind === 'plot' ? (r.has_gps ? 'Yes' : 'No') : '', new Date(r.created_at).toLocaleDateString(),
+  ]);
+  exportToCsv('farmer-plot-register.csv', headers, rows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  ['show-filter', 'type-filter', 'status-filter'].forEach((id) => enhanceSelect(document.getElementById(id)));
+  try {
+    const res = await authedFetch('/reports/register');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load the register');
+    allRows = data.rows;
+    const countries = [...new Set(allRows.map((r) => r.country_name))].sort();
+    rebuildSelect('country-filter', '<option value="">All countries</option>' + countries.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join(''));
+    ['show-filter', 'type-filter', 'status-filter', 'country-filter'].forEach((id) => document.getElementById(id).addEventListener('change', render));
+    document.getElementById('search-input').addEventListener('input', render);
+    renderSummary();
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

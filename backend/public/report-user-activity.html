@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>User Activity</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .summary .chip.warn strong { color: #92400e; }
+  tr.inactive td { color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>User Activity</h1>
+    <p class="scope-note" style="margin-top:0">Records each person created in the chosen dates, including people who logged nothing. Issues resolved are counted separately.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="filters">
+  <div class="range-controls">
+    <div class="preset-group" id="range-presets">
+      <button type="button" data-days="7">7 days</button>
+      <button type="button" data-days="30">30 days</button>
+      <button type="button" data-days="90">90 days</button>
+    </div>
+    <input type="date" id="from-date" />
+    <span class="to-sep">to</span>
+    <input type="date" id="to-date" />
+  </div>
+  <select id="role-filter"><option value="">All roles</option></select>
+  <select id="show-filter">
+    <option value="all">Everyone</option>
+    <option value="inactive">Logged nothing</option>
+    <option value="active">Logged something</option>
+  </select>
+  <select id="sort-filter">
+    <option value="most">Most records first</option>
+    <option value="least">Fewest records first</option>
+    <option value="name">Name A to Z</option>
+  </select>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search name..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Person</th><th>Role</th><th class="num">Plots</th><th class="num">Visits</th><th class="num">Trainings</th><th class="num">Field days</th>
+      <th class="num">Institution visits</th><th class="num">Dealer visits</th><th class="num">Data collection</th><th class="num">Issues raised</th>
+      <th class="num">Total</th><th class="num">Issues resolved</th><th>Last activity</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+const ROLE_LABELS = { tfo: 'TFO', team_lead: 'Team Lead', supervisor: 'Supervisor', country_manager: 'Country Manager', admin: 'Admin', leadership: 'Leadership', super_admin: 'Super Admin' };
+const COLUMNS = ['plot', 'visit', 'training', 'field_day', 'institution_visit', 'agro_dealer_visit', 'data_collection', 'issue_raised'];
+let users = [];
+
+function getVisibleRows() {
+  const role = document.getElementById('role-filter').value;
+  const show = document.getElementById('show-filter').value;
+  const sort = document.getElementById('sort-filter').value;
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const rows = users.filter((u) => {
+    if (role && u.role !== role) return false;
+    if (show === 'inactive' && u.total > 0) return false;
+    if (show === 'active' && u.total === 0) return false;
+    return !q || u.name.toLowerCase().includes(q);
+  });
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  if (sort === 'name') rows.sort(byName);
+  else if (sort === 'least') rows.sort((a, b) => a.total - b.total || byName(a, b));
+  else rows.sort((a, b) => b.total - a.total || byName(a, b));
+  return rows;
+}
+
+function renderSummary() {
+  const active = users.filter((u) => u.total > 0).length;
+  const inactive = users.length - active;
+  document.getElementById('summary').innerHTML = `
+    <div class="chip"><strong>${users.length}</strong>people</div>
+    <div class="chip"><strong>${active}</strong>logged records</div>
+    <div class="chip ${inactive ? 'warn' : ''}"><strong>${inactive}</strong>logged nothing</div>
+    <div class="chip"><strong>${users.reduce((s, u) => s + u.total, 0)}</strong>records created</div>
+    <div class="chip"><strong>${users.reduce((s, u) => s + u.issuesResolved, 0)}</strong>issues resolved</div>`;
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const visible = getVisibleRows();
+  if (!users.length) {
+    statusEl.textContent = 'No people in your coverage yet.';
+    statusEl.style.display = 'block'; table.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'Nobody matches these filters.';
+    statusEl.style.display = 'block'; table.style.display = 'none';
+    return;
+  }
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  document.getElementById('rows').innerHTML = visible.map((u) => `
+    <tr class="${u.total === 0 ? 'inactive' : ''}">
+      <td>${escapeHtml(u.name)}</td>
+      <td>${escapeHtml(ROLE_LABELS[u.role] || u.role || '')}</td>
+      ${COLUMNS.map((c) => `<td class="num">${u.counts[c] || '-'}</td>`).join('')}
+      <td class="num"><strong>${u.total}</strong></td>
+      <td class="num">${u.issuesResolved || '-'}</td>
+      <td>${u.lastAt ? new Date(u.lastAt).toLocaleDateString() : '<span class="status-badge status-terminated">No activity</span>'}</td>
+    </tr>`).join('');
+}
+
+async function load({ from, to }) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'empty';
+  statusEl.textContent = 'Loading...';
+  statusEl.style.display = 'block';
+  document.getElementById('table').style.display = 'none';
+  try {
+    const res = await authedFetch(`/reports/user-activity?from=${from}&to=${to}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load user activity');
+    users = data.users;
+    const roles = [...new Set(users.map((u) => u.role).filter(Boolean))].sort();
+    const selected = document.getElementById('role-filter').value;
+    rebuildSelect('role-filter', '<option value="">All roles</option>' + roles.map((r) => `<option value="${r}" ${r === selected ? 'selected' : ''}>${escapeHtml(ROLE_LABELS[r] || r)}</option>`).join(''));
+    document.getElementById('role-filter').addEventListener('change', render);
+    renderSummary();
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const headers = ['Person', 'Role', 'Plots', 'Visits', 'Trainings', 'Field days', 'Institution visits', 'Dealer visits', 'Data collection', 'Issues raised', 'Total records', 'Issues resolved', 'Last activity'];
+  const rows = getVisibleRows().map((u) => [
+    u.name, ROLE_LABELS[u.role] || u.role || '', ...COLUMNS.map((c) => u.counts[c] || 0), u.total, u.issuesResolved,
+    u.lastAt ? new Date(u.lastAt).toLocaleDateString() : '',
+  ]);
+  exportToCsv('user-activity.csv', headers, rows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  ['show-filter', 'sort-filter'].forEach((id) => {
+    enhanceSelect(document.getElementById(id));
+    document.getElementById(id).addEventListener('change', render);
+  });
+  enhanceSelect(document.getElementById('role-filter'));
+  document.getElementById('search-input').addEventListener('input', render);
+  const range = setupDateRange(30, load);
+  load(range);
+}
+
+init();
+</script>
+</body>
+</html>

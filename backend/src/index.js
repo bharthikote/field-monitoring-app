@@ -118,6 +118,18 @@ app.get('/admin/reports/issue-aging', (_req, res) => {
 app.get('/admin/reports/visit-compliance', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-visit-compliance.html'));
 });
+app.get('/admin/reports/register', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-register.html'));
+});
+app.get('/admin/reports/activity-log', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-activity-log.html'));
+});
+app.get('/admin/reports/photo-evidence', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-photo-evidence.html'));
+});
+app.get('/admin/reports/user-activity', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'report-user-activity.html'));
+});
 app.get('/admin/reports/master-list', (_req, res) => {
   res.sendFile(path.join(publicDir, 'report-master-list.html'));
 });

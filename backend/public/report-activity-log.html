@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Activity Log</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Activity Log</h1>
+    <p class="scope-note" style="margin-top:0">Plot visits, trainings, field days, institution and agro dealer visits and data collection in the chosen dates, newest first.</p>
+  </div>
+  <button id="export-btn" class="primary"></button>
+</div>
+
+<div class="filters">
+  <div class="range-controls">
+    <div class="preset-group" id="range-presets">
+      <button type="button" data-days="7">7 days</button>
+      <button type="button" data-days="30">30 days</button>
+      <button type="button" data-days="90">90 days</button>
+    </div>
+    <input type="date" id="from-date" />
+    <span class="to-sep">to</span>
+    <input type="date" id="to-date" />
+  </div>
+  <select id="type-filter"><option value="">All activity types</option></select>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search farmer, place, person, detail..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<p id="status" class="empty">Loading...</p>
+<div class="table-scroll">
+<table id="table" style="display:none">
+  <thead>
+    <tr>
+      <th>Date</th><th>Type</th><th>Farmer / place</th><th>Detail</th><th>Village</th><th>Country</th><th>Logged by</th><th>Photo</th><th>GPS</th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+<p id="limit-note" class="scope-note" style="display:none"></p>
+</div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const DOWNLOAD_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
+document.getElementById('export-btn').innerHTML = `${DOWNLOAD_ICON} Export CSV`;
+
+// Same colours the map and mobile home screen use for each activity.
+const TYPES = {
+  visit: { label: 'Plot visit', bg: '#dcfce7', fg: '#166534' },
+  training: { label: 'Training', bg: '#dbeafe', fg: '#1e40af' },
+  field_day: { label: 'Field day', bg: '#ccfbf1', fg: '#115e59' },
+  institution_visit: { label: 'Institution visit', bg: '#ede9fe', fg: '#5b21b6' },
+  agro_dealer_visit: { label: 'Agro dealer visit', bg: '#fce7f3', fg: '#9d174d' },
+  data_collection: { label: 'Data collection', bg: '#e8f3ea', fg: '#3e7248' },
+};
+const ROLE_LABELS = { tfo: 'TFO', team_lead: 'Team Lead', supervisor: 'Supervisor', country_manager: 'Country Manager', admin: 'Admin', leadership: 'Leadership', super_admin: 'Super Admin' };
+const DISPLAY_CAP = 500;
+let activities = [];
+let truncated = false;
+
+const pill = (type) => {
+  const t = TYPES[type] || { label: type, bg: 'var(--bg)', fg: 'var(--text-muted)' };
+  return `<span class="type-pill" style="background:${t.bg};color:${t.fg}">${t.label}</span>`;
+};
+
+function getVisibleRows() {
+  const type = document.getElementById('type-filter').value;
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  return activities.filter((a) => {
+    if (type && a.type !== type) return false;
+    if (!q) return true;
+    return [a.title, a.detail, a.village_name, a.country_name, a.by_name].join(' ').toLowerCase().includes(q);
+  });
+}
+
+function renderSummary() {
+  const counts = {};
+  activities.forEach((a) => { counts[a.type] = (counts[a.type] || 0) + 1; });
+  document.getElementById('summary').innerHTML =
+    `<div class="chip"><strong>${activities.length}</strong>activities</div>` +
+    Object.keys(TYPES).filter((t) => counts[t]).map((t) => `<div class="chip"><strong>${counts[t]}</strong>${TYPES[t].label.toLowerCase()}s</div>`).join('');
+}
+
+function render() {
+  const statusEl = document.getElementById('status');
+  const table = document.getElementById('table');
+  const note = document.getElementById('limit-note');
+  const visible = getVisibleRows();
+  if (!activities.length) {
+    statusEl.textContent = 'No activity was logged in these dates within your coverage.';
+    statusEl.style.display = 'block'; table.style.display = 'none'; note.style.display = 'none';
+    return;
+  }
+  if (!visible.length) {
+    statusEl.textContent = 'Nothing matches these filters.';
+    statusEl.style.display = 'block'; table.style.display = 'none'; note.style.display = 'none';
+    return;
+  }
+  statusEl.style.display = 'none';
+  table.style.display = 'table';
+  document.getElementById('rows').innerHTML = visible.slice(0, DISPLAY_CAP).map((a) => `
+    <tr>
+      <td>${new Date(a.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</td>
+      <td>${pill(a.type)}</td>
+      <td>${escapeHtml(a.title)}</td>
+      <td>${escapeHtml(a.detail || '')}</td>
+      <td>${escapeHtml(a.village_name)}</td>
+      <td>${escapeHtml(a.country_name)}</td>
+      <td>${escapeHtml(a.by_name)} <span style="color:var(--text-muted)">${escapeHtml(ROLE_LABELS[a.by_role] || '')}</span></td>
+      <td>${a.photo_url ? `<a href="${escapeHtml(a.photo_url)}" target="_blank" rel="noopener">View</a>` : '<span style="color:var(--text-muted)">-</span>'}</td>
+      <td>${a.has_gps ? 'Yes' : '<span style="color:var(--text-muted)">No</span>'}</td>
+    </tr>`).join('');
+  const notes = [];
+  if (visible.length > DISPLAY_CAP) notes.push(`Showing the first ${DISPLAY_CAP} of ${visible.length} rows here. Export to CSV to get every row.`);
+  if (truncated) notes.push('This range holds more activity than the report can load, so the oldest days are cut off. Choose a shorter range to see them.');
+  note.style.display = notes.length ? 'block' : 'none';
+  note.textContent = notes.join(' ');
+}
+
+async function load({ from, to }) {
+  const statusEl = document.getElementById('status');
+  statusEl.className = 'empty';
+  statusEl.textContent = 'Loading...';
+  statusEl.style.display = 'block';
+  document.getElementById('table').style.display = 'none';
+  try {
+    const res = await authedFetch(`/reports/activity-log?from=${from}&to=${to}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load the activity log');
+    activities = data.activities;
+    truncated = data.truncated;
+    renderSummary();
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+  }
+}
+
+document.getElementById('export-btn').addEventListener('click', () => {
+  const headers = ['Date', 'Time', 'Type', 'Farmer / place', 'Detail', 'Village', 'Country', 'Logged by', 'Role', 'Photo link', 'GPS captured'];
+  const rows = getVisibleRows().map((a) => {
+    const d = new Date(a.created_at);
+    return [d.toLocaleDateString(), d.toLocaleTimeString(), (TYPES[a.type] || {}).label || a.type, a.title, a.detail || '', a.village_name, a.country_name,
+      a.by_name, ROLE_LABELS[a.by_role] || '', a.photo_url || '', a.has_gps ? 'Yes' : 'No'];
+  });
+  exportToCsv('activity-log.csv', headers, rows);
+});
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  rebuildSelect('type-filter', '<option value="">All activity types</option>' + Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t.label}</option>`).join(''));
+  document.getElementById('type-filter').addEventListener('change', render);
+  document.getElementById('search-input').addEventListener('input', render);
+  const range = setupDateRange(30, load);
+  load(range);
+}
+
+init();
+</script>
+</body>
+</html>

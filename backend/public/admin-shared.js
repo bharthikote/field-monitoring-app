@@ -47,6 +47,10 @@ const NAV_STRUCTURE = [
       { href: '/admin/reports/demos', label: 'Demos' },
       { href: '/admin/reports/visit-compliance', label: 'Visit Compliance' },
       { href: '/admin/reports/issue-aging', label: 'Issue Aging' },
+      { href: '/admin/reports/register', label: 'Farmer & Plot Register' },
+      { href: '/admin/reports/activity-log', label: 'Activity Log' },
+      { href: '/admin/reports/photo-evidence', label: 'Photo Evidence' },
+      { href: '/admin/reports/user-activity', label: 'User Activity', roles: ['super_admin', 'leadership', 'admin', 'country_manager', 'supervisor', 'team_lead'] },
       { href: '/admin/reports/master-list', label: 'Master List' },
     ],
   },
@@ -173,6 +177,40 @@ function exportToCsv(filename, headers, rows) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Date-range controls shared by the report pages: quick presets (buttons with
+// data-days inside #range-presets) plus explicit From/To dates (#from-date,
+// #to-date). Calls onChange({ from, to }) whenever the range changes and
+// returns the initial range. Typing a date clears the active preset.
+function localIsoDate(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function setupDateRange(defaultDays, onChange) {
+  const fromEl = document.getElementById('from-date');
+  const toEl = document.getElementById('to-date');
+  const presets = [...document.querySelectorAll('#range-presets button')];
+  const current = () => ({ from: fromEl.value, to: toEl.value });
+  const markActive = (days) => presets.forEach((b) => b.classList.toggle('active', Number(b.dataset.days) === days));
+  const applyPreset = (days) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    fromEl.value = localIsoDate(from);
+    toEl.value = localIsoDate(to);
+    markActive(days);
+  };
+  presets.forEach((b) => b.addEventListener('click', () => {
+    applyPreset(Number(b.dataset.days));
+    onChange(current());
+  }));
+  [fromEl, toEl].forEach((el) => el.addEventListener('change', () => {
+    markActive(null);
+    if (fromEl.value && toEl.value) onChange(current());
+  }));
+  applyPreset(defaultDays);
+  return current();
 }
 
 // Upgrades a plain <select> into a custom-styled dropdown, in place. The

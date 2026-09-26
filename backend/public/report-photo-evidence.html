@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Photo Evidence</title>
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: 16px; }
+  .photo-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; padding: 0; text-align: left; color: inherit; display: block; width: 100%; font: inherit; }
+  .photo-card:hover { border-color: var(--accent); }
+  .photo-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--bg); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-thumb .type-pill { position: absolute; left: 8px; top: 8px; }
+  .photo-meta { white-space: normal; overflow-wrap: anywhere; padding: 10px 12px 12px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
+  .photo-meta strong { display: block; font-size: 0.86rem; color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .no-gps { color: #92400e; }
+  .lightbox { position: fixed; inset: 0; background: rgba(20, 20, 18, 0.86); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 24px; }
+  .lightbox.open { display: flex; }
+  .lightbox-body { max-width: min(1100px, 100%); max-height: 100%; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .lightbox img { max-width: 100%; max-height: calc(100vh - 150px); border-radius: var(--radius-sm); background: #111; }
+  .lightbox-caption { color: #f3f1ec; font-size: 0.9rem; text-align: center; line-height: 1.5; }
+  .lightbox-actions { display: flex; gap: 8px; }
+  .lightbox-actions button, .lightbox-actions a { background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 7px 14px; border-radius: var(--radius-sm); font-size: 0.85rem; text-decoration: none; cursor: pointer; }
+  .lightbox-actions button:hover, .lightbox-actions a:hover { background: rgba(255,255,255,0.24); }
+</style>
+</head>
+<body>
+
+<div id="admin-nav"></div>
+
+<div class="page page-wide">
+<div class="panel">
+<div class="report-header">
+  <div>
+    <h1>Photo Evidence</h1>
+    <p class="scope-note" style="margin-top:0">Every photo logged in the chosen dates, newest first - for spot-checking a visit without opening each record. Click a photo to enlarge it.</p>
+  </div>
+</div>
+
+<div class="filters">
+  <div class="range-controls">
+    <div class="preset-group" id="range-presets">
+      <button type="button" data-days="7">7 days</button>
+      <button type="button" data-days="14">14 days</button>
+      <button type="button" data-days="30">30 days</button>
+    </div>
+    <input type="date" id="from-date" />
+    <span class="to-sep">to</span>
+    <input type="date" id="to-date" />
+  </div>
+  <select id="type-filter"><option value="">All photo types</option></select>
+  <div class="search-wrap">
+    <input type="text" id="search-input" placeholder="Search farmer, place, person..." />
+    <span class="search-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+  </div>
+</div>
+
+<div class="summary" id="summary"></div>
+<p id="status" class="empty">Loading...</p>
+<div class="photo-grid" id="grid"></div>
+<p style="text-align:center; margin-top:18px"><button id="more-btn" style="display:none">Load more photos</button></p>
+</div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <div class="lightbox-body">
+    <img id="lightbox-img" alt="" />
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+    <div class="lightbox-actions">
+      <button type="button" id="lb-prev">&larr; Previous</button>
+      <a id="lb-open" target="_blank" rel="noopener">Open original</a>
+      <button type="button" id="lb-next">Next &rarr;</button>
+      <button type="button" id="lb-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<script src="/admin-shared.js"></script>
+<script>
+const TYPES = {
+  visit: { label: 'Plot visit', bg: '#dcfce7', fg: '#166534' },
+  training: { label: 'Training', bg: '#dbeafe', fg: '#1e40af' },
+  field_day: { label: 'Field day', bg: '#ccfbf1', fg: '#115e59' },
+  institution_visit: { label: 'Institution visit', bg: '#ede9fe', fg: '#5b21b6' },
+  agro_dealer_visit: { label: 'Agro dealer visit', bg: '#fce7f3', fg: '#9d174d' },
+  issue: { label: 'Issue', bg: '#fee2e2', fg: '#991b1b' },
+};
+const PAGE_SIZE = 120;
+let photos = [];
+let hasMore = false;
+let limit = PAGE_SIZE;
+let range = null;
+let shown = []; // photos currently in the grid (after the text filter), in order
+let lightboxIndex = 0;
+
+const pill = (type) => {
+  const t = TYPES[type] || { label: type, bg: 'var(--bg)', fg: 'var(--text-muted)' };
+  return `<span class="type-pill" style="background:${t.bg};color:${t.fg}">${t.label}</span>`;
+};
+
+function captionFor(p) {
+  const when = new Date(p.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  const e = escapeHtml;
+  return `${e((TYPES[p.type] || {}).label || p.type)}: ${e(p.title)}${p.detail ? ' (' + e(p.detail) + ')' : ''}<br>${e(p.village_name || '')}${p.country_name ? ', ' + e(p.country_name) : ''}<br>${e(p.by_name)} · ${e(when)}${p.has_gps ? '' : ' · no GPS'}`;
+}
+
+function render() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  shown = photos.filter((p) => !q || [p.title, p.detail, p.village_name, p.country_name, p.by_name].join(' ').toLowerCase().includes(q));
+  const statusEl = document.getElementById('status');
+  document.getElementById('summary').innerHTML = `<div class="chip"><strong>${shown.length}</strong>photos${hasMore ? ' loaded so far' : ''}</div>` +
+    `<div class="chip"><strong>${shown.filter((p) => !p.has_gps).length}</strong>logged without GPS</div>`;
+  if (!shown.length) {
+    statusEl.textContent = photos.length ? 'No photos match this search.' : 'No photos were logged in these dates within your coverage.';
+    statusEl.className = 'empty';
+    statusEl.style.display = 'block';
+  } else {
+    statusEl.style.display = 'none';
+  }
+  document.getElementById('grid').innerHTML = shown.map((p, i) => `
+    <button type="button" class="photo-card" data-i="${i}">
+      <div class="photo-thumb">
+        <img src="${escapeHtml(p.photo_url)}" alt="${escapeHtml(p.title)}" loading="lazy" />
+        ${pill(p.type)}
+      </div>
+      <div class="photo-meta">
+        <strong>${escapeHtml(p.title)}</strong>
+        ${escapeHtml(p.village_name || '')}${p.country_name ? ', ' + escapeHtml(p.country_name) : ''}<br>
+        ${escapeHtml(p.by_name)} · ${new Date(p.created_at).toLocaleDateString()}${p.has_gps ? '' : ' · <span class="no-gps">no GPS</span>'}
+      </div>
+    </button>`).join('');
+  document.getElementById('more-btn').style.display = hasMore ? 'inline-block' : 'none';
+}
+
+async function load(reset) {
+  const statusEl = document.getElementById('status');
+  if (reset) {
+    limit = PAGE_SIZE;
+    statusEl.className = 'empty';
+    statusEl.textContent = 'Loading...';
+    statusEl.style.display = 'block';
+    document.getElementById('grid').innerHTML = '';
+  }
+  const type = document.getElementById('type-filter').value;
+  try {
+    const res = await authedFetch(`/reports/photo-evidence?from=${range.from}&to=${range.to}&limit=${limit}${type ? '&type=' + type : ''}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load photos');
+    photos = data.photos;
+    hasMore = data.hasMore;
+    render();
+  } catch (err) {
+    if (err.message.includes('expired')) return;
+    statusEl.textContent = err.message;
+    statusEl.className = 'error';
+    statusEl.style.display = 'block';
+  }
+}
+
+function showLightbox(i) {
+  if (!shown.length) return;
+  lightboxIndex = (i + shown.length) % shown.length;
+  const p = shown[lightboxIndex];
+  document.getElementById('lightbox-img').src = p.photo_url;
+  document.getElementById('lightbox-img').alt = p.title;
+  document.getElementById('lightbox-caption').innerHTML = captionFor(p);
+  document.getElementById('lb-open').href = p.photo_url;
+  document.getElementById('lightbox').classList.add('open');
+}
+const closeLightbox = () => document.getElementById('lightbox').classList.remove('open');
+
+async function init() {
+  const user = await initAdminPage();
+  if (!user) return;
+  rebuildSelect('type-filter', '<option value="">All photo types</option>' + Object.entries(TYPES).map(([k, t]) => `<option value="${k}">${t.label}</option>`).join(''));
+  document.getElementById('type-filter').addEventListener('change', () => load(true));
+  document.getElementById('search-input').addEventListener('input', render);
+  document.getElementById('more-btn').addEventListener('click', () => { limit += PAGE_SIZE; load(false); });
+  document.getElementById('grid').addEventListener('click', (e) => {
+    const card = e.target.closest('.photo-card');
+    if (card) showLightbox(Number(card.dataset.i));
+  });
+  document.getElementById('lb-close').addEventListener('click', closeLightbox);
+  document.getElementById('lb-prev').addEventListener('click', () => showLightbox(lightboxIndex - 1));
+  document.getElementById('lb-next').addEventListener('click', () => showLightbox(lightboxIndex + 1));
+  document.getElementById('lightbox').addEventListener('click', (e) => { if (e.target.id === 'lightbox') closeLightbox(); });
+  document.addEventListener('keydown', (e) => {
+    if (!document.getElementById('lightbox').classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft') showLightbox(lightboxIndex - 1);
+    if (e.key === 'ArrowRight') showLightbox(lightboxIndex + 1);
+  });
+  range = setupDateRange(14, (r) => { range = r; load(true); });
+  load(true);
+}
+
+init();
+</script>
+</body>
+</html>
