@@ -139,9 +139,28 @@ visitsRouter.get('/visits', requireAuth, async (req, res) => {
   res.json({ visits });
 });
 
+// The offline app sends each visit with a clientId made on the phone. A
+// repeat of an id this user already sent returns the saved visit (200), so a
+// retry after a dropped connection never logs the same visit twice. Returns
+// true when it has answered the request.
+async function answerRepeatedVisit(clientId, userId, res) {
+  const existing = await pool.query('select id, created_at, visited_by from visits where client_id = $1', [clientId]);
+  if (existing.rowCount === 0) return false;
+  const row = existing.rows[0];
+  if (row.visited_by !== userId) {
+    res.status(409).json({ error: 'This visit id was already used by another user', code: 'client_id_conflict' });
+    return true;
+  }
+  res.status(200).json({ visit: { id: row.id, createdAt: row.created_at }, skippedIssues: [], repeated: true });
+  return true;
+}
+
 visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, async (req, res) => {
   const files = req.files || [];
   const { demoPlotId, actionPlan, comments, diseaseOther, pestOther } = req.body;
+  const clientId = req.body.clientId || null;
+  if (clientId && !UUID_RE.test(clientId)) return res.status(400).json({ error: 'clientId must be a UUID' });
+  if (clientId && (await answerRepeatedVisit(clientId, req.user.userId, res))) return;
   const issueTypeIds = parseIdList(req.body.issueTypeIds);
   const goodThingIds = parseIdList(req.body.goodThingIds);
   const techniqueIds = parseIdList(req.body.techniqueIds);
@@ -235,10 +254,10 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
     const overallPhotoUrl = await uploadPhoto(overallPhoto.buffer, overallPhoto.originalname, overallPhoto.mimetype);
 
     const visitResult = await client.query(
-      `insert into visits (demo_plot_id, visited_by, action_plan, comments, overall_photo_url, gps_lat, gps_lng, gps_accuracy)
-       values ($1, $2, $3, $4, $5, $6, $7, $8)
+      `insert into visits (demo_plot_id, visited_by, action_plan, comments, overall_photo_url, gps_lat, gps_lng, gps_accuracy, client_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        returning id, created_at`,
-      [demoPlotId, req.user.userId, actionPlan.trim(), comments.trim(), overallPhotoUrl, gps.lat, gps.lng, gps.accuracy],
+      [demoPlotId, req.user.userId, actionPlan.trim(), comments.trim(), overallPhotoUrl, gps.lat, gps.lng, gps.accuracy, clientId],
     );
     const visitId = visitResult.rows[0].id;
 
@@ -342,6 +361,9 @@ visitsRouter.post('/visits', requireAuth, requireLocation, handleFileUpload, asy
     res.status(201).json({ visit: { id: visitId, createdAt: visitResult.rows[0].created_at }, skippedIssues });
   } catch (err) {
     await client.query('rollback');
+    // Two copies of the same offline visit arrived at once: the other one
+    // won the insert, so answer with it.
+    if (err.code === '23505' && clientId && (await answerRepeatedVisit(clientId, req.user.userId, res))) return;
     if (err.code === '23503') return res.status(400).json({ error: 'One of the selected issues/good-things/techniques/disease/pest no longer exists' });
     res.status(500).json({ error: err.message });
   } finally {

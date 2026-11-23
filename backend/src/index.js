@@ -29,6 +29,7 @@ import { activityReturnsRouter } from './routes/activityReturns.js';
 import { projectsRouter } from './routes/projects.js';
 import { countriesRouter } from './routes/countries.js';
 import { notificationsRouter } from './routes/notifications.js';
+import { syncRouter } from './routes/sync.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, '..', 'public');
@@ -80,6 +81,7 @@ app.use(activityReturnsRouter);
 app.use(projectsRouter);
 app.use(countriesRouter);
 app.use(notificationsRouter);
+app.use(syncRouter);
 app.use(express.static(publicDir));
 
 app.get('/admin/dashboard', (_req, res) => {

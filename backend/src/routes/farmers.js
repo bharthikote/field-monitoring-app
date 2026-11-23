@@ -88,7 +88,7 @@ function handleFileUpload(req, res, next) {
 // (confirmed: 1996-03-15 came back as 1996-03-14T18:30:00.000Z on this
 // server). Casting to text in SQL returns the plain YYYY-MM-DD string with
 // no timezone involved at all.
-const SELECT_FARMERS = `
+export const SELECT_FARMERS = `
   select f.id, f.name, f.phone, f.created_at, f.status,
     f.photo_url, f.farmer_type, f.gender, f.age, f.birth_date::text as birth_date, f.address,
     f.education_level, f.literacy, f.phone_type, f.social_media, f.email,
