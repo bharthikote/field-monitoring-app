@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- The camera app writes the full-size photo here; the app then saves a
+         compressed copy in files/photos until it has been sent. -->
+    <cache-path name="camera" path="camera/" />
+</paths>

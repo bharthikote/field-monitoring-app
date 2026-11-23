@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window before Compose draws; everything else is the Compose theme. -->
+    <style name="Theme.FieldSight" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/fs_background</item>
+        <item name="android:statusBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+    </style>
+    <color name="fs_background">#E8EEEA</color>
+    <color name="fs_primary">#00664A</color>
+</resources>
