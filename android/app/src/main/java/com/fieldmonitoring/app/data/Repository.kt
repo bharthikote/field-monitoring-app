@@ -81,7 +81,7 @@ class Repository(
     fun logout(force: Boolean): Boolean {
         val unsent = store.byState(RecordState.PENDING) + store.byState(RecordState.ATTENTION)
         if (unsent.isNotEmpty() && !force) return false
-        for (record in store.all(RecordKind.VISIT)) deletePhotos(record)
+        for (record in store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER)) deletePhotos(record)
         store.clearAll()
         cachedBundle = null
         refreshCounts()
@@ -215,7 +215,7 @@ class Repository(
     }
 
     fun discardRecord(id: String) {
-        store.all(RecordKind.VISIT).firstOrNull { it.id == id }?.let(::deletePhotos)
+        (store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER)).firstOrNull { it.id == id }?.let(::deletePhotos)
         store.delete(id)
         refreshCounts()
     }
@@ -260,6 +260,11 @@ class Repository(
         for (record in store.byState(RecordState.PENDING)) {
             if (record.kind == RecordKind.ISSUE_ACTION) {
                 if (sendIssueAction(record)) sent++
+                refreshCounts()
+                continue
+            }
+            if (record.kind == RecordKind.FARMER) {
+                if (sendFarmer(record)) sent++
                 refreshCounts()
                 continue
             }
@@ -317,6 +322,60 @@ class Repository(
         }
     }
 
+    /** One new farmer. Returns true when the server has it. */
+    private fun sendFarmer(record: OutboxRecord): Boolean {
+        val draft = runCatching { AppJson.decodeFromString<FarmerDraft>(record.body) }.getOrNull()
+        if (draft == null) {
+            store.markAttention(record.id, "This record is damaged and can't be sent")
+            return false
+        }
+        val files = listOfNotNull(draft.photo?.let { FilePart("photo", File(it)) }).filter { it.file.exists() }
+        return try {
+            val response = remote.postMultipart("/farmers", FarmerRules.formFields(draft), files)
+            val serverId = runCatching {
+                (AppJson.parseToJsonElement(response) as kotlinx.serialization.json.JsonObject)["farmer"]
+                    ?.let { it as kotlinx.serialization.json.JsonObject }?.get("id")?.toString()?.trim('"')
+            }.getOrNull()
+            store.markSent(record.id, serverId)
+            draft.photo?.let { runCatching { deleteFile(it) } }
+            true
+        } catch (e: ApiException) {
+            if (e.offline || e.relogin) throw e
+            // e.g. "Asha is already registered with this phone number." when
+            // someone else registered the same farmer while this phone was offline.
+            store.markAttention(record.id, e.message ?: "The server refused this farmer")
+            false
+        }
+    }
+
+    // --- Farmers registered on this phone ---
+
+    /** Who already has [phone]: the downloaded farmers, then ones registered here and not sent yet. */
+    fun phoneOwner(phone: String): String? =
+        bundle().farmers.firstOrNull { it.phone == phone }?.name
+            ?: unsentFarmers().firstOrNull { it.second.phone == phone }?.second?.name
+
+    /** Saves a new farmer on the phone. Returns an error, or null when saved. */
+    fun saveFarmer(draft: FarmerDraft): String? {
+        val clean = draft.copy(phone = FarmerRules.cleanPhone(draft.phone), name = draft.name.trim())
+        FarmerRules.validate(clean, phoneOwner(clean.phone))?.let { return it }
+        store.add(OutboxRecord(clean.clientId, RecordKind.FARMER, AppJson.encodeToString(clean), RecordState.PENDING, clean.createdAtMillis.takeIf { it > 0 } ?: now()))
+        refreshCounts()
+        return null
+    }
+
+    private fun unsentFarmers(): List<Pair<OutboxRecord, FarmerDraft>> =
+        store.all(RecordKind.FARMER).filter { it.state != RecordState.SENT }.mapNotNull { record ->
+            runCatching { AppJson.decodeFromString<FarmerDraft>(record.body) }.getOrNull()?.let { record to it }
+        }
+
+    /** Farmers registered on this phone and not on the server yet, shaped like downloaded ones. */
+    fun localFarmers(): List<Farmer> = unsentFarmers().map { (record, draft) -> FarmerRules.asFarmer(draft, record.state) }
+
+    /** The outbox record behind a local farmer id ("local:<clientId>"). */
+    fun localFarmerRecord(farmerId: String): OutboxRecord? =
+        store.all(RecordKind.FARMER).firstOrNull { FarmerRules.LOCAL_PREFIX + it.id == farmerId }
+
     // --- Issue actions ---
 
     /** Saves an action on the phone to send with the next sync. Returns an error, or null. */
@@ -357,6 +416,10 @@ class Repository(
     }
 
     private fun deletePhotos(record: OutboxRecord) {
+        if (record.kind == RecordKind.FARMER) {
+            runCatching { AppJson.decodeFromString<FarmerDraft>(record.body).photo?.let(deleteFile) }
+            return
+        }
         val draft = runCatching { AppJson.decodeFromString<VisitDraft>(record.body) }.getOrNull() ?: return
         draft.photos.values.forEach { runCatching { deleteFile(it) } }
     }

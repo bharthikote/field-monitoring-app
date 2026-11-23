@@ -31,7 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fieldmonitoring.app.data.DemoPlot
 import com.fieldmonitoring.app.data.Farmer
+import com.fieldmonitoring.app.data.RecordState
 import com.fieldmonitoring.app.data.Search
+import com.fieldmonitoring.app.ui.components.CreateButton
+import com.fieldmonitoring.app.ui.components.PillKind
 import com.fieldmonitoring.app.ui.AppViewModel
 import com.fieldmonitoring.app.ui.Format
 import com.fieldmonitoring.app.ui.Screen
@@ -49,9 +52,19 @@ import com.fieldmonitoring.app.ui.theme.FsText
 private const val LIST_LIMIT = 300
 
 @Composable
-private fun SearchHeader(title: String, query: String, onQuery: (String) -> Unit, count: Int, hint: String) {
+private fun SearchHeader(
+    title: String,
+    query: String,
+    onQuery: (String) -> Unit,
+    count: Int,
+    hint: String,
+    action: (@Composable () -> Unit)? = null,
+) {
     Column(Modifier.fillMaxWidth().background(Fs.Background).padding(16.dp)) {
-        SectionTitle(title)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { SectionTitle(title) }
+            action?.invoke()
+        }
         Spacer(Modifier.height(10.dp))
         FsTextField(
             label = null,
@@ -73,12 +86,16 @@ private fun SearchHeader(title: String, query: String, onQuery: (String) -> Unit
 @Composable
 fun FarmersScreen(vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
-    val results = Search.farmers(vm.bundle.farmers, query)
+    val all = vm.farmers
+    val results = Search.farmers(all, query)
     Column(Modifier.fillMaxSize().background(Fs.Background)) {
-        SearchHeader("Farmers", query, { query = it }, results.size, "Name, phone number or village")
+        SearchHeader(
+            "Farmers", query, { query = it }, results.size, "Name, phone number or village",
+            action = if (vm.canAddFarmers) ({ CreateButton("Add Farmer", { vm.open(Screen.AddFarmer) }) }) else null,
+        )
         if (results.isEmpty()) {
             EmptyState(
-                if (vm.bundle.farmers.isEmpty()) "No farmers downloaded yet. Sync while online to get the farmers in your villages."
+                if (all.isEmpty()) "No farmers yet. Sync while online to get the farmers in your villages, or add one."
                 else "No farmer matches \"$query\".",
             )
         }
@@ -102,7 +119,11 @@ private fun FarmerRow(farmer: Farmer, onClick: () -> Unit) {
                 Text(farmer.name, color = Fs.Primary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text(listOfNotNull(farmer.phone, farmer.villageName).joinToString("  |  "), color = Fs.Leaf, fontSize = 14.sp)
             }
-            farmer.farmerType?.let { Text(Format.label(it), style = FsText.Label) }
+            when (farmer.status) {
+                RecordState.PENDING -> StatusPill("Pending sync", PillKind.Pending)
+                RecordState.ATTENTION -> StatusPill("Needs attention", PillKind.Attention)
+                else -> farmer.farmerType?.let { Text(Format.label(it), style = FsText.Label) }
+            }
         }
     }
 }

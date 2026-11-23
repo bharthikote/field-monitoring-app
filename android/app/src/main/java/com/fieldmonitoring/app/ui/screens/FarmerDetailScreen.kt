@@ -29,6 +29,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.fieldmonitoring.app.data.FarmerRules
+import com.fieldmonitoring.app.data.RecordState
+import com.fieldmonitoring.app.ui.components.ConfirmDialog
+import com.fieldmonitoring.app.ui.components.DangerChip
+import com.fieldmonitoring.app.ui.components.FsCard
+import com.fieldmonitoring.app.ui.components.PillKind
+import com.fieldmonitoring.app.ui.components.StatusPill
+import com.fieldmonitoring.app.ui.components.TonalChip
+import com.fieldmonitoring.app.ui.theme.FsText
 import com.fieldmonitoring.app.ui.AppViewModel
 import com.fieldmonitoring.app.ui.Format
 import com.fieldmonitoring.app.ui.Screen
@@ -42,15 +53,40 @@ import com.fieldmonitoring.app.ui.theme.FsShape
 /** Farmer profile card (KT style) with tabs: Plots, Details. */
 @Composable
 fun FarmerDetailScreen(vm: AppViewModel, farmerId: String) {
-    val farmer = vm.bundle.farmers.firstOrNull { it.id == farmerId }
+    val farmer = vm.farmers.firstOrNull { it.id == farmerId }
     if (farmer == null) {
-        EmptyState("This farmer is no longer in your downloaded data.")
+        EmptyState(
+            if (farmerId.startsWith(FarmerRules.LOCAL_PREFIX)) "This farmer has been sent to the server. Open them again from the Farmers list."
+            else "This farmer is no longer in your downloaded data.",
+        )
         return
     }
     val plots = vm.bundle.demoPlots.filter { it.farmerId == farmer.id || it.farmerPhone == farmer.phone }
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    val localRecord = remember(farmerId, vm.dataVersion) { vm.repo.localFarmerRecord(farmerId) }
+    var confirmDiscard by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(Fs.Background).verticalScroll(rememberScrollState())) {
+        if (localRecord != null) {
+            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+                FsCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Registered on this phone", color = Fs.Primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (localRecord.state == RecordState.ATTENTION) StatusPill("Needs attention", PillKind.Attention)
+                        else StatusPill("Pending sync", PillKind.Pending)
+                    }
+                    if (localRecord.state == RecordState.ATTENTION) {
+                        Text(localRecord.error ?: "The server refused this farmer", color = Fs.Danger, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
+                            TonalChip("Try again") { vm.retryRecord(localRecord.id) }
+                            DangerChip("Discard") { confirmDiscard = true }
+                        }
+                    } else {
+                        Text("It will be sent when there is a connection, and gets its Farmer ID then.", style = FsText.Label)
+                    }
+                }
+            }
+        }
         Box(Modifier.padding(16.dp)) {
             Card(
                 shape = FsShape.Card,
@@ -121,5 +157,19 @@ fun FarmerDetailScreen(vm: AppViewModel, farmerId: String) {
             }
             Spacer(Modifier.height(16.dp))
         }
+    }
+    if (confirmDiscard && localRecord != null) {
+        ConfirmDialog(
+            title = "Discard this farmer?",
+            message = "${farmer.name} will be deleted from this phone and never sent.",
+            confirmText = "Discard",
+            destructive = true,
+            onDismiss = { confirmDiscard = false },
+            onConfirm = {
+                confirmDiscard = false
+                vm.discardRecord(localRecord.id)
+                vm.back()
+            },
+        )
     }
 }

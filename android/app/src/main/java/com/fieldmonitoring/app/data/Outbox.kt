@@ -25,6 +25,7 @@ object RecordState {
 object RecordKind {
     const val VISIT = "visit"
     const val ISSUE_ACTION = "issue_action"
+    const val FARMER = "farmer"
 }
 
 /** Storage the sync code uses; SQLite on the phone, in-memory in tests. */

@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.fieldmonitoring.app.FieldSightApp
 import com.fieldmonitoring.app.data.ApiException
 import com.fieldmonitoring.app.data.Bundle
+import com.fieldmonitoring.app.data.Farmer
+import com.fieldmonitoring.app.data.FarmerDraft
 import com.fieldmonitoring.app.data.Issue
 import com.fieldmonitoring.app.data.IssueAction
 import com.fieldmonitoring.app.data.Repository
@@ -31,6 +33,7 @@ sealed interface Screen {
     data object Issues : Screen
     data class IssueDetail(val issueId: String) : Screen
     data object Messages : Screen
+    data object AddFarmer : Screen
 }
 
 /** The five screens on the bottom bar, in order. */
@@ -142,6 +145,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         SyncWorker.soon(getApplication())
         dataVersion++
         message = "Visit saved on this phone. It will be sent when there is a connection."
+        back()
+        return null
+    }
+
+    /** Downloaded farmers plus the ones registered on this phone and not sent yet (those first). */
+    val farmers: List<Farmer> get() = dataVersion.let { repo.localFarmers() + repo.bundle().farmers }
+
+    /** Data Enumerators can view farmers but not register them (same rule as the server). */
+    val canAddFarmers: Boolean get() = user?.role != "data_enumerator"
+
+    /** Saves a new farmer on the phone. Returns an error to show, or null when saved. */
+    fun saveFarmer(draft: FarmerDraft): String? {
+        val error = repo.saveFarmer(draft)
+        if (error != null) return error
+        SyncWorker.soon(getApplication())
+        dataVersion++
+        message = "${draft.name.trim()} saved on this phone. It will be sent when there is a connection."
         back()
         return null
     }

@@ -69,6 +69,25 @@ function validateFarmerDetailFields({ farmerType, gender, age, educationLevel, l
   return null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A farmer this user already sent with the same clientId: answer with it
+// (200) rather than creating it twice. Returns true when it has answered.
+async function answerRepeatedFarmer(clientId, userId, res) {
+  const existing = await pool.query(
+    'select id, name, phone, village_id, created_at, created_by from farmers where client_id = $1',
+    [clientId],
+  );
+  if (existing.rowCount === 0) return false;
+  const { created_by: createdBy, ...farmer } = existing.rows[0];
+  if (createdBy !== userId) {
+    res.status(409).json({ error: 'This farmer id was already used by another user', code: 'client_id_conflict' });
+    return true;
+  }
+  res.status(200).json({ farmer, repeated: true });
+  return true;
+}
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 function handleFileUpload(req, res, next) {
@@ -175,6 +194,12 @@ farmersRouter.post('/farmers', requireAuth, requireLocation, handleFileUpload, a
   if (!name || !phone || !villageId) {
     return res.status(400).json({ error: 'name, phone, and villageId are all required' });
   }
+  // The offline app sends each new farmer with a clientId made on the phone;
+  // a repeat (retry after a dropped connection) returns the farmer already
+  // created instead of failing as a duplicate phone number.
+  const clientId = req.body.clientId || null;
+  if (clientId && !UUID_RE.test(clientId)) return res.status(400).json({ error: 'clientId must be a UUID' });
+  if (clientId && (await answerRepeatedFarmer(clientId, req.user.userId, res))) return;
   if (!(await requireVillageInCoverage(req, res, villageId))) return;
   const validationError = validateFarmerDetailFields({ farmerType, gender, age, educationLevel, literacy, phoneType, socialMedia, email });
   if (validationError) return res.status(400).json({ error: validationError });
@@ -185,17 +210,18 @@ farmersRouter.post('/farmers', requireAuth, requireLocation, handleFileUpload, a
   try {
     const photoUrl = photo ? await uploadPhoto(photo.buffer, photo.originalname, photo.mimetype) : null;
     const result = await pool.query(
-      `insert into farmers (name, phone, village_id, created_by, photo_url, farmer_type, gender, age, birth_date, address, education_level, literacy, phone_type, social_media, email)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      `insert into farmers (name, phone, village_id, created_by, photo_url, farmer_type, gender, age, birth_date, address, education_level, literacy, phone_type, social_media, email, client_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        returning id, name, phone, village_id, created_at`,
       [
         name, phone, villageId, req.user.userId, photoUrl, farmerType || null, gender || null, ageNum,
         birthDate || null, address?.trim() || null, educationLevel || null, literacy || null, phoneType || null,
-        socialMedia.length > 0 ? socialMedia : null, email?.trim() || null,
+        socialMedia.length > 0 ? socialMedia : null, email?.trim() || null, clientId,
       ],
     );
     res.status(201).json({ farmer: result.rows[0] });
   } catch (err) {
+    if (err.code === '23505' && clientId && (await answerRepeatedFarmer(clientId, req.user.userId, res))) return;
     if (err.code === '23505') {
       // Tell the client whose profile it is, so it can offer to open it
       // instead of just showing an error.

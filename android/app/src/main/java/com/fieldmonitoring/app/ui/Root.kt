@@ -31,6 +31,7 @@ import com.fieldmonitoring.app.ui.components.TopBar
 import com.fieldmonitoring.app.ui.screens.IssueDetailScreen
 import com.fieldmonitoring.app.ui.screens.IssuesScreen
 import com.fieldmonitoring.app.ui.screens.MessagesScreen
+import com.fieldmonitoring.app.ui.screens.AddFarmerScreen
 import com.fieldmonitoring.app.ui.screens.AppDrawer
 import com.fieldmonitoring.app.ui.screens.FarmerDetailScreen
 import com.fieldmonitoring.app.ui.screens.FarmersScreen
@@ -101,6 +102,7 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                         Screen.Issues -> IssuesScreen(vm)
                         is Screen.IssueDetail -> IssueDetailScreen(vm, screen.issueId)
                         Screen.Messages -> MessagesScreen()
+                        Screen.AddFarmer -> AddFarmerScreen(vm)
                         Screen.Login -> Unit
                     }
                 }
