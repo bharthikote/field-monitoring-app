@@ -258,6 +258,11 @@ class Repository(
     internal fun sendPending(): Int {
         var sent = 0
         for (record in store.byState(RecordState.PENDING)) {
+            if (record.kind == RecordKind.ISSUE_ACTION) {
+                if (sendIssueAction(record)) sent++
+                refreshCounts()
+                continue
+            }
             if (record.kind != RecordKind.VISIT) continue
             val draft = runCatching { AppJson.decodeFromString<VisitDraft>(record.body) }.getOrElse {
                 store.markAttention(record.id, "This record is damaged and can't be sent")
@@ -289,6 +294,66 @@ class Repository(
         }
         refreshCounts()
         return sent
+    }
+
+    /** One queued issue action. Returns true when the server accepted it. */
+    private fun sendIssueAction(record: OutboxRecord): Boolean {
+        val draft = runCatching { AppJson.decodeFromString<IssueActionDraft>(record.body) }.getOrNull()
+        val action = draft?.issueAction
+        if (draft == null || action == null) {
+            store.markAttention(record.id, "This record is damaged and can't be sent")
+            return false
+        }
+        return try {
+            remote.postJson("/issues/${draft.issueId}/${action.path}", draft.body)
+            store.markSent(record.id, draft.issueId)
+            true
+        } catch (e: ApiException) {
+            if (e.offline || e.relogin) throw e
+            // Usually someone else acted first (e.g. "not waiting to be
+            // started"); the user sees the reason and can discard it.
+            store.markAttention(record.id, e.message ?: "The server refused this action")
+            false
+        }
+    }
+
+    // --- Issue actions ---
+
+    /** Saves an action on the phone to send with the next sync. Returns an error, or null. */
+    fun saveIssueAction(issue: Issue, action: IssueAction, note: String, clientId: String): String? {
+        if (!action.offline) return "${action.label} needs a connection"
+        if (action.note == NoteRule.Required && note.isBlank()) return "Please add a note"
+        if (pendingIssueAction(issue.id) != null) return "An action for this issue is already waiting to be sent"
+        val draft = IssueActionDraft(clientId, issue.id, action.name, action.body(note), now())
+        store.add(OutboxRecord(clientId, RecordKind.ISSUE_ACTION, AppJson.encodeToString(draft), RecordState.PENDING, draft.createdAtMillis))
+        refreshCounts()
+        return null
+    }
+
+    /** The unsent (or refused) action for an issue, if any - one at a time per issue. */
+    fun pendingIssueAction(issueId: String): Pair<OutboxRecord, IssueActionDraft>? =
+        store.all(RecordKind.ISSUE_ACTION)
+            .filter { it.state != RecordState.SENT }
+            .firstNotNullOfOrNull { record ->
+                runCatching { AppJson.decodeFromString<IssueActionDraft>(record.body) }.getOrNull()
+                    ?.takeIf { it.issueId == issueId }
+                    ?.let { record to it }
+            }
+
+    /** People this issue can go to, for Assign (raised issues) or Reassign. Needs a connection. */
+    suspend fun assignableUsers(issue: Issue, action: IssueAction): List<AssignableUser> = withContext(io) {
+        val village = issue.villageId ?: return@withContext emptyList()
+        val path = if (action == IssueAction.Assign) {
+            "/issues/assignable-users?villageId=$village&issueId=${issue.id}"
+        } else {
+            "/issues/reassignable-users?villageId=$village"
+        }
+        AppJson.decodeFromString<AssignableUsers>(remote.get(path)).users
+    }
+
+    /** Assign / Reassign go straight to the server. */
+    suspend fun sendIssueActionNow(issue: Issue, action: IssueAction, note: String, assignedTo: String) = withContext(io) {
+        remote.postJson("/issues/${issue.id}/${action.path}", action.body(note, assignedTo))
     }
 
     private fun deletePhotos(record: OutboxRecord) {

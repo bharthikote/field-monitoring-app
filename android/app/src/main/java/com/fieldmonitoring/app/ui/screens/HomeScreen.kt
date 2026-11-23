@@ -195,7 +195,7 @@ fun AppDrawer(vm: AppViewModel, close: () -> Unit) {
     if (unsentLogout) {
         ConfirmDialog(
             title = "Unsent work",
-            message = "Some visits haven't been sent yet. Logging out deletes them from this phone. Sync first if you can.",
+            message = "Some of your work (visits or issue actions) hasn't been sent yet. Logging out deletes it from this phone. Sync first if you can.",
             confirmText = "Delete and log out",
             destructive = true,
             onDismiss = { unsentLogout = false },

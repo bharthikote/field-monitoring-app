@@ -138,6 +138,7 @@ data class Issue(
     @SerialName("farmer_name") val farmerName: String? = null,
     @SerialName("farmer_phone") val farmerPhone: String? = null,
     @SerialName("village_name") val villageName: String? = null,
+    @SerialName("village_id") val villageId: String? = null,
     @SerialName("raised_by_id") val raisedById: String? = null,
     @SerialName("raised_by_name") val raisedByName: String? = null,
     @SerialName("assigned_to_id") val assignedToId: String? = null,

@@ -11,6 +11,8 @@ import androidx.lifecycle.viewModelScope
 import com.fieldmonitoring.app.FieldSightApp
 import com.fieldmonitoring.app.data.ApiException
 import com.fieldmonitoring.app.data.Bundle
+import com.fieldmonitoring.app.data.Issue
+import com.fieldmonitoring.app.data.IssueAction
 import com.fieldmonitoring.app.data.Repository
 import com.fieldmonitoring.app.data.SyncWorker
 import com.fieldmonitoring.app.data.User
@@ -142,6 +144,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         message = "Visit saved on this phone. It will be sent when there is a connection."
         back()
         return null
+    }
+
+    /** Saves an issue action for the next sync (works offline). Returns an error, or null. */
+    fun saveIssueAction(issue: Issue, action: IssueAction, note: String): String? {
+        val error = repo.saveIssueAction(issue, action, note, java.util.UUID.randomUUID().toString())
+        if (error != null) return error
+        SyncWorker.soon(getApplication())
+        dataVersion++
+        message = "${action.label}: saved. It will be sent when there is a connection."
+        sync(quiet = true)
+        return null
+    }
+
+    /** Assign / Reassign: straight to the server. [done] gets an error, or null on success. */
+    fun sendIssueActionNow(issue: Issue, action: IssueAction, note: String, assignedTo: String, done: (String?) -> Unit) {
+        viewModelScope.launch {
+            val error = try {
+                repo.sendIssueActionNow(issue, action, note, assignedTo)
+                repo.fetchIssues("assigned")
+                repo.fetchIssues("raised")
+                null
+            } catch (e: ApiException) {
+                if (e.offline) "${action.label} needs a connection. Try again when you have signal." else e.message
+            }
+            if (error == null) {
+                message = "${action.label}: done"
+                dataVersion++
+                refreshIssuesBadge()
+            }
+            done(error)
+        }
     }
 
     fun retryRecord(id: String) {

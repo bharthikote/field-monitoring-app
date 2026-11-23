@@ -42,8 +42,14 @@ class FakeRemote : Remote {
         path.startsWith("/issues/") -> """{"issues":[]}"""
         else -> """{"visits":[]}"""
     }
-    override fun postJson(path: String, body: String): String =
-        """{"token":"t","user":{"id":"u1","name":"Asha","role":"tfo"}}"""
+    val jsonPosts = mutableListOf<Pair<String, String>>()
+    val jsonAnswers = ArrayDeque<() -> String>()
+
+    override fun postJson(path: String, body: String): String {
+        if (path == "/auth/login") return """{"token":"t","user":{"id":"u1","name":"Asha","role":"tfo"}}"""
+        jsonPosts += path to body
+        return jsonAnswers.removeFirstOrNull()?.invoke() ?: """{"ok":true}"""
+    }
     override fun postMultipart(path: String, fields: List<Pair<String, String>>, files: List<FilePart>): String {
         posted += fields
         return answers.removeFirst().invoke()

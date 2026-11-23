@@ -29,8 +29,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import com.fieldmonitoring.app.data.ApiException
+import com.fieldmonitoring.app.data.AssignableUser
 import com.fieldmonitoring.app.data.Issue
+import com.fieldmonitoring.app.data.IssueAction
+import com.fieldmonitoring.app.data.NoteRule
+import com.fieldmonitoring.app.data.RecordState
+import com.fieldmonitoring.app.ui.components.DangerButton
+import com.fieldmonitoring.app.ui.components.DangerChip
+import com.fieldmonitoring.app.ui.components.ErrorText
+import com.fieldmonitoring.app.ui.components.FsTextField
+import com.fieldmonitoring.app.ui.components.PickOption
+import com.fieldmonitoring.app.ui.components.SearchPicker
+import com.fieldmonitoring.app.ui.components.SelectField
+import com.fieldmonitoring.app.ui.components.TonalButton
+import com.fieldmonitoring.app.ui.components.TonalChip
+import com.fieldmonitoring.app.ui.theme.FsShape
 import com.fieldmonitoring.app.ui.AppViewModel
 import com.fieldmonitoring.app.ui.Format
 import com.fieldmonitoring.app.ui.Screen
@@ -181,12 +198,176 @@ fun IssueDetailScreen(vm: AppViewModel, issueId: String) {
                 Text(text!!, color = Fs.OnSurface, fontSize = 15.sp)
             }
         }
+        IssueActionsCard(vm, issue)
         if (plotOnPhone) {
-            PrimaryButton("Open demo", { vm.open(Screen.PlotDetail(issue.demoPlotId)) }, icon = AppIcons.Leaf)
+            TonalButton("Open demo", { vm.open(Screen.PlotDetail(issue.demoPlotId)) }, icon = AppIcons.Leaf)
         }
+    }
+}
+
+/**
+ * The actions open to me on this issue (same rules as the server). Most are
+ * saved on the phone and sent with the next sync; Assign and Reassign need a
+ * connection to fetch who the issue can go to.
+ */
+@Composable
+private fun IssueActionsCard(vm: AppViewModel, issue: Issue) {
+    val pending = remember(issue.id, vm.dataVersion) { vm.repo.pendingIssueAction(issue.id) }
+    val actions = IssueAction.available(issue, vm.user?.id)
+    var chosen by remember { mutableStateOf<IssueAction?>(null) }
+
+    if (pending != null) {
+        val (record, draft) = pending
+        FsCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(draft.issueAction?.label ?: "Action", color = Fs.Primary, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                if (record.state == RecordState.ATTENTION) StatusPill("Needs attention", PillKind.Attention)
+                else StatusPill("Pending sync", PillKind.Pending)
+            }
+            if (record.state == RecordState.ATTENTION) {
+                Text(record.error ?: "The server refused this action", color = Fs.Danger, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 10.dp)) {
+                    TonalChip("Try again") { vm.retryRecord(record.id) }
+                    DangerChip("Discard") { vm.discardRecord(record.id) }
+                }
+            } else {
+                Text("Saved on this phone. It will be sent when there is a connection.", style = FsText.Label)
+            }
+        }
+        return
+    }
+    if (actions.isEmpty()) {
         Text(
-            "Actions on issues (start, resolve, verify, reassign) are coming in the next update. Use the web admin for them meanwhile.",
+            if (issue.assignedToId == vm.user?.id) "Nothing to do on this issue right now." else "This issue is with ${issue.assignedToName ?: "nobody yet"}.",
             style = FsText.Label,
+        )
+        return
+    }
+    FsCard {
+        Text("What would you like to do?", color = Fs.Primary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            actions.forEach { action ->
+                when {
+                    action.destructive -> DangerButton(action.label, { chosen = action }, Modifier.fillMaxWidth())
+                    action == actions.first() -> PrimaryButton(action.label, { chosen = action }, Modifier.fillMaxWidth())
+                    else -> TonalButton(action.label, { chosen = action }, Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+    chosen?.let { action ->
+        if (action.offline) {
+            ActionNoteDialog(action, onDismiss = { chosen = null }) { note ->
+                vm.saveIssueAction(issue, action, note).also { if (it == null) chosen = null }
+            }
+        } else {
+            AssignDialog(vm, issue, action, onDismiss = { chosen = null })
+        }
+    }
+}
+
+/** Confirms an action, asking for a note when the action takes one. Returns an error to show, or null when done. */
+@Composable
+private fun ActionNoteDialog(action: IssueAction, onDismiss: () -> Unit, onConfirm: (String) -> String?) {
+    var note by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = FsShape.Dialog, color = Fs.Surface, modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Box(
+                    Modifier.fillMaxWidth().background(Fs.Primary).padding(vertical = 18.dp, horizontal = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(action.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (action.note == NoteRule.None) {
+                        Text("Mark this issue as started?", color = Fs.OnSurface, fontSize = 16.sp)
+                    } else {
+                        FsTextField(action.noteLabel, note, { note = it }, required = action.note == NoteRule.Required, singleLine = false, minLines = 3)
+                    }
+                    error?.let { ErrorText(it) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TonalButton("Cancel", onDismiss, Modifier.weight(1f))
+                        val confirm = { error = onConfirm(note) }
+                        if (action.destructive) DangerButton(action.label.substringBefore(" -"), confirm, Modifier.weight(1f))
+                        else PrimaryButton("Save", confirm, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Assign / Reassign: pick a person (list from the server) and, for Reassign, say why. */
+@Composable
+private fun AssignDialog(vm: AppViewModel, issue: Issue, action: IssueAction, onDismiss: () -> Unit) {
+    var users by remember { mutableStateOf<List<AssignableUser>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var picked by remember { mutableStateOf<AssignableUser?>(null) }
+    var picking by remember { mutableStateOf(false) }
+    var comment by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+
+    LaunchedEffect(issue.id, action) {
+        try {
+            users = vm.repo.assignableUsers(issue, action)
+        } catch (e: ApiException) {
+            error = if (e.offline) "${action.label} needs a connection to see who it can go to." else e.message
+            users = emptyList()
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(shape = FsShape.Dialog, color = Fs.Surface, modifier = Modifier.fillMaxWidth()) {
+            Column {
+                Box(
+                    Modifier.fillMaxWidth().background(Fs.Primary).padding(vertical = 18.dp, horizontal = 20.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(action.label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    when {
+                        users == null -> Text("Loading who this can go to...", style = FsText.Label)
+                        users!!.isEmpty() && error == null -> Text("Nobody else covers this village for this issue.", style = FsText.Label)
+                        users!!.isNotEmpty() -> SelectField(
+                            "Give it to",
+                            picked?.let { "${it.name}${it.role?.let { r -> " (${Format.role(r)})" } ?: ""}" }.orEmpty(),
+                            { picking = true },
+                            required = true,
+                        )
+                    }
+                    if (action.note == NoteRule.Required) {
+                        FsTextField(action.noteLabel, comment, { comment = it }, required = true, singleLine = false, minLines = 3)
+                    }
+                    error?.let { ErrorText(it) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TonalButton("Cancel", onDismiss, Modifier.weight(1f))
+                        PrimaryButton(if (busy) "Sending..." else action.label, {
+                            val target = picked
+                            when {
+                                target == null -> error = "Pick a person"
+                                action.note == NoteRule.Required && comment.isBlank() -> error = "Please add a comment"
+                                else -> {
+                                    busy = true
+                                    vm.sendIssueActionNow(issue, action, comment, target.id) { e ->
+                                        busy = false
+                                        if (e == null) onDismiss() else error = e
+                                    }
+                                }
+                            }
+                        }, Modifier.weight(1f), enabled = !busy && !users.isNullOrEmpty())
+                    }
+                }
+            }
+        }
+    }
+    if (picking) {
+        SearchPicker(
+            title = "Give it to",
+            options = users.orEmpty().map { PickOption(it.id, it.name, it.role?.let(Format::role)) },
+            selected = setOfNotNull(picked?.id),
+            multi = false,
+            onDismiss = { picking = false },
+            onDone = { ids -> picked = users.orEmpty().firstOrNull { it.id in ids }; picking = false },
         )
     }
 }
