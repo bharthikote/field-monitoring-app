@@ -127,6 +127,43 @@ data class Bundle(
     val master: Master = Master(),
 )
 
+/** An issue from GET /issues/assigned-to-me, /issues/raised-by-me or /issues/:id. */
+@Serializable
+data class Issue(
+    val id: String,
+    @SerialName("demo_plot_id") val demoPlotId: String,
+    val status: String,
+    @SerialName("issue_type_name") val issueTypeName: String,
+    @SerialName("acknowledge_only") val acknowledgeOnly: Boolean = false,
+    @SerialName("farmer_name") val farmerName: String? = null,
+    @SerialName("farmer_phone") val farmerPhone: String? = null,
+    @SerialName("village_name") val villageName: String? = null,
+    @SerialName("raised_by_id") val raisedById: String? = null,
+    @SerialName("raised_by_name") val raisedByName: String? = null,
+    @SerialName("assigned_to_id") val assignedToId: String? = null,
+    @SerialName("assigned_to_name") val assignedToName: String? = null,
+    @SerialName("resolved_by_name") val resolvedByName: String? = null,
+    @SerialName("disputed_by_name") val disputedByName: String? = null,
+    @SerialName("resolution_note") val resolutionNote: String? = null,
+    @SerialName("rejection_note") val rejectionNote: String? = null,
+    @SerialName("dispute_note") val disputeNote: String? = null,
+    @SerialName("dismissal_note") val dismissalNote: String? = null,
+    @SerialName("reopened_count") val reopenedCount: Int = 0,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("assigned_at") val assignedAt: String? = null,
+    @SerialName("resolved_at") val resolvedAt: String? = null,
+    @SerialName("closed_at") val closedAt: String? = null,
+)
+
+@Serializable
+data class IssueList(val issues: List<Issue> = emptyList())
+
+@Serializable
+data class IssueStats(@SerialName("needs_action") val needsAction: Int = 0)
+
+@Serializable
+data class IssueStatsResponse(val stats: IssueStats = IssueStats())
+
 @Serializable
 data class NamedPhoto(val name: String? = null, val photoUrl: String? = null)
 

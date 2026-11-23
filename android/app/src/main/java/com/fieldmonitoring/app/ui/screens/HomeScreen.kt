@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.fieldmonitoring.app.ui.AppViewModel
 import com.fieldmonitoring.app.ui.Format
 import com.fieldmonitoring.app.ui.Screen
+import com.fieldmonitoring.app.ui.TabScreens
 import com.fieldmonitoring.app.ui.components.AppIcons
 import com.fieldmonitoring.app.ui.components.ConfirmDialog
 import com.fieldmonitoring.app.ui.components.FieldSightLogo
@@ -101,7 +102,11 @@ fun HomeScreen(vm: AppViewModel) {
         }
         tiles(vm).chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                row.forEach { tile -> CountCard(tile, Modifier.weight(1f)) { tile.target?.let(vm::open) } }
+                row.forEach { tile ->
+                    CountCard(tile, Modifier.weight(1f)) {
+                        tile.target?.let { if (it in TabScreens) vm.selectTab(it) else vm.open(it) }
+                    }
+                }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
@@ -152,7 +157,7 @@ fun AppDrawer(vm: AppViewModel, close: () -> Unit) {
                             .clip(FsShape.Tile)
                             .background(tile.container)
                             .clickable(enabled = tile.target != null) {
-                                tile.target?.let(vm::open)
+                                tile.target?.let { if (it in TabScreens) vm.selectTab(it) else vm.open(it) }
                                 close()
                             }
                             .padding(horizontal = 18.dp),
@@ -167,7 +172,7 @@ fun AppDrawer(vm: AppViewModel, close: () -> Unit) {
                 }
             }
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                FooterAction("Profile", AppIcons.Person, Fs.OnSurface, Color.Transparent) { vm.open(Screen.Profile); close() }
+                FooterAction("Profile", AppIcons.Person, Fs.OnSurface, Color.Transparent) { vm.selectTab(Screen.Profile); close() }
                 FooterAction("Sync", AppIcons.Sync, Fs.OnSurface, Color.Transparent) { vm.sync(); close() }
                 FooterAction("Log Out", AppIcons.Logout, Fs.Danger, Fs.DangerContainer) { confirmLogout = true }
             }

@@ -33,7 +33,15 @@ class FakeRemote : Remote {
     val posted = mutableListOf<List<Pair<String, String>>>()
     var bundle = """{"serverTime":"2026-11-23T00:00:00Z","villages":[],"farmers":[],"demoPlots":[],"openIssues":[],"master":{}}"""
 
-    override fun get(path: String): String = if (path == "/sync/bundle") bundle else """{"visits":[]}"""
+    var issues = """{"issues":[]}"""
+
+    override fun get(path: String): String = when {
+        path == "/sync/bundle" -> bundle
+        path == "/issues/stats" -> """{"stats":{"assigned":1,"needs_action":3,"closed":0}}"""
+        path.startsWith("/issues/assigned") -> issues
+        path.startsWith("/issues/") -> """{"issues":[]}"""
+        else -> """{"visits":[]}"""
+    }
     override fun postJson(path: String, body: String): String =
         """{"token":"t","user":{"id":"u1","name":"Asha","role":"tfo"}}"""
     override fun postMultipart(path: String, fields: List<Pair<String, String>>, files: List<FilePart>): String {

@@ -24,7 +24,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fieldmonitoring.app.ui.components.AppIcons
+import com.fieldmonitoring.app.ui.components.BottomBar
+import com.fieldmonitoring.app.ui.components.BottomTab
 import com.fieldmonitoring.app.ui.components.TopBar
+import com.fieldmonitoring.app.ui.screens.IssueDetailScreen
+import com.fieldmonitoring.app.ui.screens.IssuesScreen
+import com.fieldmonitoring.app.ui.screens.MessagesScreen
 import com.fieldmonitoring.app.ui.screens.AppDrawer
 import com.fieldmonitoring.app.ui.screens.FarmerDetailScreen
 import com.fieldmonitoring.app.ui.screens.FarmersScreen
@@ -92,11 +98,33 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                         is Screen.PlotDetail -> PlotDetailScreen(vm, screen.plotId)
                         is Screen.LogVisit -> LogVisitScreen(vm, screen.plotId)
                         Screen.Profile -> ProfileScreen(vm)
+                        Screen.Issues -> IssuesScreen(vm)
+                        is Screen.IssueDetail -> IssueDetailScreen(vm, screen.issueId)
+                        Screen.Messages -> MessagesScreen()
                         Screen.Login -> Unit
                     }
                 }
+                if (vm.showBottomBar) {
+                    BottomBar(
+                        tabs = listOf(
+                            BottomTab("Home", AppIcons.Home),
+                            BottomTab("Issues", AppIcons.Issue, vm.issuesBadge),
+                            BottomTab("Farmers", AppIcons.Group),
+                            BottomTab("Messages", AppIcons.Chat),
+                            BottomTab("Profile", AppIcons.Person),
+                        ),
+                        selected = TabScreens.indexOf(screen),
+                        onSelect = { vm.selectTab(TabScreens[it]) },
+                    )
+                }
             }
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { data ->
+            SnackbarHost(
+                snackbar,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = if (vm.showBottomBar) 72.dp else 0.dp),
+            ) { data ->
                 Snackbar(
                     modifier = Modifier.padding(12.dp),
                     containerColor = Fs.OnSurface,

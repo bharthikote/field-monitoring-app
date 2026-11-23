@@ -183,6 +183,32 @@ class Repository(
         return local + remoteVisits
     }
 
+    // --- Issues (read from the server, last copy kept for offline viewing) ---
+
+    /** [box] is "assigned" or "raised". */
+    suspend fun fetchIssues(box: String): List<Issue> = withContext(io) {
+        val path = if (box == "raised") "/issues/raised-by-me" else "/issues/assigned-to-me"
+        val text = remote.get(path)
+        store.putValue("$KEY_ISSUES$box", text)
+        AppJson.decodeFromString<IssueList>(text).issues
+    }
+
+    fun cachedIssues(box: String): List<Issue> = store.getValue("$KEY_ISSUES$box")
+        ?.let { runCatching { AppJson.decodeFromString<IssueList>(it).issues }.getOrNull() }
+        .orEmpty()
+
+    fun cachedIssue(id: String): Issue? =
+        (cachedIssues("assigned") + cachedIssues("raised")).firstOrNull { it.id == id }
+
+    /** Issues waiting on this user (the badge on the Issues tab). */
+    suspend fun fetchIssuesNeedingAction(): Int = withContext(io) {
+        val count = AppJson.decodeFromString<IssueStatsResponse>(remote.get("/issues/stats")).stats.needsAction
+        store.putValue(KEY_NEEDS_ACTION, count.toString())
+        count
+    }
+
+    fun cachedIssuesNeedingAction(): Int = store.getValue(KEY_NEEDS_ACTION)?.toIntOrNull() ?: 0
+
     fun retryRecord(id: String) {
         store.retry(id)
         refreshCounts()
@@ -209,6 +235,8 @@ class Repository(
             try {
                 sendPending()
                 downloadBundle()
+                // Keep the Issues badge current; not worth failing a sync over.
+                runCatching { fetchIssuesNeedingAction() }
             } catch (e: ApiException) {
                 error = when {
                     e.relogin -> "Your login has expired. Log in again - your saved work stays on this phone."
@@ -281,5 +309,7 @@ class Repository(
         const val KEY_SESSION = "session"
         const val KEY_BUNDLE = "bundle"
         const val KEY_VISITS = "visits:"
+        const val KEY_ISSUES = "issues:"
+        const val KEY_NEEDS_ACTION = "issues-needs-action"
     }
 }

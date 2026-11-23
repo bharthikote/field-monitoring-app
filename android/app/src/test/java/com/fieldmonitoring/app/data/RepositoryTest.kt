@@ -132,6 +132,25 @@ class RepositoryTest {
         assertEquals(RecordState.PENDING, history.single().localState)
     }
 
+    @Test fun issuesAreCachedForOfflineViewing() = runBlocking {
+        remote.issues = """
+            {"issues":[{"id":"i1","demo_plot_id":"p1","status":"assigned","issue_type_name":"Wilting",
+              "acknowledge_only":false,"farmer_name":"Asha","assigned_to_id":"u1","assigned_to_name":"Ravi",
+              "reopened_count":0,"created_at":"2026-11-20T08:00:00Z","resolved_by_id":null}]}
+        """.trimIndent()
+        assertEquals("Wilting", repo.fetchIssues("assigned").single().issueTypeName)
+        // Offline later: the saved copy is still there.
+        assertEquals("Ravi", repo.cachedIssues("assigned").single().assignedToName)
+        assertEquals("i1", repo.cachedIssue("i1")?.id)
+        assertTrue(repo.cachedIssues("raised").isEmpty())
+    }
+
+    @Test fun issuesBadgeComesFromNeedsAction() = runBlocking {
+        assertEquals(0, repo.cachedIssuesNeedingAction())
+        assertEquals(3, repo.fetchIssuesNeedingAction())
+        assertEquals(3, repo.cachedIssuesNeedingAction())
+    }
+
     @Test fun bundleParsesServerJsonIncludingNumericStrings() = runBlocking {
         remote.bundle = """
             {"serverTime":"t","villages":[{"id":"v1","name":"Hosur","block_name":"B"}],

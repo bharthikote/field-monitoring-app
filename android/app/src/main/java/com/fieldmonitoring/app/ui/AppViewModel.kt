@@ -26,7 +26,13 @@ sealed interface Screen {
     data class PlotDetail(val plotId: String) : Screen
     data class LogVisit(val plotId: String) : Screen
     data object Profile : Screen
+    data object Issues : Screen
+    data class IssueDetail(val issueId: String) : Screen
+    data object Messages : Screen
 }
+
+/** The five screens on the bottom bar, in order. */
+val TabScreens: List<Screen> = listOf(Screen.Home, Screen.Issues, Screen.Farmers, Screen.Messages, Screen.Profile)
 
 /**
  * App state and navigation (a simple back stack - no navigation library, as
@@ -58,8 +64,28 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (user != null) sync(quiet = true)
     }
 
+    /** Issues waiting on this user: the red count on the Issues tab. */
+    var issuesBadge by mutableIntStateOf(repo.cachedIssuesNeedingAction())
+        private set
+
     fun open(screen: Screen) {
         stack.add(screen)
+    }
+
+    /** Bottom-bar tap: that tab becomes the root (Home stays underneath, so Back returns to it). */
+    fun selectTab(tab: Screen) {
+        stack.clear()
+        stack.add(Screen.Home)
+        if (tab != Screen.Home) stack.add(tab)
+    }
+
+    /** The bottom bar shows on the five tab screens only, as in the old app. */
+    val showBottomBar: Boolean get() = screen in TabScreens
+
+    fun refreshIssuesBadge() {
+        viewModelScope.launch {
+            issuesBadge = runCatching { repo.fetchIssuesNeedingAction() }.getOrElse { repo.cachedIssuesNeedingAction() }
+        }
     }
 
     fun back() {
@@ -95,6 +121,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun sync(quiet: Boolean = false) {
         viewModelScope.launch {
             val result = repo.syncNow()
+            issuesBadge = repo.cachedIssuesNeedingAction()
             dataVersion++
             if (!quiet || result.lastError != null) {
                 message = result.lastError ?: when {
