@@ -22,7 +22,7 @@ sealed interface Screen {
     data object Home : Screen
     data object Farmers : Screen
     data class FarmerDetail(val farmerId: String) : Screen
-    data class Plots(val plotType: String) : Screen
+    data object Demos : Screen
     data class PlotDetail(val plotId: String) : Screen
     data class LogVisit(val plotId: String) : Screen
     data object Profile : Screen

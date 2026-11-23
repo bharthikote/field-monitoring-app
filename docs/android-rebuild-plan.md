@@ -67,14 +67,22 @@ note on what to try.
 | Phase | What you get |
 | --- | --- |
 | **0. Foundation** | Android project, theme and components from `field-app-ui`, login, home dashboard, drawer menu, sync icon, profile/logout. APK size checked. |
-| **1. Offline lookup and visits** | Bundle download; Farmers list/search/lookup by phone; farmer profile; demo and adoption plot list and detail; **Log Visit** with photos, issues, good things, diseases, pests and GPS, fully offline; visit history; outbox + auto-sync. Backend: `client_id` migration, `clientId` on `/visits`, `/sync/bundle`. |
-| 2. Farmers and plots offline | Create farmer (simple and detailed), edit, deactivate, create demo/adoption plot, all offline; duplicate flagging + admin review page on the web. |
+| **1. Offline lookup and visits** | Bundle download; Farmers list/search/lookup by phone; farmer profile; one **Demos** list and demo detail; **Log Visit** with photos, issues, good things, diseases, pests and GPS, fully offline; visit history; outbox + auto-sync. Backend: `client_id` migration, `clientId` on `/visits`, `/sync/bundle`. |
+| 2. Farmers and demos offline | Create farmer (simple and detailed), edit, deactivate, create a demo linked to a farmer, all offline; duplicate flagging + admin review page on the web. |
 | 3. Activities | Trainings, field days, institution and agro-dealer visits, data-collection forms, offline. |
 | 4. TFO demos and home gardens | Create/edit demos and home gardens, crop detail, business plan (expected cost/return), actual cost/return, status changes: the KT-style demo screens. |
 | 5. Issues and notifications | Issue lists and detail with actions (queued offline), bulk verify, notifications. Reassignment pickers need internet. |
 | 6. Release | Signed release APK, update path, field test with 2-3 staff, retire the Expo app. |
 
 Sign-up stays online-only (it needs an admin's approval anyway).
+
+**Demos are one concept (decision 2026-11-23).** There is no separate
+"Adoption Plots" area. Every demo is linked to a farmer and has a required
+**Demo Type** field: *Demo Plot* or *Adoption Plot* (stored in the existing
+`demo_plots.plot_type` column, so no migration is needed). The app shows one
+Demos list with the Demo Type on each card; the create-demo form (phase 2)
+asks for it. The only behaviour that still depends on the type is the visit
+form's "Techniques adopted" list, which the server accepts for Adoption Plots only.
 
 **Phase 1 is done when:** with the phone in airplane mode, a user can find a farmer by phone,
 open a plot and log a visit with a photo; it syncs once the phone is back online; and the

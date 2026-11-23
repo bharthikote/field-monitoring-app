@@ -90,11 +90,11 @@ fun FarmerDetailScreen(vm: AppViewModel, farmerId: String) {
             }
         }
 
-        DotTabs(listOf("Plots", "Details"), tab, { tab = it })
+        DotTabs(listOf("Demos", "Details"), tab, { tab = it })
 
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (tab == 0) {
-                if (plots.isEmpty()) EmptyState("No demo or adoption plots for this farmer yet.")
+                if (plots.isEmpty()) EmptyState("No demos for this farmer yet.")
                 plots.forEach { plot -> PlotRow(plot) { vm.open(Screen.PlotDetail(plot.id)) } }
             } else {
                 Card(

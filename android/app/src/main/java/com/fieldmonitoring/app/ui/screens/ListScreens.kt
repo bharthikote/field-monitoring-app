@@ -107,17 +107,19 @@ private fun FarmerRow(farmer: Farmer, onClick: () -> Unit) {
     }
 }
 
-/** Demo or adoption plots in the user's villages, searchable offline. */
+/**
+ * All demos in the user's villages - demo plots and adoption plots in one
+ * list; each card shows its Demo Type. Searchable offline.
+ */
 @Composable
-fun PlotsScreen(vm: AppViewModel, plotType: String) {
+fun DemosScreen(vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
-    val all = vm.bundle.demoPlots.filter { it.plotType == plotType }
+    val all = vm.bundle.demoPlots
     val results = Search.plots(all, query)
-    val title = if (plotType == "adoption") "Adoption Plots" else "Demo Plots"
     Column(Modifier.fillMaxSize().background(Fs.Background)) {
-        SearchHeader(title, query, { query = it }, results.size, "Farmer, phone, crop or village")
+        SearchHeader("Demos", query, { query = it }, results.size, "Farmer, phone, crop, village or demo type")
         if (results.isEmpty()) {
-            EmptyState(if (all.isEmpty()) "No ${title.lowercase()} in your villages yet." else "No plot matches \"$query\".")
+            EmptyState(if (all.isEmpty()) "No demos in your villages yet." else "No demo matches \"$query\".")
         }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(results.take(LIST_LIMIT), key = { it.id }) { plot ->
@@ -140,10 +142,10 @@ internal fun PlotRow(plot: DemoPlot, onClick: () -> Unit) {
             listOf(
                 "Farmer" to plot.farmerName,
                 "Variety" to plot.varietyName,
+                "Demo Type" to plot.demoTypeLabel,
                 "Village" to (plot.villageName ?: ""),
                 "Phone" to plot.farmerPhone,
                 "Cycle" to Format.label(plot.cycle).takeIf { plot.cycle != null }.orEmpty(),
-                "Created" to Format.date(plot.createdAt),
             ),
         )
     }

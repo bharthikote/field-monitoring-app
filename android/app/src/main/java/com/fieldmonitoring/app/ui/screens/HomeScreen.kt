@@ -62,8 +62,7 @@ private fun tiles(vm: AppViewModel): List<Tile> {
     val b = vm.bundle
     return listOf(
         Tile("Farmers", AppIcons.Group, Fs.PrimaryContainer, Fs.Primary, b.farmers.size, "farmers", Screen.Farmers),
-        Tile("Demo Plots", AppIcons.Leaf, Fs.LeafContainer, Fs.Leaf, b.demoPlots.count { it.plotType == "demo" }, "plots", Screen.Plots("demo")),
-        Tile("Adoption Plots", AppIcons.Sprout, Fs.LeafContainer, Fs.Leaf, b.demoPlots.count { it.plotType == "adoption" }, "plots", Screen.Plots("adoption")),
+        Tile("Demos", AppIcons.Leaf, Fs.LeafContainer, Fs.Leaf, b.demoPlots.size, "demos", Screen.Demos),
         Tile("Trainings", AppIcons.Event, Fs.AccentContainer, Fs.Accent, null, "Coming in the next update", null),
         Tile("Field Days", AppIcons.Event, Fs.AccentContainer, Fs.Accent, null, "Coming in the next update", null),
     )

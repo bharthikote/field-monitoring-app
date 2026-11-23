@@ -37,4 +37,14 @@ class SearchTest {
         assertEquals(listOf("p1"), Search.plots(plots, "tomato").map { it.id })
         assertEquals(listOf("p2"), Search.plots(plots, "1234567891").map { it.id })
     }
+
+    @Test fun demosAreOneListSearchableByDemoType() {
+        val plots = listOf(
+            DemoPlot("p1", "f1", "Asha", "111111111", "ongoing", "demo", cropName = "Tomato", varietyName = "A", villageId = "v"),
+            DemoPlot("p2", "f2", "Ravi", "222222222", "ongoing", "adoption", cropName = "Tomato", varietyName = "B", villageId = "v"),
+        )
+        assertEquals("Adoption Plot", plots[1].demoTypeLabel)
+        assertEquals(listOf("p2"), Search.plots(plots, "adoption").map { it.id })
+        assertEquals(2, Search.plots(plots, "tomato").size)
+    }
 }

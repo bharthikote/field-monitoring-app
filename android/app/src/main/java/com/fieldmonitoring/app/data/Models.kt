@@ -76,7 +76,15 @@ data class DemoPlot(
     @SerialName("village_id") val villageId: String,
     @SerialName("village_name") val villageName: String? = null,
     @SerialName("district_name") val districtName: String? = null,
-)
+) {
+    /**
+     * Demo plots and adoption plots are one list: the plot's "Demo Type"
+     * (plot_type on the server) says which it is.
+     */
+    val demoTypeLabel: String get() = demoTypeLabel(plotType)
+}
+
+fun demoTypeLabel(plotType: String) = if (plotType == "adoption") "Adoption Plot" else "Demo Plot"
 
 @Serializable
 data class MasterItem(

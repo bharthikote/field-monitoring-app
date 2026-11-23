@@ -26,6 +26,7 @@ object Search {
         return all.filter {
             it.farmerName.contains(q, true) || it.farmerPhone.contains(q) ||
                 it.cropName.contains(q, true) || it.varietyName.contains(q, true) ||
+                it.demoTypeLabel.contains(q, true) ||
                 (it.villageName?.contains(q, true) == true)
         }
     }

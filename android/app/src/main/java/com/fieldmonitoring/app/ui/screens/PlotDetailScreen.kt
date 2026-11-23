@@ -87,7 +87,7 @@ fun PlotDetailScreen(vm: AppViewModel, plotId: String) {
             FsCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (plot.plotType == "adoption") "Adoption Plot" else "Demo Plot",
+                        "Demo",
                         color = Fs.Leaf,
                         fontSize = 18.sp,
                         modifier = Modifier.weight(1f),
@@ -106,9 +106,11 @@ fun PlotDetailScreen(vm: AppViewModel, plotId: String) {
                         "Visits" to history.size.toString(),
                         "Open issues" to openIssues.size.toString(),
                         "Unsent" to history.count { it.localState != null && it.localState != RecordState.SENT }.toString(),
+                        "Demo Type" to plot.demoTypeLabel,
                         "Variety" to plot.varietyName,
+                        "Village" to (plot.villageName ?: ""),
                     ),
-                    columns = 4,
+                    columns = 3,
                 )
             }
         }
@@ -125,6 +127,7 @@ fun PlotDetailScreen(vm: AppViewModel, plotId: String) {
                 FsCard {
                     DetailGrid(
                         listOf(
+                            "Demo Type" to plot.demoTypeLabel,
                             "Crop" to plot.cropName,
                             "Variety" to plot.varietyName,
                             "Cycle" to Format.label(plot.cycle).takeIf { plot.cycle != null }.orEmpty(),

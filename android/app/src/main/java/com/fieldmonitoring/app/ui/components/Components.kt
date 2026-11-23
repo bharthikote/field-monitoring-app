@@ -83,7 +83,7 @@ fun TopBar(
                 }
             }
             Box(Modifier.align(Alignment.Center)) { FieldSightLogo(markSize = 30.dp, textSize = 20.sp) }
-            Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 SyncButton(pending, attention, syncing, onSync)
             }
         }
@@ -104,7 +104,7 @@ fun SyncButton(pending: Int, attention: Int, syncing: Boolean, onSync: () -> Uni
             Box(
                 Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 8.dp, y = (-6).dp)
+                    .offset(x = 6.dp, y = (-6).dp)
                     .heightIn(min = 18.dp)
                     .widthIn(min = 18.dp)
                     .clip(CircleShape)

@@ -32,7 +32,7 @@ import com.fieldmonitoring.app.ui.screens.HomeScreen
 import com.fieldmonitoring.app.ui.screens.LogVisitScreen
 import com.fieldmonitoring.app.ui.screens.LoginScreen
 import com.fieldmonitoring.app.ui.screens.PlotDetailScreen
-import com.fieldmonitoring.app.ui.screens.PlotsScreen
+import com.fieldmonitoring.app.ui.screens.DemosScreen
 import com.fieldmonitoring.app.ui.screens.ProfileScreen
 import com.fieldmonitoring.app.ui.theme.Fs
 import kotlinx.coroutines.launch
@@ -88,7 +88,7 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                         Screen.Home -> HomeScreen(vm)
                         Screen.Farmers -> FarmersScreen(vm)
                         is Screen.FarmerDetail -> FarmerDetailScreen(vm, screen.farmerId)
-                        is Screen.Plots -> PlotsScreen(vm, screen.plotType)
+                        Screen.Demos -> DemosScreen(vm)
                         is Screen.PlotDetail -> PlotDetailScreen(vm, screen.plotId)
                         is Screen.LogVisit -> LogVisitScreen(vm, screen.plotId)
                         Screen.Profile -> ProfileScreen(vm)
