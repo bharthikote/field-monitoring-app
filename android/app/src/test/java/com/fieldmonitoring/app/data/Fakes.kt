@@ -50,6 +50,12 @@ class FakeRemote : Remote {
         jsonPosts += path to body
         return jsonAnswers.removeFirstOrNull()?.invoke() ?: """{"ok":true}"""
     }
+    val deletes = mutableListOf<String>()
+    override fun delete(path: String): String {
+        deletes += path
+        return """{"ok":true}"""
+    }
+
     override fun postMultipart(path: String, fields: List<Pair<String, String>>, files: List<FilePart>): String {
         posted += fields
         return answers.removeFirst().invoke()

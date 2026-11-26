@@ -88,6 +88,24 @@ form's "Techniques adopted" list, which the server accepts for Adoption Plots on
 open a plot and log a visit with a photo; it syncs once the phone is back online; and the
 release APK is under 10 MB.
 
+## Feed and Messages (decisions 2026-11-23)
+
+- **Bottom bar:** Home · **Feed** · Farmers · **Issues** · Profile. Issues moves to
+  where Messages was; Feed takes Issues' old place.
+- **Feed** is an Instagram-style stream of success and impact stories from the
+  field. Any user can post one or more photos with a caption (works offline:
+  the post waits in the outbox like a visit). Everyone can like, comment and
+  share.
+- **One feed for everyone**, across all countries. Each post shows the author,
+  their role, and the village and country it is about.
+- **Share as a link** that **anyone can open** without logging in (a public
+  web page with the photos and caption, for WhatsApp, partners and social
+  media). Farmer phone numbers are never shown on it.
+- **Moderation:** authors can delete their own posts and comments; Admin and
+  Super Admin can remove any.
+- **Messages** (internal chat between users) is reached from an icon at the
+  top of the Feed screen only. It is built after the Feed.
+
 ## Decisions needed before coding
 
 1. **App ID.** Keep `com.fieldmonitoring.app` (same as the Expo app). Because the signing key

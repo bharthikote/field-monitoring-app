@@ -13,6 +13,7 @@ import com.fieldmonitoring.app.data.ApiException
 import com.fieldmonitoring.app.data.Bundle
 import com.fieldmonitoring.app.data.Farmer
 import com.fieldmonitoring.app.data.FarmerDraft
+import com.fieldmonitoring.app.data.FeedDraft
 import com.fieldmonitoring.app.data.Issue
 import com.fieldmonitoring.app.data.IssueAction
 import com.fieldmonitoring.app.data.Repository
@@ -34,10 +35,17 @@ sealed interface Screen {
     data class IssueDetail(val issueId: String) : Screen
     data object Messages : Screen
     data object AddFarmer : Screen
+    data object Feed : Screen
+    data object NewPost : Screen
+    data class FeedComments(val postId: String) : Screen
 }
 
-/** The five screens on the bottom bar, in order. */
-val TabScreens: List<Screen> = listOf(Screen.Home, Screen.Issues, Screen.Farmers, Screen.Messages, Screen.Profile)
+/**
+ * The five screens on the bottom bar, in order (decision 2026-11-23): Feed
+ * takes Issues' old place, Issues moves to where Messages was, and Messages
+ * opens from the top of the Feed instead.
+ */
+val TabScreens: List<Screen> = listOf(Screen.Home, Screen.Feed, Screen.Farmers, Screen.Issues, Screen.Profile)
 
 /**
  * App state and navigation (a simple back stack - no navigation library, as
@@ -163,6 +171,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         dataVersion++
         message = "${draft.name.trim()} saved on this phone. It will be sent when there is a connection."
         back()
+        return null
+    }
+
+    /** Saves a new Feed post on the phone; it is sent with the next sync. Returns an error, or null. */
+    fun saveFeedPost(draft: FeedDraft): String? {
+        val error = repo.saveFeedPost(draft)
+        if (error != null) return error
+        SyncWorker.soon(getApplication())
+        dataVersion++
+        message = "Story saved. It will be posted when there is a connection."
+        back()
+        sync(quiet = true)
         return null
     }
 

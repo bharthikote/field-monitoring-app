@@ -81,7 +81,7 @@ class Repository(
     fun logout(force: Boolean): Boolean {
         val unsent = store.byState(RecordState.PENDING) + store.byState(RecordState.ATTENTION)
         if (unsent.isNotEmpty() && !force) return false
-        for (record in store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER)) deletePhotos(record)
+        for (record in store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER) + store.all(RecordKind.FEED_POST)) deletePhotos(record)
         store.clearAll()
         cachedBundle = null
         refreshCounts()
@@ -215,7 +215,7 @@ class Repository(
     }
 
     fun discardRecord(id: String) {
-        (store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER)).firstOrNull { it.id == id }?.let(::deletePhotos)
+        (store.all(RecordKind.VISIT) + store.all(RecordKind.FARMER) + store.all(RecordKind.FEED_POST)).firstOrNull { it.id == id }?.let(::deletePhotos)
         store.delete(id)
         refreshCounts()
     }
@@ -265,6 +265,11 @@ class Repository(
             }
             if (record.kind == RecordKind.FARMER) {
                 if (sendFarmer(record)) sent++
+                refreshCounts()
+                continue
+            }
+            if (record.kind == RecordKind.FEED_POST) {
+                if (sendFeedPost(record)) sent++
                 refreshCounts()
                 continue
             }
@@ -348,6 +353,75 @@ class Repository(
         }
     }
 
+    /** One new Feed post with its photos. Returns true when the server has it. */
+    private fun sendFeedPost(record: OutboxRecord): Boolean {
+        val draft = runCatching { AppJson.decodeFromString<FeedDraft>(record.body) }.getOrNull()
+        if (draft == null) {
+            store.markAttention(record.id, "This record is damaged and can't be sent")
+            return false
+        }
+        val files = draft.photos.mapIndexed { i, path -> FilePart(FeedRules.fileField(i), File(path)) }
+        if (files.any { !it.file.exists() }) {
+            store.markAttention(record.id, "A photo for this post is missing from the phone")
+            return false
+        }
+        return try {
+            remote.postMultipart("/feed", FeedRules.formFields(draft), files)
+            store.markSent(record.id, null)
+            draft.photos.forEach { runCatching { deleteFile(it) } }
+            true
+        } catch (e: ApiException) {
+            if (e.offline || e.relogin) throw e
+            store.markAttention(record.id, e.message ?: "The server refused this post")
+            false
+        }
+    }
+
+    // --- Feed ---
+
+    /** Newest posts (first page is kept on the phone for offline viewing). */
+    suspend fun fetchFeed(before: String? = null): List<FeedPost> = withContext(io) {
+        val text = remote.get("/feed" + (before?.let { "?before=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: ""))
+        if (before == null) store.putValue(KEY_FEED, text)
+        AppJson.decodeFromString<FeedPage>(text).posts
+    }
+
+    fun cachedFeed(): List<FeedPost> =
+        store.getValue(KEY_FEED)?.let { runCatching { AppJson.decodeFromString<FeedPage>(it).posts }.getOrNull() }.orEmpty()
+
+    /** Saves a new post on the phone; it is sent with the next sync. Returns an error, or null. */
+    fun saveFeedPost(draft: FeedDraft): String? {
+        FeedRules.validate(draft)?.let { return it }
+        store.add(OutboxRecord(draft.clientId, RecordKind.FEED_POST, AppJson.encodeToString(draft), RecordState.PENDING, draft.createdAtMillis.takeIf { it > 0 } ?: now()))
+        refreshCounts()
+        return null
+    }
+
+    /** Posts written here and not on the server yet, newest first, with their outbox record. */
+    fun unsentFeedPosts(): List<Pair<OutboxRecord, FeedDraft>> =
+        store.all(RecordKind.FEED_POST).filter { it.state != RecordState.SENT }.mapNotNull { record ->
+            runCatching { AppJson.decodeFromString<FeedDraft>(record.body) }.getOrNull()?.let { record to it }
+        }
+
+    suspend fun setLiked(postId: String, liked: Boolean) = withContext(io) {
+        if (liked) remote.postJson("/feed/$postId/like", "{}") else remote.delete("/feed/$postId/like")
+    }
+
+    suspend fun fetchComments(postId: String): List<FeedComment> = withContext(io) {
+        AppJson.decodeFromString<FeedComments>(remote.get("/feed/$postId/comments")).comments
+    }
+
+    suspend fun addComment(postId: String, body: String, clientId: String) = withContext(io) {
+        remote.postJson(
+            "/feed/$postId/comments",
+            AppJson.encodeToString(mapOf("body" to body.trim(), "clientId" to clientId)),
+        )
+    }
+
+    suspend fun deleteComment(commentId: String) = withContext(io) { remote.delete("/feed/comments/$commentId") }
+
+    suspend fun deletePost(postId: String) = withContext(io) { remote.delete("/feed/$postId") }
+
     // --- Farmers registered on this phone ---
 
     /** Who already has [phone]: the downloaded farmers, then ones registered here and not sent yet. */
@@ -420,6 +494,10 @@ class Repository(
             runCatching { AppJson.decodeFromString<FarmerDraft>(record.body).photo?.let(deleteFile) }
             return
         }
+        if (record.kind == RecordKind.FEED_POST) {
+            runCatching { AppJson.decodeFromString<FeedDraft>(record.body).photos.forEach(deleteFile) }
+            return
+        }
         val draft = runCatching { AppJson.decodeFromString<VisitDraft>(record.body) }.getOrNull() ?: return
         draft.photos.values.forEach { runCatching { deleteFile(it) } }
     }
@@ -438,6 +516,7 @@ class Repository(
         const val KEY_BUNDLE = "bundle"
         const val KEY_VISITS = "visits:"
         const val KEY_ISSUES = "issues:"
+        const val KEY_FEED = "feed"
         const val KEY_NEEDS_ACTION = "issues-needs-action"
     }
 }

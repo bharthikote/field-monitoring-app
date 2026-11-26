@@ -30,12 +30,15 @@ interface Remote {
     fun get(path: String): String
     fun postJson(path: String, body: String): String
     fun postMultipart(path: String, fields: List<Pair<String, String>>, files: List<FilePart>): String
+    fun delete(path: String): String
 }
 
 /** The backend's REST API over plain HttpURLConnection (no extra libraries). */
 class Api(private val baseUrl: String, private val token: () -> String?) : Remote {
 
     override fun get(path: String) = call(path, "GET", null, null)
+
+    override fun delete(path: String) = call(path, "DELETE", null, null)
 
     override fun postJson(path: String, body: String) =
         call(path, "POST", "application/json; charset=utf-8") { it.write(body.toByteArray()) }

@@ -32,6 +32,9 @@ import com.fieldmonitoring.app.ui.screens.IssueDetailScreen
 import com.fieldmonitoring.app.ui.screens.IssuesScreen
 import com.fieldmonitoring.app.ui.screens.MessagesScreen
 import com.fieldmonitoring.app.ui.screens.AddFarmerScreen
+import com.fieldmonitoring.app.ui.screens.FeedCommentsScreen
+import com.fieldmonitoring.app.ui.screens.FeedScreen
+import com.fieldmonitoring.app.ui.screens.NewPostScreen
 import com.fieldmonitoring.app.ui.screens.AppDrawer
 import com.fieldmonitoring.app.ui.screens.FarmerDetailScreen
 import com.fieldmonitoring.app.ui.screens.FarmersScreen
@@ -89,6 +92,8 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                     attention = status.attention,
                     syncing = status.syncing,
                     onSync = { vm.sync() },
+                    // Messages only at the top of the Feed (decision 2026-11-23).
+                    onMessages = if (screen is Screen.Feed) ({ vm.open(Screen.Messages) }) else null,
                 )
                 Box(Modifier.weight(1f)) {
                     when (screen) {
@@ -103,6 +108,9 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                         is Screen.IssueDetail -> IssueDetailScreen(vm, screen.issueId)
                         Screen.Messages -> MessagesScreen()
                         Screen.AddFarmer -> AddFarmerScreen(vm)
+                        Screen.Feed -> FeedScreen(vm)
+                        Screen.NewPost -> NewPostScreen(vm)
+                        is Screen.FeedComments -> FeedCommentsScreen(vm, screen.postId)
                         Screen.Login -> Unit
                     }
                 }
@@ -110,9 +118,9 @@ fun FieldSightRoot(vm: AppViewModel = viewModel()) {
                     BottomBar(
                         tabs = listOf(
                             BottomTab("Home", AppIcons.Home),
-                            BottomTab("Issues", AppIcons.Issue, vm.issuesBadge),
+                            BottomTab("Feed", AppIcons.Feed),
                             BottomTab("Farmers", AppIcons.Group),
-                            BottomTab("Messages", AppIcons.Chat),
+                            BottomTab("Issues", AppIcons.Issue, vm.issuesBadge),
                             BottomTab("Profile", AppIcons.Person),
                         ),
                         selected = TabScreens.indexOf(screen),

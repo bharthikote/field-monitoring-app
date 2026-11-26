@@ -65,6 +65,7 @@ fun TopBar(
     attention: Int,
     syncing: Boolean,
     onSync: () -> Unit,
+    onMessages: (() -> Unit)? = null,
 ) {
     Surface(color = Fs.Surface, shadowElevation = 2.dp) {
         Box(
@@ -84,6 +85,9 @@ fun TopBar(
             }
             Box(Modifier.align(Alignment.Center)) { FieldSightLogo(markSize = 30.dp, textSize = 20.sp) }
             Row(Modifier.align(Alignment.CenterEnd).padding(end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onMessages != null) {
+                    IconButton(onMessages) { Icon(AppIcons.Chat, "Messages", tint = Fs.Primary) }
+                }
                 SyncButton(pending, attention, syncing, onSync)
             }
         }
